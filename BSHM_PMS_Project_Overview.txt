@@ -1,0 +1,184 @@
+﻿BSHM Hotel Management System — Full Project Overview
+Project Name: BSHM Property Management System (BSHM-PMS) Client: Bachelor of Science in Hotel/Hospitality Management Department Developer: [Your Name] Document Version: 1.0 Date: March 2026
+
+1. Project Summary
+The BSHM-PMS is a web-based Hotel/Property Management System designed specifically for the BSHM department of the school. It simulates a real-world hotel environment to support academic learning, departmental operations, and practical training for BSHM students. The system mirrors industry-standard Property Management Systems (PMS) while being tailored to the academic context.
+
+2. Tech Stack
+LayerTechnologyFrontendReact.js + Tailwind CSS + ViteBackendNode.js + Express.jsDatabaseFirebase FirestoreAuthenticationFirebase AuthFile StorageFirebase StorageBackend FunctionsFirebase Cloud FunctionsEmail NotificationsNodemailer + Gmail SMTPBooking CalendarFullCalendar.jsAI ChatbotTBD (OpenAI or Gemini API)HostingFirebase Hosting (Frontend) + Cloud Functions (API)
+3. User Roles
+3.1 Guest (User)
+• Register and log in to the system
+• Browse available rooms, rates, and amenities
+• Make room bookings online
+• View booking status and history
+• Receive email notifications
+• Submit room reviews and feedback
+• Interact with the AI chatbot
+• Access demo mode without registration
+3.2 Front Office (FO)
+• Manage guest check-in and check-out
+• Process payments (GCash, Cash, Check, Credit Card)
+• Generate and print receipts
+• Update room statuses (housekeeping workflow)
+• Manage room services
+• Post event announcements
+• Adjust room rates
+• View and manage all active bookings
+• Approve or reject booking requests
+3.3 Admin
+• Access analytics dashboard (occupancy, revenue, trends)
+• Manage user accounts and role assignments
+• Configure system settings
+• Reset or manage training/demo data
+• Oversee full system operations
+
+4. Core Features
+4.1 Guest Management
+• Guest registration form capturing: Full Name, Address, Phone Number, Email
+• Optional fields: Government ID / Passport Number, Number of Guests (pax count), Special Requests
+• Guest profile page showing booking history and stay details
+• Returning guest detection and profile auto-fill
+4.2 Room Management
+Room Types (Current):
+• Single Room
+• Suite Room
+• Presidential Room
+The system is designed to be scalable — Admin can add new room types and rooms at any time.
+Room Attributes per Room:
+• Room number and name
+• Room type
+• Description
+• Rate per night
+• Amenities list (with icons)
+• Photo gallery (stored in Firebase Storage)
+• Current status
+• Floor/location
+4.3 Room Status & Housekeeping Workflow
+StatusColorDescriptionAvailableGreenClean, approved, and ready to bookReservedPurpleBooked but guest not yet checked inOccupiedRedGuest is currently checked inBeing CleanedBlueHousekeeping is actively cleaningPending ApprovalYellowCleaned, awaiting supervisor sign-offOut of OrderGrayUnder maintenance, not bookableDirty / Needs CleaningOrangeGuest checked out, awaiting housekeepingHousekeeping Workflow:
+1. Guest checks out → Room auto-set to Dirty
+2. Housekeeping staff updates to Being Cleaned
+3. Housekeeping marks as Pending Approval
+4. Supervisor (FO role) approves → Room set to Available
+4.4 Booking System
+• Centralized calendar view (FullCalendar.js) showing all bookings per room
+• Standard check-in time: 2:00 PM | Check-out time: 12:00 NN
+• Double-booking prevention with clear error messages
+• Booking types: Online (guest self-books) and Walk-in (FO creates booking)
+• Night and total cost calculator on booking form
+• Booking status flow:
+  Pending → Approved → Checked In → Checked Out → Cancelled
+• Cancellation with reason field
+4.5 Payment System
+Accepted Payment Methods:
+• GCash (reference number capture)
+• Cash
+• Check (check number and bank capture)
+• Credit Card (last 4 digits capture — no full card storage)
+Payment Features:
+• Partial payment / deposit tracking
+• Guest folio (itemized billing summary per stay)
+• Outstanding balance indicator before checkout
+• Receipt generation (printable and downloadable PDF)
+4.6 Announcements & Events
+• FO can post event announcements visible on the guest-facing landing page
+• Announcements include: Title, Description, Date, Image (optional)
+4.7 Room Reviews & Feedback
+• Guests can submit a review after checkout
+• Star rating (1–5) + written feedback
+• Reviews displayed on the room detail page
+
+5. Pages & Navigation
+5.1 Public / Guest-Facing Pages
+PageDescriptionLanding PageHero with hotel image background, room showcase, announcements, AI chatbot widgetRooms PageAll available rooms with filters (type, price, availability)Room Detail PagePhotos, description, amenities, rates, reviews, Book Now buttonBooking PageDate picker, guest info form, room summary, booking confirmationLogin / RegisterGuest authenticationDemo Access PageRole selector (Guest, FO, Admin) for training/demo modeMy BookingsGuest’s booking history and status tracker5.2 Front Office Dashboard Pages
+PageDescriptionFO DashboardRoom grid with color-coded statuses, quick-action buttonsCheck-InVerify booking, capture guest info, assign roomCheck-OutFinal bill (folio), collect payment, generate receiptHousekeepingUpdate room cleaning statusPaymentsPayment processing and historyAnnouncementsCreate and manage announcementsRoom RatesAdjust pricing per room typeBookingsView and manage all bookings5.3 Admin Dashboard Pages
+PageDescriptionAnalyticsOccupancy rate, revenue summary, booking trends, peak periodsUser ManagementView all users, assign/change rolesRoom ManagementAdd, edit, or deactivate roomsSystem SettingsGeneral configuration, training mode toggleTraining Data ResetClear all demo/training data
+6. AI Chatbot
+• Floating widget on the landing page (bottom-right corner)
+• Handles guest inquiries such as:
+– Room availability queries
+– Booking process guidance
+– Amenities and hotel policies
+– Check-in and check-out information
+• API: TBD (OpenAI GPT or Google Gemini)
+• The chatbot is context-aware of the hotel’s current data (room types, rates, policies)
+
+7. Automated Email Notifications
+Triggered automatically at key events using Nodemailer + Gmail SMTP:
+TriggerEmail SentBooking submittedBooking Confirmation (with booking details)Booking approved by FOBooking Approved notificationBooking rejectedBooking Rejected with reason1 day before check-inCheck-in ReminderBooking cancelledCancellation ConfirmationPayment receivedPayment Receipt
+8. Demo / Training Mode
+8.1 Demo Button (Landing Page)
+• Visible to all visitors on the landing page alongside the Login button
+• One-click access — no registration required
+• Role selector popup: Guest, Front Office, or Admin
+• Loads a sandboxed environment with pre-populated fake data
+• Clear banner throughout: “Demo Mode — No real data will be affected”
+8.2 Instructor Training Mode (Admin-Controlled)
+• Admin can toggle Training Mode ON/OFF from the Admin dashboard
+• When active, all actions are saved to a separate Firestore collection (training data)
+• Students log in using school credentials or a session/class code
+• Instructor can reset all training data at any time (e.g., start of new semester)
+• Training session code can be generated with an expiry date
+• Mirrors real hotel industry practice of sandbox environments for staff training
+
+9. Design System
+9.1 Color Theme
+RoleColorHexPrimaryLuxurious Yellow#F5C518BackgroundSmoky White#F4F4F2Accent DarkDeep Charcoal#1C1C1ESuccessGreen#22C55EWarningOrange#F97316DangerRed#EF4444InfoBlue#3B82F6MutedGray#6B7280ReservedPurple#8B5CF69.2 Typography
+• Headings: Playfair Display (luxurious, elegant)
+• Body: Inter (clean, readable)
+9.3 Landing Page Layout
+1. Hero Section — Full-screen hotel/building photo background with headline, subtext, and “Book Now” + “Try Demo” CTA buttons
+2. Room Showcase — Cards showing room types with photo, brief description, rate, and availability
+3. Amenities Highlight — Icon grid of hotel amenities
+4. Announcements / Events — Latest event cards from FO
+5. Reviews Section — Highlighted guest reviews
+6. Footer — Contact info, quick links
+7. AI Chatbot Widget — Floating button (bottom-right)
+
+10. Firebase Data Architecture (Firestore Collections)
+CollectionDescriptionusersAll user profiles with role field (guest, fo, admin)roomsRoom documents with type, status, rate, amenities, photosbookingsAll bookings with guest ref, room ref, dates, status, payment infopaymentsPayment records linked to bookingsannouncementsEvent and announcement postsreviewsGuest reviews linked to rooms and bookingshousekeeping_logsRoom status change historytraining_bookingsMirror of bookings for training modetraining_guestsMirror of users for training modechat_logsOptional: AI chatbot conversation logs
+11. Project Phases (Development Roadmap)
+Phase 1 — Foundation
+• Project setup (React + Vite + Tailwind, Node + Express, Firebase config)
+• Firebase Auth integration (login, register, role-based routing)
+• Firestore data models and seed data
+• Landing page (static layout, no dynamic data yet)
+Phase 2 — Core Features
+• Room management (CRUD for Admin)
+• Room status display with color coding
+• Guest booking flow (browse → select → book → confirm)
+• Booking calendar (FullCalendar.js)
+• Double-booking prevention logic
+Phase 3 — Operations
+• FO dashboard (room grid, check-in, check-out)
+• Housekeeping workflow
+• Payment processing and receipt generation
+• Guest folio / billing summary
+Phase 4 — Communication
+• Email notification system (Nodemailer)
+• Automated triggers for all booking events
+• AI chatbot integration
+Phase 5 — Admin & Analytics
+• Admin analytics dashboard (occupancy, revenue, trends)
+• User and role management
+• System settings
+Phase 6 — Training Mode & Polish
+• Demo button + role selector
+• Training Mode toggle and session code generation
+• Training data reset
+• UI polish, responsiveness, accessibility
+• Testing and bug fixes
+
+12. Key Technical Notes for AI Agent
+• All Firebase calls should be abstracted into service files (e.g., bookingService.js, roomService.js) — never call Firestore directly from components
+• Use React Context or Zustand for global state (auth state, current user role)
+• Role-based route protection using React Router + custom PrivateRoute component
+• Cloud Functions handle: email triggers, booking approval logic, training data isolation
+• Training Mode data must be stored in separate Firestore collections (prefix: training_) to prevent pollution of real data
+• Room status updates must use Firestore transactions to prevent race conditions
+• FullCalendar must be connected to live Firestore booking data with real-time listeners (onSnapshot)
+• All file uploads (room images, receipts) go through Firebase Storage with organized folder structure: /rooms/{roomId}/, /receipts/{bookingId}/
+• Receipt PDF generation can be done client-side using jsPDF or react-pdf
+• Environment variables for all API keys — never hardcoded
+
+End of Project Overview Document

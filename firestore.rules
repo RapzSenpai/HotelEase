@@ -1,0 +1,201 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // --- AUTH HELPERS ---
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAnonymous() {
+      return isAuthenticated() && request.auth.token.firebase.sign_in_provider == 'anonymous';
+    }
+
+    function isOwner(uid) {
+      return isAuthenticated() && request.auth.uid == uid;
+    }
+
+    // FIX: Separated prod and training role helpers.
+    // getProdRole only reads /users — never training_guests.
+    function getProdRole() {
+      let path = /databases/$(database)/documents/users/$(request.auth.uid);
+      return exists(path) ? get(path).data.role : 'guest';
+    }
+
+    // getTrainingRole reads /training_guests (Training mode)
+    function getTrainingRole() {
+      let path = /databases/$(database)/documents/training_guests/$(request.auth.uid);
+      return exists(path) ? get(path).data.role : 'guest';
+    }
+
+    // FIX: isProdFOOrAdmin only reads prod users collection.
+    // This prevents the spurious 10-read limit errors on analytics.
+    function isProdFOOrAdmin() {
+      let r = getProdRole();
+      return r == 'fo' || r == 'admin';
+    }
+
+    function isProdAdmin() {
+      return getProdRole() == 'admin';
+    }
+
+    function isFOorAdmin() {
+      return isProdFOOrAdmin() || isTrainingFOOrAdmin();
+    }
+
+    function isAdmin() {
+      return isProdAdmin() || (isAuthenticated() && getTrainingRole() == 'admin');
+    }
+
+    // FIX: isTrainingFOOrAdmin reads training_guests
+    function isTrainingFOOrAdmin() {
+      let r = getTrainingRole();
+      return r == 'fo' || r == 'admin';
+    }
+
+    // --- PRODUCTION COLLECTIONS (Protected) ---
+
+    match /users/{uid} {
+      // Allow any signed-in (non-anonymous) user to read user docs.
+      // Needed so guests can query FO staff when sending cancellation notifications.
+      // User docs only contain: uid, email, fullName, role — no sensitive data.
+      allow read: if isAuthenticated() && !isAnonymous();
+      allow create: if isOwner(uid) && !isAnonymous();
+      allow update: if (isOwner(uid) || isProdFOOrAdmin()) && !isAnonymous();
+      allow delete: if isProdAdmin() && !isAnonymous();
+
+      // Favorites subcollection - users can manage their own favorites
+      match /favorites/{roomId} {
+        allow read, create, delete: if isOwner(uid) && !isAnonymous();
+      }
+    }
+
+    match /rooms/{roomId} {
+      allow read: if true;
+      allow create, delete: if isProdFOOrAdmin() && !isAnonymous();
+      allow update: if (isProdFOOrAdmin() && !isAnonymous()) ||
+                       (isAuthenticated() && !isAnonymous() &&
+                        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt', 'statusChangedAt']) &&
+                        request.resource.data.status == 'Available');
+    }
+
+    match /bookings/{id} {
+      // Read: Allow all authenticated users so they can fetch room availability for the calendar.
+      allow read: if isAuthenticated();
+      
+      // CREATE: GuestId must match authenticated user
+      allow create: if isAuthenticated() && 
+                       !isAnonymous() && 
+                       request.resource.data.guestId == request.auth.uid;
+
+      // UPDATE: FO/Admin can update anything.
+      // Guests can self-cancel their OWN bookings only when status is Pending or Approved.
+      allow update: if (isProdFOOrAdmin() && !isAnonymous() && 
+                          (request.resource.data.status != "Checked Out" || 
+                           request.resource.data.payment.deposit >= resource.data.totalCost)) ||
+                       (isAuthenticated() && !isAnonymous() &&
+                        isOwner(resource.data.guestId) &&
+                        ((resource.data.status == "Pending" && request.resource.data.status == "Cancelled") ||
+                         (resource.data.status == "Approved" && request.resource.data.status == "Cancellation Requested")));
+
+      allow delete: if isProdFOOrAdmin() && !isAnonymous();
+    }
+
+    match /payments/{id} {
+      allow read, write: if isProdFOOrAdmin() && !isAnonymous();
+    }
+
+    // --- TRAINING COLLECTIONS (training_*) ---
+
+    match /training_guests/{uid} {
+      allow read: if isOwner(uid) || isProdFOOrAdmin() || isTrainingFOOrAdmin();
+      // Allow trainees to create profile, and Prod staff to seed demo users
+      allow create: if isOwner(uid) || isProdFOOrAdmin(); 
+      allow update: if isOwner(uid) || isProdFOOrAdmin() || isTrainingFOOrAdmin();
+      allow delete: if isProdFOOrAdmin() || isTrainingFOOrAdmin();
+    }
+    
+    match /training_bookings/{id} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && 
+                       (request.resource.data.guestId == request.auth.uid || isProdFOOrAdmin());
+      allow update: if (isAuthenticated() && 
+                               (isProdFOOrAdmin() || isTrainingFOOrAdmin()) &&
+                               (request.resource.data.status != "Checked Out" || 
+                                request.resource.data.payment.deposit >= resource.data.totalCost)) ||
+                       (isAuthenticated() &&
+                        isOwner(resource.data.guestId) &&
+                        ((resource.data.status == "Pending" && request.resource.data.status == "Cancelled") ||
+                         (resource.data.status == "Approved" && request.resource.data.status == "Cancellation Requested")));
+      allow delete: if isAuthenticated() && 
+                               (isOwner(resource.data.guestId) || isProdFOOrAdmin() || isTrainingFOOrAdmin());
+    }
+    
+    match /training_payments/{id} {
+      allow read, write: if isAuthenticated();
+    }
+
+    match /training_housekeeping_logs/{id} {
+      allow read, write: if isAuthenticated();
+    }
+
+    match /training_rooms/{id} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    match /training_reviews/{id} {
+      allow read: if true;
+      allow create: if isAuthenticated();
+      allow update, delete: if isAuthenticated();
+    }
+
+    // Public config
+    match /users/system {
+      allow read: if true;
+      allow write: if isProdFOOrAdmin() && !isAnonymous();
+    }
+    
+    // Additional Production Collections
+    match /housekeeping_logs/{id} {
+      allow read, write: if isProdFOOrAdmin() && !isAnonymous();
+    }
+
+    match /announcements/{id} {
+      allow read: if true;
+      allow write: if isProdFOOrAdmin() && !isAnonymous();
+    }
+
+    match /reviews/{id} {
+      allow read: if true;
+      allow create: if isAuthenticated() && !isAnonymous();
+      allow update, delete: if (isOwner(resource.data.uid) || isProdFOOrAdmin()) && !isAnonymous();
+    }
+
+    match /notifications/{userId}/items/{notifId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow create: if isAuthenticated() &&
+                       request.resource.data.type in ["booking_request","booking_approved","booking_rejected","booking_cancelled","room_dirty","announcement","support_message","cancellation_requested","cancellation_approved","cancellation_rejected"] &&
+                       request.resource.data.isRead == false &&
+                       request.resource.data.keys().hasAll(['title', 'message', 'link', 'createdAt']);
+    }
+
+    match /messages/{messageId} {
+      allow create: if request.resource.data.get('honeypot', '') == '';
+      allow read, update: if isFOorAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /testimonials/{id} {
+      allow read: if resource.data.status == "Approved" || isFOorAdmin();
+      allow create: if isAuthenticated() && !isAnonymous() &&
+                       request.resource.data.guestId == request.auth.uid &&
+                       request.resource.data.status == "Pending";
+      allow update, delete: if isFOorAdmin() && !isAnonymous();
+    }
+  }
+}
+
+

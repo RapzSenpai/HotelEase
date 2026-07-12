@@ -8,6 +8,14 @@ const __dirname = path.dirname(__filename)
 
 export default defineConfig({
   plugins: [react()],
+
+  server: {
+    host: true,
+    allowedHosts: [
+      'ocelot-stew-briskness.ngrok-free.dev',
+    ],
+  },
+
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
