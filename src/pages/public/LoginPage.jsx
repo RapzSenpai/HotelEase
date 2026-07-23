@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import RequiredIndicator from "@/components/common/RequiredIndicator";
 import { useAuth } from "@/contexts/AuthContext";
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import { Eye, EyeOff, AlertTriangle } from "lucide-react";
@@ -85,7 +86,7 @@ export default function LoginPage() {
 
       <form className="space-y-4 rounded-xl border border-border bg-background p-6 shadow-sm" onSubmit={onSubmit}>
         <div className="space-y-2">
-          <Label htmlFor="email">Email Address</Label>
+          <Label htmlFor="email">Email Address<RequiredIndicator /></Label>
           <Input
             id="email"
             type="email"
@@ -100,7 +101,7 @@ export default function LoginPage() {
 
         <div className="space-y-2">
           <div className="flex items-center justify-between gap-3">
-            <Label htmlFor="password">Password</Label>
+            <Label htmlFor="password">Password<RequiredIndicator /></Label>
             <Link
               to="/forgot-password"
               className="text-xs text-foreground/55 hover-surface-text shrink-0"

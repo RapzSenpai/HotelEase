@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import RequiredIndicator from "@/components/common/RequiredIndicator";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -389,7 +390,7 @@ function SlideOverForm({ open, onClose, editingId, form, setForm, submitError, s
 
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="so-roomNumber">Room Number *</Label>
+                <Label htmlFor="so-roomNumber">Room Number <RequiredIndicator /></Label>
                 <Input
                   id="so-roomNumber"
                   required
@@ -408,7 +409,7 @@ function SlideOverForm({ open, onClose, editingId, form, setForm, submitError, s
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="so-name">Room Name *</Label>
+              <Label htmlFor="so-name">Room Name <RequiredIndicator /></Label>
               <Input
                 id="so-name"
                 required
@@ -483,7 +484,7 @@ function SlideOverForm({ open, onClose, editingId, form, setForm, submitError, s
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="so-rate">Rate per Night *</Label>
+              <Label htmlFor="so-rate">Rate per Night <RequiredIndicator /></Label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-foreground/40 font-medium">PHP</span>
                 <Input

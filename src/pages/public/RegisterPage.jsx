@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import RequiredIndicator from "@/components/common/RequiredIndicator";
 import { useAuth } from "@/contexts/AuthContext";
 import { NavLink, useNavigate } from "react-router-dom";
 import { Eye, EyeOff } from "lucide-react";
@@ -82,7 +83,7 @@ export default function RegisterPage() {
         />
 
         <div className="space-y-2">
-          <Label htmlFor="fullName">Full Name</Label>
+          <Label htmlFor="fullName">Full Name<RequiredIndicator /></Label>
           <Input
             id="fullName"
             required
@@ -94,7 +95,7 @@ export default function RegisterPage() {
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="email">Email</Label>
+          <Label htmlFor="email">Email<RequiredIndicator /></Label>
           <Input
             id="email"
             type="email"
@@ -108,7 +109,7 @@ export default function RegisterPage() {
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="password">Password</Label>
+          <Label htmlFor="password">Password<RequiredIndicator /></Label>
           <div className="relative">
             <Input
               id="password"

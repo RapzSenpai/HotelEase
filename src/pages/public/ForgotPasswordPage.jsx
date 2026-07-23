@@ -4,6 +4,7 @@ import { CheckCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import RequiredIndicator from "@/components/common/RequiredIndicator";
 import { useAuth } from "@/contexts/AuthContext";
 
 const SUCCESS_MESSAGE =
@@ -81,7 +82,7 @@ export default function ForgotPasswordPage() {
         ) : (
           <form className="space-y-4" onSubmit={onSubmit}>
             <div className="space-y-2">
-              <Label htmlFor="email">Email Address</Label>
+              <Label htmlFor="email">Email Address<RequiredIndicator /></Label>
               <Input
                 id="email"
                 type="email"

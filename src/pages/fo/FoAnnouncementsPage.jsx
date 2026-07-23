@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import RequiredIndicator from "@/components/common/RequiredIndicator";
 import { Textarea } from "@/components/ui/textarea";
 import { Upload, Edit, Trash2, X, Plus, Calendar } from "lucide-react";
 import {
@@ -11,7 +12,6 @@ import {
   listAnnouncements,
 } from "@/services/announcementsService";
 import { uploadImageToCloudinary } from "@/services/cloudinaryService";
-import RoomStatusBadge from "@/components/rooms/RoomStatusBadge";
 
 function formatDate(dateLike) {
   try {
@@ -50,9 +50,9 @@ function AnnouncementPhotoUploader({ imageUrl, onChange }) {
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2">
       {imageUrl && (
-        <div className="relative group w-full aspect-video rounded-xl overflow-hidden border border-border bg-muted/10">
+        <div className="relative group w-full h-24 rounded-lg overflow-hidden border border-border bg-muted/10">
           <img
             src={imageUrl}
             alt="Preview"
@@ -61,20 +61,20 @@ function AnnouncementPhotoUploader({ imageUrl, onChange }) {
           <button
             type="button"
             onClick={() => onChange(null)}
-            className="absolute top-2 right-2 flex h-8 w-8 items-center justify-center rounded-full bg-destructive/90 text-white shadow-lg hover:bg-destructive transition-colors backdrop-blur-sm"
+            className="absolute top-1.5 right-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-destructive/90 text-white shadow-sm hover:bg-destructive transition-colors"
           >
-            <X className="h-4 w-4" />
+            <X className="h-3 w-3" />
           </button>
         </div>
       )}
 
       {uploadProgress !== null && (
-        <div className="space-y-1.5 p-3 rounded-lg border border-border bg-background/50">
-          <div className="flex items-center justify-between text-xs font-medium">
-            <span className="text-foreground/70">Uploading image...</span>
+        <div className="space-y-1 p-2 rounded-lg border border-border bg-background/50">
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-foreground/70">Uploading...</span>
             <span className="text-primary tabular-nums">{uploadProgress}%</span>
           </div>
-          <div className="h-1.5 w-full rounded-full bg-border overflow-hidden">
+          <div className="h-1 w-full rounded-full bg-border overflow-hidden">
             <div
               className="h-full bg-primary transition-all duration-300 ease-out"
               style={{ width: `${uploadProgress}%` }}
@@ -84,20 +84,15 @@ function AnnouncementPhotoUploader({ imageUrl, onChange }) {
       )}
 
       {error && (
-        <div className="text-xs font-medium text-destructive bg-destructive/5 p-2 rounded-lg border border-destructive/20">
+        <div className="text-xs text-destructive bg-destructive/5 p-1.5 rounded border border-destructive/20">
           {error}
         </div>
       )}
 
       {!imageUrl && uploadProgress === null && (
-        <label className="flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border bg-muted/5 p-8 text-center transition-all hover:border-primary/50 hover:bg-surface-hover cursor-pointer group">
-          <div className="p-3 rounded-full bg-background border border-border shadow-sm group-hover:bg-surface-hover transition-colors">
-            <Upload className="h-6 w-6 text-foreground/40" />
-          </div>
-          <div className="space-y-1">
-            <p className="text-sm font-semibold">Click to upload header image</p>
-            <p className="text-xs text-foreground/50">PNG, JPG or JPEG (Max 5MB)</p>
-          </div>
+        <label className="flex items-center justify-center gap-2 rounded-lg border border-dashed border-border bg-muted/5 py-3 text-center transition-all hover:border-primary/50 hover:bg-surface-hover cursor-pointer group">
+          <Upload className="h-4 w-4 text-foreground/40 group-hover:text-primary/60 transition-colors" />
+          <span className="text-xs font-medium text-foreground/60">Upload cover image</span>
           <input
             type="file"
             accept="image/*"
@@ -188,12 +183,12 @@ export default function FoAnnouncementsPage() {
   }
 
   return (
-    <div className="space-y-8 pb-12">
-      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
-        <div className="space-y-1.5">
-          <h1 className="font-playfair text-4xl font-semibold tracking-tight">Announcements</h1>
-          <p className="text-foreground/60 max-w-lg">
-            Manage events and updates displayed on the guest landing page.
+    <div className="space-y-6 pb-8">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="font-playfair text-2xl font-semibold tracking-tight">Announcements</h1>
+          <p className="text-sm text-foreground/50">
+            Manage events displayed on the landing page.
           </p>
         </div>
       </div>
@@ -204,65 +199,65 @@ export default function FoAnnouncementsPage() {
         </div>
       ) : null}
 
-      <div className="grid gap-8 lg:grid-cols-12">
+      <div className="grid gap-6 lg:grid-cols-12">
         {/* Editor Column */}
-        <div className="lg:col-span-5">
+        <div className="lg:col-span-4">
           <div className="sticky top-24">
             <form
               onSubmit={onSubmit}
-              className="rounded-2xl border border-border bg-background p-6 shadow-sm space-y-5"
+              className="rounded-xl border border-border bg-background p-4 shadow-sm space-y-4"
             >
-              <div className="flex items-center gap-2 mb-2">
-                <div className={`p-2 rounded-lg ${editingId ? "bg-primary/10" : "bg-primary/10"}`}>
-                  <Plus className={`h-5 w-5 ${editingId ? "text-primary" : "text-primary"}`} />
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 rounded-md bg-primary/10">
+                  <Plus className="h-4 w-4 text-primary" />
                 </div>
-                <h2 className="text-lg font-bold">{editingId ? "Edit Announcement" : "Create New Announcement"}</h2>
+                <h2 className="text-sm font-semibold">{editingId ? "Edit Announcement" : "New Announcement"}</h2>
               </div>
 
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="title" className="text-xs font-bold uppercase tracking-wider text-foreground/50">Title</Label>
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="title" className="text-xs font-medium text-foreground/60">Title<RequiredIndicator /></Label>
                   <Input
                     id="title"
-                    placeholder="E.g. Summer Beach Party 2026"
+                    placeholder="e.g. Summer Beach Party 2026"
                     value={form.title}
                     onChange={(e) => setForm(p => ({ ...p, title: e.target.value }))}
                     required
-                    className="h-11 rounded-lg"
+                    className="h-9 text-sm"
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="date" className="text-xs font-bold uppercase tracking-wider text-foreground/50">Event Date</Label>
-                  <div className="relative group">
+                <div className="space-y-1.5">
+                  <Label htmlFor="date" className="text-xs font-medium text-foreground/60">Event Date<RequiredIndicator /></Label>
+                  <div className="relative">
                     <Input
                       id="date"
                       type="date"
                       value={form.date}
                       onChange={(e) => setForm(p => ({ ...p, date: e.target.value }))}
                       required
-                      className="h-11 rounded-lg pr-10 border-border [&::-webkit-calendar-picker-indicator]:hidden"
+                      className="h-9 text-sm pr-9 border-border [&::-webkit-calendar-picker-indicator]:hidden"
                       onClick={(e) => e.currentTarget.showPicker?.()}
                       onFocus={(e) => e.target.blur()}
                     />
-                    <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-foreground/40 pointer-events-none" />
+                    <Calendar className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-foreground/40 pointer-events-none" />
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="description" className="text-xs font-bold uppercase tracking-wider text-foreground/50">Description</Label>
+                <div className="space-y-1.5">
+                  <Label htmlFor="description" className="text-xs font-medium text-foreground/60">Description<RequiredIndicator /></Label>
                   <Textarea
                     id="description"
                     placeholder="Tell guests what's happening..."
                     value={form.description}
                     onChange={(e) => setForm(p => ({ ...p, description: e.target.value }))}
                     required
-                    className="min-h-[140px] rounded-lg resize-none"
+                    className="min-h-[80px] text-sm rounded-lg resize-none"
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <Label className="text-xs font-bold uppercase tracking-wider text-foreground/50">Cover Photo</Label>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium text-foreground/60">Cover Photo</Label>
                   <AnnouncementPhotoUploader
                     imageUrl={form.imageUrl}
                     onChange={url => setForm(p => ({ ...p, imageUrl: url }))}
@@ -270,19 +265,19 @@ export default function FoAnnouncementsPage() {
                 </div>
               </div>
 
-              <div className="pt-2 flex flex-col gap-2">
-                <Button type="submit" disabled={submitting} size="lg" className="w-full">
-                  {submitting ? "Saving..." : editingId ? "Save Changes" : "Publish Announcement"}
+              <div className="flex flex-col gap-1.5 pt-1">
+                <Button type="submit" disabled={submitting} size="sm" className="w-full h-9">
+                  {submitting ? "Saving..." : editingId ? "Save Changes" : "Publish"}
                 </Button>
                 {editingId && (
                   <Button
                     type="button"
-                    variant="secondary"
-                    size="lg"
-                    className="w-full bg-muted/10 text-foreground hover:bg-surface-hover border-transparent"
+                    variant="ghost"
+                    size="sm"
+                    className="w-full h-8 text-xs"
                     onClick={resetForm}
                   >
-                    Cancel Editing
+                    Cancel
                   </Button>
                 )}
               </div>
@@ -291,81 +286,68 @@ export default function FoAnnouncementsPage() {
         </div>
 
         {/* List Column */}
-        <div className="lg:col-span-7 space-y-6">
-          <div className="flex items-center justify-between px-2">
-            <h3 className="text-sm font-bold uppercase tracking-widest text-foreground/40">Active Announcements</h3>
-            <span className="text-xs text-foreground/40 font-medium">Showing {announcements.length} posts</span>
+        <div className="lg:col-span-8 space-y-4">
+          <div className="flex items-center justify-between px-1">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-foreground/40">Published</h3>
+            <span className="text-xs text-foreground/40">{announcements.length}</span>
           </div>
 
           {loading ? (
-            <div className="grid gap-4">
+            <div className="space-y-2">
               {[1, 2, 3].map(i => (
-                <div key={i} className="h-48 rounded-2xl bg-muted/20 animate-pulse border border-border" />
+                <div key={i} className="h-16 rounded-lg bg-muted/20 animate-pulse border border-border" />
               ))}
             </div>
           ) : announcements.length === 0 ? (
-            <div className="rounded-2xl border-2 border-dashed border-border p-12 text-center bg-muted/5">
-              <p className="text-sm text-foreground/50">No published announcements found.</p>
+            <div className="rounded-lg border border-dashed border-border p-8 text-center bg-muted/5">
+              <p className="text-sm text-foreground/50">No announcements yet.</p>
             </div>
           ) : (
-            <div className="grid gap-5">
+            <div className="space-y-1.5">
               {announcements.map((a) => (
                 <div
                   key={a.id}
-                  className="group rounded-2xl border border-border bg-background overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-200"
+                  className="group flex items-center gap-3 rounded-lg border border-border/60 bg-background p-2.5 hover:bg-muted/30 transition-colors"
                 >
-                  <div className="flex flex-col md:flex-row h-full">
-                    <div className="md:w-1/3 aspect-video md:aspect-auto">
-                      {a.imageUrl ? (
-                        <img
-                          src={a.imageUrl}
-                          alt={a.title}
-                          className="h-full w-full object-cover"
-                        />
-                      ) : (
-                        <div className="h-full w-full bg-muted/20 flex items-center justify-center text-foreground/20 italic text-xs">
-                          No Image
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="flex-1 p-5 sm:p-6 flex flex-col justify-between">
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between gap-4">
-                          <RoomStatusBadge status={a.status || "Published"} />
-                          <span className="text-[10px] font-bold uppercase tracking-tighter text-foreground/40 bg-muted/20 px-2 py-0.5 rounded-md">
-                            {formatDate(a.date)}
-                          </span>
-                        </div>
-
-                        <div className="space-y-1">
-                          <h4 className="text-lg font-bold leading-tight line-clamp-1">{a.title}</h4>
-                          <p className="text-sm text-foreground/60 line-clamp-2 leading-relaxed">
-                            {a.description}
-                          </p>
-                        </div>
+                  <div className="h-12 w-16 shrink-0 rounded-md overflow-hidden bg-muted/20">
+                    {a.imageUrl ? (
+                      <img
+                        src={a.imageUrl}
+                        alt={a.title}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <div className="h-full w-full flex items-center justify-center text-foreground/20">
+                        <Calendar className="h-4 w-4" />
                       </div>
+                    )}
+                  </div>
 
-                      <div className="mt-6 flex items-center gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-9 px-4 rounded-lg bg-background hover:bg-surface-hover font-medium"
-                          onClick={() => startEdit(a)}
-                        >
-                          <Edit className="h-3.5 w-3.5 mr-2" />
-                          Edit
-                        </Button>
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          className="h-9 w-9 p-0 rounded-lg shadow-sm"
-                          onClick={() => onDelete(a.id)}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-sm font-medium truncate">{a.title}</h4>
+                      <span className="text-[10px] text-foreground/40 shrink-0">{formatDate(a.date)}</span>
                     </div>
+                    <p className="text-xs text-foreground/50 truncate mt-0.5">{a.description}</p>
+                  </div>
+
+                  <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 w-7 p-0"
+                      onClick={() => startEdit(a)}
+                    >
+                      <Edit className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 w-7 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                      onClick={() => onDelete(a.id)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
                   </div>
                 </div>
               ))}

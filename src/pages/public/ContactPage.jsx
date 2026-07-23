@@ -7,6 +7,7 @@ import { submitMessage } from "@/services/messageService";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import RequiredIndicator from "@/components/common/RequiredIndicator";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select } from "radix-ui";
@@ -157,7 +158,7 @@ export default function ContactPage() {
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="name">Full Name</Label>
+                  <Label htmlFor="name">Full Name<RequiredIndicator /></Label>
                   <Input
                     id="name"
                     {...register("name", { required: "Full name is required." })}
@@ -168,7 +169,7 @@ export default function ContactPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="email">Email Address</Label>
+                  <Label htmlFor="email">Email Address<RequiredIndicator /></Label>
                   <Input
                     id="email"
                     type="email"
@@ -187,7 +188,7 @@ export default function ContactPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="subject">Subject</Label>
+                <Label htmlFor="subject">Subject<RequiredIndicator /></Label>
                 <Controller
                   name="subject"
                   control={formControl}
@@ -224,7 +225,7 @@ export default function ContactPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="message">Message</Label>
+                <Label htmlFor="message">Message<RequiredIndicator /></Label>
                 <Textarea
                   id="message"
                   {...register("message", {

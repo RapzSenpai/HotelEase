@@ -2,6 +2,7 @@ import { useEffect, useState, memo, useMemo, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import RequiredIndicator from "@/components/common/RequiredIndicator";
 import { Separator } from "@/components/ui/separator";
 import {
   Dialog,
@@ -804,7 +805,7 @@ export default function RoomDetailPage() {
                     <form onSubmit={handleSubmitReview} className="space-y-4">
                       <div className="space-y-1.5">
                         <label className="text-xs font-medium text-foreground/50 uppercase tracking-wider">
-                          Your Rating
+                          Your Rating<RequiredIndicator />
                         </label>
                         <StarSelector value={formRating} onChange={setFormRating} />
                       </div>
@@ -813,7 +814,7 @@ export default function RoomDetailPage() {
                           htmlFor="review-feedback"
                           className="text-xs font-medium text-foreground/50 uppercase tracking-wider"
                         >
-                          Your Feedback
+                          Your Feedback<RequiredIndicator />
                         </label>
                         <textarea
                           id="review-feedback"

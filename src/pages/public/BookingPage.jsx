@@ -4,6 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import RequiredIndicator from "@/components/common/RequiredIndicator";
 import { createBooking, getAvailableRooms, uploadPaymentProof } from "@/services/bookingsService";
 import { getRoom, isRoomActive, isRoomBookable } from "@/services/roomsService";
 import RoomBookingsCalendar from "@/components/calendar/RoomBookingsCalendar";
@@ -90,6 +91,7 @@ export default function BookingPage() {
   const [paxCount, setPaxCount] = useState(1);
   const [specialRequests, setSpecialRequests] = useState("");
   const [step1Error, setStep1Error] = useState(null);
+  const [step1Touched, setStep1Touched] = useState(false);
 
   // Populate guest fields if profile loads after initial render
   useEffect(() => {
@@ -171,6 +173,7 @@ export default function BookingPage() {
 
   function handleNextStep1() {
     setStep1Error(null);
+    setStep1Touched(true);
     if (!leadGuestName || !leadGuestEmail || !phoneNumber) { setStep1Error("Please fill in all required customer information."); return; }
     if (!checkIn || !checkOut) { setStep1Error("Please select check-in and check-out dates."); return; }
     if (nights <= 0) { setStep1Error("Check-out must be after check-in."); return; }
@@ -345,15 +348,15 @@ export default function BookingPage() {
             <div className="rounded-xl border border-border bg-background p-5 space-y-4">
               <div className="text-base font-semibold">Customer Information</div>
               <div className="space-y-2">
-                <Label htmlFor="leadGuestName" className="text-sm font-medium">Full Name</Label>
-                <Input id="leadGuestName" required value={leadGuestName} onChange={(e) => setLeadGuestName(e.target.value)} />
+                <Label htmlFor="leadGuestName" className="text-sm font-medium">Full Name<RequiredIndicator /></Label>
+                <Input id="leadGuestName" required value={leadGuestName} onChange={(e) => setLeadGuestName(e.target.value)} className={step1Touched && !leadGuestName ? "border-destructive focus-visible:ring-destructive" : ""} />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="leadGuestEmail" className="text-sm font-medium">Email Address</Label>
-                <Input id="leadGuestEmail" type="email" required value={leadGuestEmail} onChange={(e) => setLeadGuestEmail(e.target.value)} />
+                <Label htmlFor="leadGuestEmail" className="text-sm font-medium">Email Address<RequiredIndicator /></Label>
+                <Input id="leadGuestEmail" type="email" required value={leadGuestEmail} onChange={(e) => setLeadGuestEmail(e.target.value)} className={step1Touched && !leadGuestEmail ? "border-destructive focus-visible:ring-destructive" : ""} />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="leadGuestPhone" className="text-sm font-medium">Phone Number</Label>
+                <Label htmlFor="leadGuestPhone" className="text-sm font-medium">Phone Number<RequiredIndicator /></Label>
                 <div className="flex gap-2">
                   <select
                     id="countryCode"
@@ -363,14 +366,14 @@ export default function BookingPage() {
                   >
                     <option value="+63">+63</option>
                   </select>
-                  <Input 
-                    id="phoneNumber" 
-                    type="tel" 
-                    required 
+                  <Input
+                    id="phoneNumber"
+                    type="tel"
+                    required
                     placeholder="912 345 6789"
-                    value={phoneNumber} 
-                    onChange={(e) => setPhoneNumber(e.target.value)} 
-                    className="flex-1"
+                    value={phoneNumber}
+                    onChange={(e) => setPhoneNumber(e.target.value)}
+                    className={`flex-1 ${step1Touched && !phoneNumber ? "border-destructive focus-visible:ring-destructive" : ""}`}
                   />
                 </div>
               </div>
@@ -380,24 +383,24 @@ export default function BookingPage() {
               <div className="text-base font-semibold">Stay Details</div>
               <div className="space-y-2">
                 <Label htmlFor="checkIn" className="text-sm font-medium">
-                  Check-in <span className="text-foreground/50 font-normal">(2:00 PM)</span>
+                  Check-in <RequiredIndicator /> <span className="text-foreground/50 font-normal">(2:00 PM)</span>
                 </Label>
                 <div className="relative">
-                  <Input id="checkIn" type="date" required className="pr-10 border-border text-sm [&::-webkit-calendar-picker-indicator]:hidden" value={checkIn} onChange={(e) => setCheckIn(e.target.value)} onClick={(e) => e.currentTarget.showPicker?.()} onFocus={(e) => e.target.blur()} />
+                  <Input id="checkIn" type="date" required className={`pr-10 border-border text-sm [&::-webkit-calendar-picker-indicator]:hidden ${step1Touched && !checkIn ? "border-destructive focus-visible:ring-destructive" : ""}`} value={checkIn} onChange={(e) => setCheckIn(e.target.value)} onClick={(e) => e.currentTarget.showPicker?.()} onFocus={(e) => e.target.blur()} />
                   <CalendarIcon className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-foreground/40 pointer-events-none" />
                 </div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="checkOut" className="text-sm font-medium">
-                  Check-out <span className="text-foreground/50 font-normal">(12:00 NN)</span>
+                  Check-out <RequiredIndicator /> <span className="text-foreground/50 font-normal">(12:00 NN)</span>
                 </Label>
                 <div className="relative">
-                  <Input id="checkOut" type="date" required className="pr-10 border-border text-sm [&::-webkit-calendar-picker-indicator]:hidden" value={checkOut} onChange={(e) => setCheckOut(e.target.value)} onClick={(e) => e.currentTarget.showPicker?.()} onFocus={(e) => e.target.blur()} />
+                  <Input id="checkOut" type="date" required className={`pr-10 border-border text-sm [&::-webkit-calendar-picker-indicator]:hidden ${step1Touched && !checkOut ? "border-destructive focus-visible:ring-destructive" : ""}`} value={checkOut} onChange={(e) => setCheckOut(e.target.value)} onClick={(e) => e.currentTarget.showPicker?.()} onFocus={(e) => e.target.blur()} />
                   <CalendarIcon className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-foreground/40 pointer-events-none" />
                 </div>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="paxCount" className="text-sm font-medium">Number of Guests (pax)</Label>
+                <Label htmlFor="paxCount" className="text-sm font-medium">Number of Guests (pax)<RequiredIndicator /></Label>
                 <Input id="paxCount" type="number" min={1} required value={paxCount} onChange={(e) => setPaxCount(e.target.value)} />
               </div>
               <div className="space-y-2">
