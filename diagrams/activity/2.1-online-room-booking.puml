@@ -1,0 +1,65 @@
+@startuml Online Room Booking Activity
+skinparam activity {
+  BackgroundColor #F5F5F5
+  BorderColor #333333
+  ArrowColor #333333
+  DiamondBackgroundColor #FFE0B2
+  DiamondBorderColor #333333
+}
+skinparam swimlane {
+  BackgroundColor #FFFFFF
+  BorderColor #666666
+}
+
+title Online Room Booking Activity Diagram
+
+|Guest|
+start
+:Navigate to Rooms page;
+:Browse available rooms;
+:Select a room;
+:View room details (photos, amenities, rate, reviews);
+:Click "Book Now";
+
+:Navigate to Booking page;
+:Select check-in date;
+:Select check-out date;
+:Enter number of guests;
+:Enter special requests (optional);
+:Click "Submit Booking";
+
+|System|
+:Validate check-out is after check-in;
+
+if (Dates valid?) then (yes)
+  :Query existing bookings for room;
+  :Check for date overlaps;
+  
+  if (Overlapping bookings found?) then (no)
+    :Execute Firestore transaction;
+    :Create booking record;
+    :Set status = 'Pending';
+    :Calculate total cost;
+    :Initialize payment to zero;
+    :Send notification to all FO staff;
+    
+    |FO Staff|
+    :Receive new booking notification;
+    
+    |Guest|
+    :View success confirmation;
+    stop
+  else (yes)
+    |Guest|
+    :Display "Date conflict" error;
+    :Select different dates;
+    stop
+  endif
+else (no)
+  |Guest|
+  :Display "Invalid dates" error;
+  :Correct date selection;
+  stop
+endif
+
+@enduml

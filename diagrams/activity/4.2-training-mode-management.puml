@@ -1,0 +1,50 @@
+@startuml Training Mode Management Activity
+skinparam activity {
+  BackgroundColor #F5F5F5
+  BorderColor #333333
+  ArrowColor #333333
+  DiamondBackgroundColor #FFE0B2
+  DiamondBorderColor #333333
+}
+skinparam swimlane {
+  BackgroundColor #FFFFFF
+  BorderColor #666666
+}
+
+title Training Mode Management Activity Diagram
+
+|Admin|
+start
+:Open System Settings;
+:Enable Training Mode;
+
+:Generate training session code;
+:Set TTL (hours);
+
+|Student|
+:Receive session code;
+:Access training mode;
+:Enter session code;
+:Select role;
+:Sign in anonymously;
+
+|System|
+:Validate session code;
+:Route all operations to training_ collections;
+:Create sandboxed data;
+
+|Student|
+:Perform operations (browse rooms, create bookings, etc.);
+
+|Admin|
+:After session, click "Reset Training Data";
+
+|System|
+:Clear all sandboxed collections;
+:Remove training_ prefixed data;
+
+|Admin|
+:View confirmation;
+stop
+
+@enduml

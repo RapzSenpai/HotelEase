@@ -1,0 +1,59 @@
+@startuml Guest Registration Use Case
+left to right direction
+skinparam packageStyle rectangle
+skinparam actorStyle awesome
+skinparam usecase {
+  BackgroundColor #F5F5F5
+  BorderColor #333333
+  ArrowColor #333333
+}
+skinparam rectangle {
+  BackgroundColor #FFFFFF
+  BorderColor #666666
+}
+
+title Guest Registration Use Case Diagram
+
+rectangle "HotelEase System" {
+  usecase "Register Account" as UC1
+  usecase "Enter Full Name" as UC2
+  usecase "Enter Email" as UC3
+  usecase "Enter Password" as UC4
+  usecase "Validate Input" as UC5
+  usecase "Create Firebase Auth Credential" as UC6
+  usecase "Create Firestore User Profile" as UC7
+  usecase "Auto Sign-In" as UC8
+  usecase "Redirect to Landing Page" as UC9
+}
+
+actor "Guest" as Guest
+
+Guest --> UC1
+UC1 --> UC2
+UC1 --> UC3
+UC1 --> UC4
+UC2 --> UC5
+UC3 --> UC5
+UC4 --> UC5
+UC5 --> UC6
+UC6 --> UC7
+UC7 --> UC8
+UC8 --> UC9
+
+note right of UC1
+  Guest provides full name,
+  email, and password to
+  create a new account.
+end note
+
+note bottom of UC6
+  Firebase Auth creates
+  the user credential.
+end note
+
+note bottom of UC7
+  Firestore users collection
+  with role = 'guest'.
+end note
+
+@enduml

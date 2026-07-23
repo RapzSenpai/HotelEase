@@ -1,0 +1,60 @@
+@startuml Record Payment Activity
+skinparam activity {
+  BackgroundColor #F5F5F5
+  BorderColor #333333
+  ArrowColor #333333
+  DiamondBackgroundColor #FFE0B2
+  DiamondBorderColor #333333
+}
+skinparam swimlane {
+  BackgroundColor #FFFFFF
+  BorderColor #666666
+}
+
+title Record Payment Activity Diagram
+
+|FO Staff|
+start
+:Open Payments page;
+:Select a booking;
+:View folio (total cost, deposits, outstanding balance);
+:Enter payment amount;
+:Select payment method;
+
+switch (Payment Method?)
+case (GCash)
+  :Enter GCash reference number;
+case (Cash)
+  :No additional details needed;
+case (Check)
+  :Enter check number;
+  :Enter bank name;
+case (Credit Card)
+  :Enter last 4 digits only;
+endswitch
+
+:Click "Record Payment";
+
+|System|
+:Execute Firestore transaction;
+:Create payment document;
+:Update booking deposit amount;
+
+|FO Staff|
+:View payment confirmation;
+
+if (Generate receipt?) then (yes)
+  :Click "Generate Receipt";
+  
+  |System|
+  :Generate PDF receipt using jsPDF;
+  :Include payment details and booking info;
+  
+  |FO Staff|
+  :Download PDF receipt;
+  stop
+else (no)
+  stop
+endif
+
+@enduml

@@ -1,0 +1,47 @@
+@startuml Announcements Management Activity
+skinparam activity {
+  BackgroundColor #F5F5F5
+  BorderColor #333333
+  ArrowColor #333333
+  DiamondBackgroundColor #FFE0B2
+  DiamondBorderColor #333333
+}
+skinparam swimlane {
+  BackgroundColor #FFFFFF
+  BorderColor #666666
+}
+
+title Announcements Management Activity Diagram
+
+|FO Staff|
+start
+:Open Announcements page;
+:Click "Create Announcement";
+:Enter title;
+:Enter description;
+:Select date;
+
+if (Upload image?) then (yes)
+  :Select image file;
+  
+  |System|
+  :Upload image to Cloudinary;
+  :Get image URL;
+  
+  |FO Staff|
+else (no)
+endif
+
+:Click "Save Announcement";
+
+|System|
+:Save announcement to Firestore;
+:Set status = 'Published';
+:Send notification to all guests;
+
+|Guest|
+:Receive in-app notification;
+:View announcement on Landing Page;
+stop
+
+@enduml

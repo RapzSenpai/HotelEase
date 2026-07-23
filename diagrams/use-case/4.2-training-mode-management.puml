@@ -1,0 +1,70 @@
+@startuml Training Mode Management Use Case
+left to right direction
+skinparam packageStyle rectangle
+skinparam actorStyle awesome
+skinparam usecase {
+  BackgroundColor #F5F5F5
+  BorderColor #333333
+  ArrowColor #333333
+}
+skinparam rectangle {
+  BackgroundColor #FFFFFF
+  BorderColor #666666
+}
+
+title Training Mode Management Use Case Diagram
+
+rectangle "HotelEase System" {
+  usecase "Toggle Training Mode" as UC1
+  usecase "Generate Session Code" as UC2
+  usecase "Set TTL Expiry" as UC3
+  usecase "Sign In Anonymously" as UC4
+  usecase "Select Role" as UC5
+  usecase "Perform Operations" as UC6
+  usecase "Reset Training Data" as UC7
+  usecase "Clear Sandboxed Collections" as UC8
+}
+
+actor "Admin" as Admin
+actor "Student" as Student
+
+Admin --> UC1
+Admin --> UC2
+Admin --> UC7
+UC1 --> UC3
+UC2 --> UC3
+UC3 --> Student
+Student --> UC4
+UC4 --> UC5
+UC5 --> UC6
+UC7 --> UC8
+
+note right of UC1
+  Admin toggles Training
+  Mode ON/OFF. When enabled,
+  all operations route to
+  sandboxed collections
+  (training_ prefix).
+end note
+
+note bottom of UC2
+  Admin generates
+  time-limited session
+  codes for students.
+end note
+
+note bottom of UC6
+  All student actions
+  write to training_
+  collections, isolated
+  from production.
+end note
+
+note bottom of UC7
+  Admin resets training
+  data to clear all
+  sandboxed records
+  between sessions.
+end note
+
+@enduml

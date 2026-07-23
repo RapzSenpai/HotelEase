@@ -1,0 +1,69 @@
+@startuml Guest Support Messaging Use Case
+left to right direction
+skinparam packageStyle rectangle
+skinparam actorStyle awesome
+skinparam usecase {
+  BackgroundColor #F5F5F5
+  BorderColor #333333
+  ArrowColor #333333
+}
+skinparam rectangle {
+  BackgroundColor #FFFFFF
+  BorderColor #666666
+}
+
+title Guest Support Messaging Use Case Diagram
+
+rectangle "HotelEase System" {
+  usecase "Submit Support Message" as UC1
+  usecase "Enter Name" as UC2
+  usecase "Enter Email" as UC3
+  usecase "Enter Subject" as UC4
+  usecase "Enter Message" as UC5
+  usecase "Save Message" as UC6
+  usecase "Notify FO Staff" as UC7
+  usecase "View Messages" as UC8
+  usecase "Mark as Read" as UC9
+  usecase "Reply to Message" as UC10
+  usecase "Send Email Notification" as UC11
+}
+
+actor "Guest" as Guest
+actor "FO Staff" as FO
+
+Guest --> UC1
+FO --> UC8
+UC1 --> UC2
+UC1 --> UC3
+UC1 --> UC4
+UC1 --> UC5
+UC2 --> UC6
+UC3 --> UC6
+UC4 --> UC6
+UC5 --> UC6
+UC6 --> UC7
+UC7 --> FO
+UC8 --> UC9
+UC8 --> UC10
+UC10 --> UC11
+
+note right of UC1
+  Guest submits support
+  message via Contact page
+  with name, email,
+  subject, and message.
+end note
+
+note bottom of UC7
+  FO staff receive in-app
+  notification about
+  new message.
+end note
+
+note bottom of UC11
+  Optional email notification
+  via Firebase Cloud Functions
+  (Nodemailer + Gmail SMTP).
+end note
+
+@enduml

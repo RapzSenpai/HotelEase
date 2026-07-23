@@ -1,0 +1,67 @@
+@startuml Record Payment Use Case
+left to right direction
+skinparam packageStyle rectangle
+skinparam actorStyle awesome
+skinparam usecase {
+  BackgroundColor #F5F5F5
+  BorderColor #333333
+  ArrowColor #333333
+}
+skinparam rectangle {
+  BackgroundColor #FFFFFF
+  BorderColor #666666
+}
+
+title Record Payment Use Case Diagram
+
+rectangle "HotelEase System" {
+  usecase "Record Payment" as UC1
+  usecase "Select Booking" as UC2
+  usecase "View Folio" as UC3
+  usecase "Enter Payment Amount" as UC4
+  usecase "Select Payment Method" as UC5
+  usecase "Enter GCash Reference" as UC6
+  usecase "Enter Check Details" as UC7
+  usecase "Enter Card Last 4 Digits" as UC8
+  usecase "Save Payment" as UC9
+  usecase "Update Booking Deposit" as UC10
+  usecase "Generate PDF Receipt" as UC11
+  usecase "Download Receipt" as UC12
+}
+
+actor "FO Staff" as FO
+
+FO --> UC1
+UC1 --> UC2
+UC2 --> UC3
+UC3 --> UC4
+UC3 --> UC5
+UC5 --> UC6
+UC5 --> UC7
+UC5 --> UC8
+UC4 --> UC9
+UC5 --> UC9
+UC9 --> UC10
+UC9 --> UC11
+UC11 --> UC12
+
+note right of UC1
+  FO staff records payment
+  against a guest's booking.
+  Supports GCash, Cash,
+  Check, and Credit Card.
+end note
+
+note bottom of UC10
+  Booking deposit is
+  incremented atomically
+  via Firestore transaction.
+end note
+
+note bottom of UC11
+  Professional PDF receipt
+  generated using jsPDF
+  + AutoTable.
+end note
+
+@enduml

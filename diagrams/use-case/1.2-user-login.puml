@@ -1,0 +1,53 @@
+@startuml User Login Use Case
+left to right direction
+skinparam packageStyle rectangle
+skinparam actorStyle awesome
+skinparam usecase {
+  BackgroundColor #F5F5F5
+  BorderColor #333333
+  ArrowColor #333333
+}
+skinparam rectangle {
+  BackgroundColor #FFFFFF
+  BorderColor #666666
+}
+
+title User Login Use Case Diagram
+
+rectangle "HotelEase System" {
+  usecase "Login" as UC1
+  usecase "Enter Email" as UC2
+  usecase "Enter Password" as UC3
+  usecase "Validate Credentials" as UC4
+  usecase "Authenticate with Firebase" as UC5
+  usecase "Load User Profile" as UC6
+  usecase "Redirect to Dashboard" as UC7
+}
+
+actor "Registered User" as User
+
+User --> UC1
+UC1 --> UC2
+UC1 --> UC3
+UC2 --> UC4
+UC3 --> UC4
+UC4 --> UC5
+UC5 --> UC6
+UC6 --> UC7
+
+note right of UC1
+  Registered user provides
+  email and password to log in.
+end note
+
+note bottom of UC5
+  Firebase Auth validates
+  the credentials.
+end note
+
+note bottom of UC6
+  User profile loaded from
+  Firestore with role information.
+end note
+
+@enduml

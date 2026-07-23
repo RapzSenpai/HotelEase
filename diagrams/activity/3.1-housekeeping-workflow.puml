@@ -1,0 +1,48 @@
+@startuml Housekeeping Workflow Activity
+skinparam activity {
+  BackgroundColor #F5F5F5
+  BorderColor #333333
+  ArrowColor #333333
+  DiamondBackgroundColor #FFE0B2
+  DiamondBorderColor #333333
+}
+skinparam swimlane {
+  BackgroundColor #FFFFFF
+  BorderColor #666666
+}
+
+title Housekeeping Workflow Activity Diagram
+
+|FO/Housekeeping Staff|
+start
+:Open Housekeeping page;
+:View rooms grouped by status;
+
+:Select a dirty room;
+:Update status to 'Being Cleaned';
+
+|System|
+:Log status change with timestamp;
+:Update room status in Firestore;
+
+|FO/Housekeeping Staff|
+:After cleaning, update status to 'Pending Approval';
+
+|System|
+:Log status change with timestamp;
+:Update room status in Firestore;
+
+|FO Supervisor|
+:Review room;
+:Approve room;
+
+|System|
+:Log status change with timestamp;
+:Update room status to 'Available';
+:Notify FO staff;
+
+|FO/Housekeeping Staff|
+:View updated room status;
+stop
+
+@enduml

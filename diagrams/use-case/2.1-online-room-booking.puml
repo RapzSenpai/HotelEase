@@ -1,0 +1,72 @@
+@startuml Online Room Booking Use Case
+left to right direction
+skinparam packageStyle rectangle
+skinparam actorStyle awesome
+skinparam usecase {
+  BackgroundColor #F5F5F5
+  BorderColor #333333
+  ArrowColor #333333
+}
+skinparam rectangle {
+  BackgroundColor #FFFFFF
+  BorderColor #666666
+}
+
+title Online Room Booking Use Case Diagram
+
+rectangle "HotelEase System" {
+  usecase "Book Room" as UC1
+  usecase "Browse Available Rooms" as UC2
+  usecase "Select Room" as UC3
+  usecase "View Room Details" as UC4
+  usecase "Select Check-in Date" as UC5
+  usecase "Select Check-out Date" as UC6
+  usecase "Enter Number of Guests" as UC7
+  usecase "Enter Special Requests" as UC8
+  usecase "Validate Dates" as UC9
+  usecase "Check Date Conflicts" as UC10
+  usecase "Create Booking" as UC11
+  usecase "Calculate Total Cost" as UC12
+  usecase "Send Notification to FO" as UC13
+  usecase "Show Confirmation" as UC14
+}
+
+actor "Guest" as Guest
+actor "FO Staff" as FO
+
+Guest --> UC1
+UC1 --> UC2
+UC2 --> UC3
+UC3 --> UC4
+UC4 --> UC5
+UC4 --> UC6
+UC4 --> UC7
+UC4 --> UC8
+UC5 --> UC9
+UC6 --> UC9
+UC9 --> UC10
+UC10 --> UC11
+UC11 --> UC12
+UC12 --> UC13
+UC13 --> FO
+UC11 --> UC14
+
+note right of UC1
+  Guest selects a room,
+  chooses dates, and
+  submits booking request.
+end note
+
+note bottom of UC10
+  System checks for
+  overlapping bookings
+  using Firestore transaction.
+end note
+
+note bottom of UC13
+  All FO staff receive
+  in-app notification
+  about new booking.
+end note
+
+@enduml

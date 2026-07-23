@@ -1,0 +1,51 @@
+@startuml Guest Registration Activity
+skinparam activity {
+  BackgroundColor #F5F5F5
+  BorderColor #333333
+  ArrowColor #333333
+  DiamondBackgroundColor #FFE0B2
+  DiamondBorderColor #333333
+}
+skinparam swimlane {
+  BackgroundColor #FFFFFF
+  BorderColor #666666
+}
+
+title Guest Registration Activity Diagram
+
+|Guest|
+start
+:Navigate to Registration page;
+:Enter full name;
+:Enter email;
+:Enter password;
+:Click "Register";
+
+|System|
+:Validate input fields;
+
+if (All fields valid?) then (yes)
+  :Create Firebase Auth credential;
+  
+  if (Auth creation successful?) then (yes)
+    :Create user profile in Firestore;
+    :Set role = 'guest';
+    :Auto sign-in user;
+    :Redirect to Landing Page;
+    |Guest|
+    :View Landing Page;
+    stop
+  else (no)
+    |Guest|
+    :Display error message;
+    :Retry registration;
+    stop
+  endif
+else (no)
+  |Guest|
+  :Display validation errors;
+  :Correct input fields;
+  stop
+endif
+
+@enduml

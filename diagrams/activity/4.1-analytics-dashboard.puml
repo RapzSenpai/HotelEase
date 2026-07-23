@@ -1,0 +1,35 @@
+@startuml Analytics Dashboard Activity
+skinparam activity {
+  BackgroundColor #F5F5F5
+  BorderColor #333333
+  ArrowColor #333333
+  DiamondBackgroundColor #FFE0B2
+  DiamondBorderColor #333333
+}
+skinparam swimlane {
+  BackgroundColor #FFFFFF
+  BorderColor #666666
+}
+
+title Analytics Dashboard Activity Diagram
+
+|Admin|
+start
+:Navigate to Analytics page;
+:Select date range;
+
+|System|
+:Fetch bookings within date range;
+:Fetch payments within date range;
+:Calculate occupancy rate;
+:Calculate total revenue;
+:Generate 7-day booking trend;
+:Identify peak booking days;
+
+|Admin|
+:View Analytics Dashboard;
+:Review KPIs;
+:Export data (optional);
+stop
+
+@enduml

@@ -1,0 +1,67 @@
+@startuml Announcements Management Use Case
+left to right direction
+skinparam packageStyle rectangle
+skinparam actorStyle awesome
+skinparam usecase {
+  BackgroundColor #F5F5F5
+  BorderColor #333333
+  ArrowColor #333333
+}
+skinparam rectangle {
+  BackgroundColor #FFFFFF
+  BorderColor #666666
+}
+
+title Announcements Management Use Case Diagram
+
+rectangle "HotelEase System" {
+  usecase "Create Announcement" as UC1
+  usecase "Enter Title" as UC2
+  usecase "Enter Description" as UC3
+  usecase "Select Date" as UC4
+  usecase "Upload Image" as UC5
+  usecase "Save to Firestore" as UC6
+  usecase "Notify All Guests" as UC7
+  usecase "Edit Announcement" as UC8
+  usecase "Delete Announcement" as UC9
+}
+
+actor "FO Staff" as FO
+actor "Guest" as Guest
+
+FO --> UC1
+FO --> UC8
+FO --> UC9
+UC1 --> UC2
+UC1 --> UC3
+UC1 --> UC4
+UC1 --> UC5
+UC2 --> UC6
+UC3 --> UC6
+UC4 --> UC6
+UC5 --> UC6
+UC6 --> UC7
+UC7 --> Guest
+
+note right of UC1
+  FO staff creates event
+  announcements with title,
+  description, date, and
+  optional image via
+  Cloudinary.
+end note
+
+note bottom of UC7
+  All guest users receive
+  in-app notifications
+  when announcement
+  is published.
+end note
+
+note bottom of UC5
+  Image uploaded to
+  Cloudinary CDN
+  using unsigned upload.
+end note
+
+@enduml
