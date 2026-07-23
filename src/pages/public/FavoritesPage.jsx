@@ -1,11 +1,11 @@
 import { useEffect, useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { NavLink } from "react-router-dom";
 import { subscribeToFavorites, removeFavorite } from "@/services/favoritesService";
 import { getRoom } from "@/services/roomsService";
-import RoomStatusBadge from "@/components/rooms/RoomStatusBadge";
 import { useAuth } from "@/contexts/AuthContext";
-import { Heart, Trash2, ArrowRight, X } from "lucide-react";
+import { Heart, Trash2, X, Clock, CheckCircle2, XCircle } from "lucide-react";
 
 function formatRate(rate) {
   if (rate == null || rate === "") return null;
@@ -14,95 +14,97 @@ function formatRate(rate) {
   return num.toLocaleString("en-PH", { minimumFractionDigits: 0 });
 }
 
-function FavoriteRoomCard({ room, isFavorite, onRemove, onToggleCompare, isSelectedForCompare }) {
+function timeAgo(date) {
+  if (!date) return null;
+  const now = new Date();
+  const then = date?.toDate ? date.toDate() : new Date(date);
+  const diffMs = now - then;
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  if (diffMins < 1) return "Just now";
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays < 7) return `${diffDays}d ago`;
+  return then.toLocaleDateString("en-PH", { month: "short", day: "numeric" });
+}
+
+function FavoriteRoomCard({ room, favorite, onRemove }) {
   const photos = Array.isArray(room.photos) ? room.photos : [];
   const firstPhoto = photos.length > 0 ? photos[0] : null;
   const isAvailable = room.status === "Available";
+  const saved = timeAgo(favorite?.createdAt);
 
   return (
-    <div className="rounded-xl border border-border bg-white overflow-hidden flex flex-col shadow-sm hover:shadow-md transition-shadow">
+    <div className="group rounded-2xl border border-border/60 bg-white overflow-hidden shadow-[0_2px_16px_rgba(28,28,30,0.06)] hover:shadow-[0_8px_32px_rgba(28,28,30,0.12)] transition-all duration-300 ease-out flex flex-col">
       {/* Photo */}
-      <div className="relative h-48 w-full overflow-hidden">
+      <div className="relative h-52 w-full overflow-hidden">
         {firstPhoto ? (
           <img
             src={firstPhoto}
             alt={room.name || "Room photo"}
-            className="h-full w-full object-cover"
+            className="h-full w-full object-cover group-hover:scale-[1.04] transition-transform duration-700 ease-[cubic-bezier(0.32,0.72,0,1)]"
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center bg-muted/20 text-sm text-foreground/40">
             No photo
           </div>
         )}
-        <button
-          type="button"
-          onClick={() => onRemove(room.id)}
-          className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 shadow-sm opacity-0 transition-opacity hover:bg-white group-hover:opacity-100"
-          aria-label="Remove from favorites"
-        >
-          <Trash2 className="h-4 w-4 text-foreground/60" />
-        </button>
+        <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent" />
+
+        {/* Availability chip */}
+        <div className="absolute left-3 top-3">
+          {isAvailable ? (
+            <span className="inline-flex items-center gap-1 rounded-full bg-success/90 px-2.5 py-1 text-xs font-medium text-white shadow-sm backdrop-blur-sm">
+              <CheckCircle2 className="h-3 w-3" />
+              Available
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 rounded-full bg-foreground/60 px-2.5 py-1 text-xs font-medium text-white shadow-sm backdrop-blur-sm">
+              <XCircle className="h-3 w-3" />
+              Unavailable
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Card Body */}
-      <div className="flex flex-1 flex-col gap-3 p-4">
-        {/* Name + Number + Status Badge */}
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0 flex-1">
+      <div className="flex flex-1 flex-col gap-3 p-5">
+        <div className="space-y-3">
+          {/* Name + Type */}
+          <div>
             <h3 className="font-playfair text-base font-semibold leading-tight text-foreground">
               {room.name || "Unnamed Room"}
             </h3>
-            <div className="mt-1 flex items-center gap-2">
-              {room.roomNumber && (
-                <span className="text-xs font-medium text-foreground/50">
-                  #{room.roomNumber}
-                </span>
-              )}
-              {room.roomNumber && room.type && (
-                <span className="text-foreground/20">•</span>
-              )}
-              {room.type && (
-                <span className="text-xs text-foreground/60">{room.type}</span>
-              )}
+            <div className="mt-1 flex items-center gap-2 text-xs text-foreground/50">
+              {room.roomNumber && <span>#{room.roomNumber}</span>}
+              {room.roomNumber && room.type && <span>·</span>}
+              {room.type && <span>{room.type}</span>}
             </div>
           </div>
-          <RoomStatusBadge status={room.status} />
+
+          {/* Rate */}
+          {formatRate(room.ratePerNight) && (
+            <div className="flex items-baseline gap-1">
+              <span className="font-playfair text-lg font-bold text-foreground">
+                PHP {formatRate(room.ratePerNight)}
+              </span>
+              <span className="text-xs text-foreground/50">/ night</span>
+            </div>
+          )}
+
+          {/* Saved date */}
+          {saved && (
+            <div className="flex items-center gap-1.5 text-xs text-foreground/40">
+              <Clock className="h-3 w-3" />
+              <span>Saved {saved}</span>
+            </div>
+          )}
         </div>
 
-        {/* Rate */}
-        {formatRate(room.ratePerNight) && (
-          <div className="flex items-baseline gap-1">
-            <span className="font-playfair text-lg font-bold text-foreground">
-              PHP {formatRate(room.ratePerNight)}
-            </span>
-            <span className="text-xs text-foreground/50">/ night</span>
-          </div>
-        )}
-
-        {/* Spacer */}
-        <div className="flex-1" />
-
         {/* Actions */}
-        <div className="flex gap-2">
-          <Button
-            type="button"
-            variant={isSelectedForCompare ? "default" : "outline"}
-            size="sm"
-            className="flex-1"
-            onClick={() => onToggleCompare(room.id)}
-          >
-            {isSelectedForCompare ? (
-              <>
-                <X className="mr-1.5 h-3.5 w-3.5" />
-                Remove
-              </>
-            ) : (
-              <>
-                <ArrowRight className="mr-1.5 h-3.5 w-3.5" />
-                Compare
-              </>
-            )}
-          </Button>
+        <div className="flex gap-2 mt-auto">
           <Button
             asChild
             variant="default"
@@ -111,105 +113,18 @@ function FavoriteRoomCard({ room, isFavorite, onRemove, onToggleCompare, isSelec
             disabled={!isAvailable}
           >
             <NavLink to={`/booking/${room.id}`}>
-              Book
+              Book Now
             </NavLink>
           </Button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function RoomComparison({ rooms, onClose }) {
-  if (!rooms || rooms.length < 2) return null;
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="max-h-[90vh] w-full max-w-6xl overflow-y-auto rounded-2xl bg-background p-6">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="font-playfair text-2xl font-semibold">Room Comparison</h2>
-          <Button variant="outline" size="sm" onClick={onClose}>
-            <X className="h-4 w-4 mr-2" />
-            Close
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
+            onClick={() => onRemove(room.id)}
+          >
+            <Trash2 className="h-3.5 w-3.5" />
           </Button>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {rooms.map((room) => (
-            <div key={room.id} className="rounded-xl border border-border bg-background/50 p-4 space-y-4">
-              {/* Photo */}
-              {room.photos && room.photos.length > 0 && (
-                <img
-                  src={room.photos[0]}
-                  alt={room.name}
-                  className="h-40 w-full object-cover rounded-lg"
-                />
-              )}
-
-              {/* Name */}
-              <div>
-                <h3 className="font-playfair text-lg font-semibold">{room.name || "Unnamed Room"}</h3>
-                <p className="text-sm text-foreground/60">{room.type || ""}</p>
-                {room.roomNumber && (
-                  <p className="text-xs text-foreground/50">#{room.roomNumber}</p>
-                )}
-              </div>
-
-              {/* Rate */}
-              <div className="rounded-lg bg-primary/10 px-3 py-2">
-                <p className="text-xs text-foreground/60">Rate per night</p>
-                <p className="font-playfair text-xl font-bold">
-                  PHP {formatRate(room.ratePerNight) || "—"}
-                </p>
-              </div>
-
-              {/* Status */}
-              <div>
-                <p className="text-xs text-foreground/60 mb-1">Status</p>
-                <RoomStatusBadge status={room.status} />
-              </div>
-
-              {/* Amenities */}
-              {room.amenities && room.amenities.length > 0 && (
-                <div>
-                  <p className="text-xs text-foreground/60 mb-2">Amenities</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {room.amenities.slice(0, 6).map((amenity, idx) => (
-                      <span
-                        key={idx}
-                        className="rounded-full border border-border/50 bg-muted/40 px-2 py-0.5 text-xs text-foreground/70"
-                      >
-                        {amenity}
-                      </span>
-                    ))}
-                    {room.amenities.length > 6 && (
-                      <span className="rounded-full border border-border/40 bg-muted/30 px-2 py-0.5 text-xs text-foreground/50">
-                        +{room.amenities.length - 6} more
-                      </span>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Description */}
-              {room.description && (
-                <div>
-                  <p className="text-xs text-foreground/60 mb-1">Description</p>
-                  <p className="text-sm text-foreground/80 line-clamp-3">{room.description}</p>
-                </div>
-              )}
-
-              {/* Book Button */}
-              <Button
-                asChild
-                variant="default"
-                className="w-full"
-                disabled={room.status !== "Available"}
-              >
-                <NavLink to={`/booking/${room.id}`}>Book This Room</NavLink>
-              </Button>
-            </div>
-          ))}
         </div>
       </div>
     </div>
@@ -221,8 +136,7 @@ export default function FavoritesPage() {
   const [favorites, setFavorites] = useState([]);
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [selectedForComparison, setSelectedForComparison] = useState([]);
-  const [showComparison, setShowComparison] = useState(false);
+  const [activeFilter, setActiveFilter] = useState("all");
 
   useEffect(() => {
     if (!user || role !== "guest") {
@@ -269,34 +183,41 @@ export default function FavoritesPage() {
     if (!user || role !== "guest") return;
     try {
       await removeFavorite(user.uid, roomId);
-      setSelectedForComparison((prev) => prev.filter((id) => id !== roomId));
     } catch (e) {
       console.error("Failed to remove favorite:", e);
     }
   }
 
-  function handleToggleCompare(roomId) {
-    setSelectedForComparison((prev) => {
-      if (prev.includes(roomId)) {
-        return prev.filter((id) => id !== roomId);
-      }
-      if (prev.length >= 3) {
-        return prev; // Max 3 rooms for comparison
-      }
-      return [...prev, roomId];
-    });
-  }
-
-  function handleOpenComparison() {
-    if (selectedForComparison.length >= 2) {
-      setShowComparison(true);
+  const roomsWithFavorites = useMemo(() => {
+    const favMap = {};
+    for (const fav of favorites) {
+      favMap[fav.roomId] = fav;
     }
-  }
+    return rooms.map((r) => ({ room: r, favorite: favMap[r.id] || null }));
+  }, [rooms, favorites]);
 
-  const comparisonRooms = useMemo(
-    () => rooms.filter((r) => selectedForComparison.includes(r.id)),
-    [rooms, selectedForComparison],
+  const filteredRooms = useMemo(() => {
+    if (activeFilter === "available") {
+      return roomsWithFavorites.filter((r) => r.room.status === "Available");
+    }
+    if (activeFilter === "unavailable") {
+      return roomsWithFavorites.filter((r) => r.room.status !== "Available");
+    }
+    return roomsWithFavorites;
+  }, [roomsWithFavorites, activeFilter]);
+
+  const availableCount = useMemo(
+    () => roomsWithFavorites.filter((r) => r.room.status === "Available").length,
+    [roomsWithFavorites],
   );
+  const unavailableCount = roomsWithFavorites.length - availableCount;
+
+  function countForFilter(filter) {
+    if (filter === "all") return roomsWithFavorites.length;
+    if (filter === "available") return availableCount;
+    if (filter === "unavailable") return unavailableCount;
+    return 0;
+  }
 
   if (!user || role !== "guest") {
     return (
@@ -309,20 +230,13 @@ export default function FavoritesPage() {
   return (
     <div className="space-y-6">
       {/* Heading */}
-      <div className="flex items-center justify-between gap-4">
-        <div className="space-y-1">
-          <h1 className="font-playfair text-3xl font-semibold tracking-tight text-foreground">
-            My Favorites
-          </h1>
-          <p className="text-foreground/70">
-            {rooms.length} room{rooms.length !== 1 ? "s" : ""} saved
-          </p>
-        </div>
-        {selectedForComparison.length >= 2 && (
-          <Button onClick={handleOpenComparison}>
-            Compare {selectedForComparison.length} Room{selectedForComparison.length !== 1 ? "s" : ""}
-          </Button>
-        )}
+      <div className="space-y-1">
+        <h1 className="font-playfair text-3xl font-semibold tracking-tight text-foreground">
+          My Favorites
+        </h1>
+        <p className="text-foreground/70">
+          {rooms.length} room{rooms.length !== 1 ? "s" : ""} saved
+        </p>
       </div>
 
       {/* Loading */}
@@ -343,28 +257,68 @@ export default function FavoritesPage() {
         </div>
       )}
 
-      {/* Room Grid */}
+      {/* Filter bar + Room Grid */}
       {!loading && rooms.length > 0 && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {rooms.map((room) => (
-            <FavoriteRoomCard
-              key={room.id}
-              room={room}
-              isFavorite={true}
-              onRemove={handleRemoveFavorite}
-              onToggleCompare={handleToggleCompare}
-              isSelectedForComparison={selectedForComparison.includes(room.id)}
-            />
-          ))}
-        </div>
-      )}
+        <>
+          {/* Filters */}
+          <div className="flex flex-wrap gap-2 border-b border-border pb-3">
+            {[
+              { id: "all", label: "All" },
+              { id: "available", label: "Available Now" },
+              { id: "unavailable", label: "Unavailable" },
+            ].map((filter) => {
+              const count = countForFilter(filter.id);
+              const isActive = activeFilter === filter.id;
+              return (
+                <button
+                  key={filter.id}
+                  type="button"
+                  onClick={() => setActiveFilter(filter.id)}
+                  className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
+                    isActive
+                      ? "bg-primary text-primary-foreground"
+                      : "text-foreground/60 hover:bg-surface-hover hover:text-foreground/90"
+                  }`}
+                >
+                  {filter.label}
+                  {count > 0 && (
+                    <span
+                      className={`rounded-full px-1.5 py-0.5 text-xs leading-none ${
+                        isActive
+                          ? "bg-primary-foreground/20 text-primary-foreground"
+                          : "bg-muted/20 text-foreground/50"
+                      }`}
+                    >
+                      {count}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
 
-      {/* Comparison Modal */}
-      {showComparison && (
-        <RoomComparison
-          rooms={comparisonRooms}
-          onClose={() => setShowComparison(false)}
-        />
+          {/* No results for filter */}
+          {filteredRooms.length === 0 && (
+            <div className="rounded-xl border border-border bg-background p-8 text-center text-sm text-foreground/50">
+              No {activeFilter === "available" ? "available" : "unavailable"} rooms in your favorites.
+            </div>
+          )}
+
+          {/* Room Grid */}
+          {filteredRooms.length > 0 && (
+            <div className="columns-1 gap-6 space-y-6 sm:columns-2 lg:columns-3">
+              {filteredRooms.map(({ room, favorite }) => (
+                <div key={room.id} className="mb-6 break-inside-avoid">
+                  <FavoriteRoomCard
+                    room={room}
+                    favorite={favorite}
+                    onRemove={handleRemoveFavorite}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+        </>
       )}
     </div>
   );

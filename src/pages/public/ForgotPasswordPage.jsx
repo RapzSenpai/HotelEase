@@ -9,6 +9,8 @@ import { useAuth } from "@/contexts/AuthContext";
 const SUCCESS_MESSAGE =
   "If an account exists for that email address, a password reset link has been sent. Please check your inbox.";
 
+const COOLDOWN_SECONDS = 60;
+
 function getErrorMessage(err) {
   const code = err?.code || "";
   if (code === "auth/user-not-found" || code === "auth/invalid-email") {
@@ -23,15 +25,31 @@ export default function ForgotPasswordPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
 
   async function onSubmit(e) {
     e.preventDefault();
     setError(null);
 
+    if (cooldown > 0) {
+      setError(`Please wait ${cooldown} seconds before trying again.`);
+      return;
+    }
+
     try {
       setLoading(true);
       await forgotPassword({ email });
       setSuccess(true);
+      setCooldown(COOLDOWN_SECONDS);
+      const interval = setInterval(() => {
+        setCooldown((prev) => {
+          if (prev <= 1) {
+            clearInterval(interval);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {
@@ -69,7 +87,7 @@ export default function ForgotPasswordPage() {
                 type="email"
                 required
                 autoComplete="email"
-                placeholder="example@gmail.com"
+                placeholder="Enter your email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="h-11"
@@ -80,9 +98,13 @@ export default function ForgotPasswordPage() {
               type="submit"
               variant="default"
               className="w-full"
-              disabled={loading}
+              disabled={loading || cooldown > 0}
             >
-              {loading ? "Sending..." : "Send Reset Link"}
+              {cooldown > 0
+                ? `Resend in ${cooldown}s`
+                : loading
+                ? "Sending..."
+                : "Send Reset Link"}
             </Button>
 
             {error ? (

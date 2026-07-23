@@ -8,6 +8,7 @@ export default function HousekeepingPhotoUpload({
   onChange,
   label = "Verification photos",
   maxPhotos = 4,
+  compact = false,
 }) {
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -49,7 +50,13 @@ export default function HousekeepingPhotoUpload({
   }
 
   return (
-    <div className="space-y-1.5 pt-1.5 border-t border-border/10">
+    <div
+      className={
+        compact
+          ? "space-y-1.5"
+          : "space-y-1.5 border-t border-border/10 pt-1.5"
+      }
+    >
       <div className="flex items-center justify-between gap-2">
         <span className="text-[10px] font-semibold uppercase tracking-wide text-foreground/45">
           {label}
@@ -67,7 +74,7 @@ export default function HousekeepingPhotoUpload({
             <img
               src={url}
               alt="Verification"
-              className="h-10 w-10 rounded-md border border-border object-cover"
+              className="h-9 w-9 rounded-md border border-border object-cover outline outline-1 outline-black/10"
             />
             <button
               type="button"
@@ -85,12 +92,12 @@ export default function HousekeepingPhotoUpload({
             type="button"
             variant="outline"
             size="xs"
-            className="h-10 w-10 p-0 flex items-center justify-center shrink-0 border-dashed hover:bg-muted/10"
+            className="flex h-9 w-9 shrink-0 items-center justify-center border-dashed p-0 hover:bg-muted/10"
             disabled={uploading}
             asChild
           >
             <label className="cursor-pointer">
-              <Camera className="h-4 w-4 text-foreground/50" />
+              <Camera className="h-3.5 w-3.5 text-foreground/50" />
               <input
                 type="file"
                 accept="image/*"

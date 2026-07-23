@@ -1,7 +1,7 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { NavLink } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { User, Mail, Shield, CalendarDays } from "lucide-react";
+import { User, Mail, CalendarDays } from "lucide-react";
 
 export default function ProfilePage() {
   const { user, role, profile } = useAuth();
@@ -25,11 +25,6 @@ export default function ProfilePage() {
       icon: Mail,
       label: "Email",
       value: user.email || "—",
-    },
-    {
-      icon: Shield,
-      label: "Role",
-      value: role ? role.charAt(0).toUpperCase() + role.slice(1) : "Guest",
     },
     {
       icon: User,
@@ -70,9 +65,6 @@ export default function ProfilePage() {
             {profile?.fullName || user.displayName || user.email?.split("@")[0] || "Guest"}
           </p>
           <p className="text-sm text-foreground/55 mt-0.5">{user.email || "—"}</p>
-          <span className="mt-1.5 inline-flex items-center rounded-full border border-primary/25 bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">
-            {role ? role.charAt(0).toUpperCase() + role.slice(1) : "Guest"}
-          </span>
         </div>
       </div>
 

@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+Disallow: /fo/
+Disallow: /admin/
+Disallow: /login
+Disallow: /register
+Disallow: /forgot-password
+
+Sitemap: https://hotelease-9e3a0.web.app/sitemap.xml

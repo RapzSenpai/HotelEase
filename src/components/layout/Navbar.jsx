@@ -1,12 +1,12 @@
 import { NavLink, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
-import { User, Heart } from "lucide-react";
+import { User, Menu } from "lucide-react";
 import NotificationBell from "@/components/notifications/NotificationBell";
 import { getLogoHomePath, isStaffRole } from "@/lib/routing";
 import { cn } from "@/lib/utils";
 
-export default function Navbar() {
+export default function Navbar({ onToggleSidebar }) {
   const { user, role, logout, loading } = useAuth();
   const location = useLocation();
   const isLanding = location.pathname === "/";
@@ -91,7 +91,6 @@ export default function Navbar() {
                   }`
                 }
               >
-                <Heart className="mr-1.5 h-4 w-4 inline" />
                 Favorites
               </NavLink>
             </>
@@ -102,6 +101,18 @@ export default function Navbar() {
         <div className="flex items-center gap-2">
           {user ? (
             <>
+              {/* Mobile sidebar toggle — FO/Admin only */}
+              {isFoOrAdmin && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="md:hidden"
+                  onClick={onToggleSidebar}
+                  aria-label="Toggle sidebar"
+                >
+                  <Menu className="h-5 w-5" />
+                </Button>
+              )}
               {/* Role badge — FO/Admin only */}
               {isFoOrAdmin && (
                 <span className="hidden rounded-full border border-border bg-muted/20 px-2.5 py-1 text-xs font-medium text-foreground/60 sm:inline">

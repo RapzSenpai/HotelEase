@@ -30,9 +30,9 @@ export default function CleaningTimer({ startedAt, label = "Cleaning for" }) {
 
   return (
     <div
-      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${urgencyClass(minutes)}`}
+      className={`inline-flex max-w-full items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1 text-[11px] font-medium leading-none ${urgencyClass(minutes)}`}
     >
-      <Clock className="h-3.5 w-3.5 shrink-0" />
+      <Clock className="h-3 w-3 shrink-0" />
       <span>
         {label} {elapsed}
       </span>

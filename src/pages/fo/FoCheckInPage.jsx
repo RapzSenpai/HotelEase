@@ -10,7 +10,17 @@ import {
 import { listRooms } from "@/services/roomsService";
 import { listUsers } from "@/services/userService";
 import { useAuth } from "@/contexts/AuthContext";
-import { CalendarDays, Users, BedDouble, CheckCircle2 } from "lucide-react";
+import { CalendarDays, Users, BedDouble, CheckCircle2, CreditCard, Filter, Clock } from "lucide-react";
+
+// ── Check-In Page: Arrival-focused view ───────────────────────────────────────
+// This page shows bookings arriving today/soon (within CHECK_IN_WINDOW_HOURS).
+// This differs from FoBookingsPage.jsx which shows the approval queue (all
+// pending/approved regardless of date). The distinction is:
+// - FoCheckInPage: Operational check-in workflow, filtered by arrival date
+// - FoBookingsPage: Approval queue, all pending/approved bookings
+// ────────────────────────────────────────────────────────────────────────────────
+
+const CHECK_IN_WINDOW_HOURS = 48; // Show bookings arriving within next 48 hours
 
 function formatDate(tsLike) {
   try {
@@ -95,6 +105,13 @@ export default function FoCheckInPage() {
   const [guestsMap, setGuestsMap] = useState({});
   const [selectedBookingId, setSelectedBookingId] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [showAllApproved, setShowAllApproved] = useState(!!roomIdParam);
+
+  useEffect(() => {
+    if (roomIdParam) {
+      setShowAllApproved(true);
+    }
+  }, [roomIdParam]);
 
   useEffect(() => {
     let isMounted = true;
@@ -104,7 +121,7 @@ export default function FoCheckInPage() {
         setError(null);
 
         const [roomData, bookingData, userData] = await Promise.all([
-          listRooms(),
+          listRooms({ trainingMode }),
           listBookingsByStatuses(["Pending", "Approved"], { trainingMode }),
           listUsers({ trainingMode }),
         ]);
@@ -118,9 +135,22 @@ export default function FoCheckInPage() {
         });
         setGuestsMap(gMap);
 
-        const filtered = roomIdParam
-          ? bookingData.filter((b) => b.roomId === roomIdParam)
-          : bookingData;
+        // Filter bookings based on arrival date window
+        const now = new Date();
+        const windowEnd = new Date(now.getTime() + CHECK_IN_WINDOW_HOURS * 60 * 60 * 1000);
+        
+        let filtered = bookingData;
+        if (!showAllApproved) {
+          filtered = bookingData.filter((b) => {
+            const checkIn = b.checkInDate?.toDate ? b.checkInDate.toDate() : new Date(b.checkInDate);
+            return checkIn <= windowEnd;
+          });
+        }
+        
+        if (roomIdParam) {
+          filtered = filtered.filter((b) => b.roomId === roomIdParam);
+        }
+        
         setBookings(filtered);
 
         // Auto-select first booking when arriving from dashboard via ?roomId=
@@ -138,7 +168,7 @@ export default function FoCheckInPage() {
     return () => {
       isMounted = false;
     };
-  }, [roomIdParam, trainingMode]);
+  }, [roomIdParam, trainingMode, showAllApproved]);
 
   const roomById = useMemo(() => {
     const map = new Map();
@@ -213,9 +243,22 @@ export default function FoCheckInPage() {
           {/* ── Left panel: booking list ── */}
           <div className="lg:col-span-2 space-y-3">
             <div className="rounded-xl border border-border bg-background p-4">
-              <div className="font-semibold">Arriving bookings</div>
-              <div className="mt-1 text-sm text-foreground/70">
-                {roomIdParam ? "Filtered by room." : "All rooms."}
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="font-semibold">Arriving bookings</div>
+                  <div className="mt-1 text-sm text-foreground/70">
+                    {roomIdParam ? "Filtered by room." : "All rooms."}
+                  </div>
+                </div>
+                <Button
+                  variant={showAllApproved ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setShowAllApproved(!showAllApproved)}
+                  className="gap-2"
+                >
+                  <Filter className="h-4 w-4" />
+                  {showAllApproved ? "Show Arriving" : "Show All Approved"}
+                </Button>
               </div>
             </div>
 
@@ -329,24 +372,32 @@ export default function FoCheckInPage() {
                         </div>
                       </div>
 
-                      {/* Guest + dates grid */}
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="flex items-start gap-2.5 rounded-lg border border-border/60 bg-muted/20 p-3">
-                          <Users className="h-4 w-4 text-foreground/40 mt-0.5 shrink-0" />
-                          <div className="min-w-0">
-                            <div className="text-[10px] uppercase tracking-wide text-foreground/40 mb-0.5">
-                              Guest
-                            </div>
-                            <div className="text-sm font-semibold truncate">
-                              {guestName}
-                            </div>
+                      {/* Guest details (full width) */}
+                      <div className="flex items-start gap-2.5 rounded-lg border border-border/60 bg-muted/20 p-3">
+                        <Users className="h-4 w-4 text-foreground/40 mt-0.5 shrink-0" />
+                        <div className="min-w-0 flex-1">
+                          <div className="text-[10px] uppercase tracking-wide text-foreground/40 mb-0.5">
+                            Guest Details
+                          </div>
+                          <div className="text-sm font-semibold truncate">
+                            {guestName}
+                          </div>
+                          <div className="mt-1 space-y-0.5 text-xs text-foreground/60">
+                            {selectedBooking.leadGuestEmail && (
+                              <div><span className="text-foreground/40">Email:</span> {selectedBooking.leadGuestEmail}</div>
+                            )}
+                            {selectedBooking.leadGuestPhone && (
+                              <div><span className="text-foreground/40">Phone:</span> {selectedBooking.leadGuestPhone}</div>
+                            )}
                             {selectedBooking.paxCount ? (
-                              <div className="text-xs text-foreground/50 mt-0.5">
-                                {selectedBooking.paxCount} pax
-                              </div>
+                              <div><span className="text-foreground/40">Pax:</span> {selectedBooking.paxCount} guests</div>
                             ) : null}
                           </div>
                         </div>
+                      </div>
+
+                      {/* Stay & Arrival details grid */}
+                      <div className="grid grid-cols-2 gap-3">
                         <div className="flex items-start gap-2.5 rounded-lg border border-border/60 bg-muted/20 p-3">
                           <CalendarDays className="h-4 w-4 text-foreground/40 mt-0.5 shrink-0" />
                           <div className="min-w-0">
@@ -367,6 +418,20 @@ export default function FoCheckInPage() {
                             ) : null}
                           </div>
                         </div>
+                        <div className="flex items-start gap-2.5 rounded-lg border border-border/60 bg-muted/20 p-3">
+                          <Clock className="h-4 w-4 text-foreground/40 mt-0.5 shrink-0" />
+                          <div className="min-w-0">
+                            <div className="text-[10px] uppercase tracking-wide text-foreground/40 mb-0.5">
+                              Arrival
+                            </div>
+                            <div className="text-xs font-semibold">
+                              {selectedBooking.arrivalTime || "I don't know"}
+                            </div>
+                            <div className="text-[10px] text-foreground/50 mt-0.5">
+                              Estimated time
+                            </div>
+                          </div>
+                        </div>
                       </div>
 
                       {/* Total cost */}
@@ -381,6 +446,38 @@ export default function FoCheckInPage() {
                           ).toLocaleString()}
                         </span>
                       </div>
+
+                      {/* Payment status */}
+                      {selectedBooking.paymentType && (
+                        <div className="flex items-start gap-2.5 rounded-lg border border-border/60 bg-muted/20 p-3">
+                          <CreditCard className="h-4 w-4 text-foreground/40 mt-0.5 shrink-0" />
+                          <div className="min-w-0 flex-1">
+                            <div className="text-[10px] uppercase tracking-wide text-foreground/40 mb-0.5">
+                              Payment Status
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-semibold">
+                                {selectedBooking.paymentMethod || "—"} ({selectedBooking.paymentType})
+                              </span>
+                              <Badge variant={selectedBooking.status === "Pending" ? "warning" : "success"} className="text-[10px]">
+                                {selectedBooking.status === "Pending" ? "Awaiting Verification" : "Paid"}
+                              </Badge>
+                            </div>
+                            <div className="text-xs text-foreground/50 mt-0.5">
+                              PHP {Number(selectedBooking.payment?.deposit ?? 0).toLocaleString()} paid · PHP {Math.max(0, Number(selectedBooking.totalCost ?? 0) - Number(selectedBooking.payment?.deposit ?? 0)).toLocaleString()} remaining
+                            </div>
+                          </div>
+                          {selectedBooking.paymentProofUrl && (
+                            <button
+                              type="button"
+                              onClick={() => window.open(selectedBooking.paymentProofUrl, '_blank')}
+                              className="shrink-0 text-xs text-primary hover:underline"
+                            >
+                              View Proof
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     {/* Action section */}

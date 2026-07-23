@@ -101,7 +101,7 @@ export const generateReceipt = (data) => {
     margin: { left: margin, right: margin },
     head: [['Summary', 'Amount']],
     body: [
-      ['Subtotal', formatAmount(data.subtotal)],
+      ['Total', formatAmount(data.total ?? data.subtotal)],
       ['Amount Paid', formatAmount(data.amountPaid)],
       ['Balance', formatAmount(data.balance)],
       ['Payment Method', `${data.paymentMethod || 'N/A'}`],

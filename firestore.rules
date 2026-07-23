@@ -55,6 +55,12 @@ service cloud.firestore {
       return r == 'fo' || r == 'admin';
     }
 
+    // Guest read-only access to payments linked to their own prod booking (Phase 18.3 folio).
+    function ownsProdBooking(bookingId) {
+      let path = /databases/$(database)/documents/bookings/$(bookingId);
+      return exists(path) && get(path).data.guestId == request.auth.uid;
+    }
+
     // --- PRODUCTION COLLECTIONS (Protected) ---
 
     match /users/{uid} {
@@ -91,20 +97,29 @@ service cloud.firestore {
                        request.resource.data.guestId == request.auth.uid;
 
       // UPDATE: FO/Admin can update anything.
-      // Guests can self-cancel their OWN bookings only when status is Pending or Approved.
+      // Guests can self-cancel their OWN bookings when status is Pending (not Awaiting Payment — 48hr expiry throttles holds).
+      // Guests can request cancellation of Approved bookings.
+      // Guests can upload payment proof for their OWN bookings only when status is "Awaiting Payment".
       allow update: if (isProdFOOrAdmin() && !isAnonymous() && 
                           (request.resource.data.status != "Checked Out" || 
                            request.resource.data.payment.deposit >= resource.data.totalCost)) ||
                        (isAuthenticated() && !isAnonymous() &&
                         isOwner(resource.data.guestId) &&
                         ((resource.data.status == "Pending" && request.resource.data.status == "Cancelled") ||
-                         (resource.data.status == "Approved" && request.resource.data.status == "Cancellation Requested")));
+                         (resource.data.status == "Approved" && request.resource.data.status == "Cancellation Requested") ||
+                         (resource.data.status == "Awaiting Payment" && 
+                          request.resource.data.status == "Pending" &&
+                          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['paymentProofUrl', 'paymentType', 'paymentMethod', 'proofUploadedAt', 'status', 'updatedAt']))));
 
       allow delete: if isProdFOOrAdmin() && !isAnonymous();
     }
 
     match /payments/{id} {
-      allow read, write: if isProdFOOrAdmin() && !isAnonymous();
+      allow read: if (isProdFOOrAdmin() && !isAnonymous()) ||
+                     (isAuthenticated() && !isAnonymous() &&
+                      resource.data.bookingId is string &&
+                      ownsProdBooking(resource.data.bookingId));
+      allow write: if isProdFOOrAdmin() && !isAnonymous();
     }
 
     // --- TRAINING COLLECTIONS (training_*) ---
@@ -128,7 +143,10 @@ service cloud.firestore {
                        (isAuthenticated() &&
                         isOwner(resource.data.guestId) &&
                         ((resource.data.status == "Pending" && request.resource.data.status == "Cancelled") ||
-                         (resource.data.status == "Approved" && request.resource.data.status == "Cancellation Requested")));
+                         (resource.data.status == "Approved" && request.resource.data.status == "Cancellation Requested") ||
+                         (resource.data.status == "Awaiting Payment" && 
+                          request.resource.data.status == "Pending" &&
+                          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['paymentProofUrl', 'paymentType', 'paymentMethod', 'proofUploadedAt', 'status', 'updatedAt']))));
       allow delete: if isAuthenticated() && 
                                (isOwner(resource.data.guestId) || isProdFOOrAdmin() || isTrainingFOOrAdmin());
     }
@@ -177,7 +195,7 @@ service cloud.firestore {
     match /notifications/{userId}/items/{notifId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
       allow create: if isAuthenticated() &&
-                       request.resource.data.type in ["booking_request","booking_approved","booking_rejected","booking_cancelled","room_dirty","announcement","support_message","cancellation_requested","cancellation_approved","cancellation_rejected"] &&
+                       request.resource.data.type in ["booking_request","booking_approved","booking_rejected","booking_cancelled","room_dirty","announcement","support_message","cancellation_requested","cancellation_approved","cancellation_rejected","payment_proof_required"] &&
                        request.resource.data.isRead == false &&
                        request.resource.data.keys().hasAll(['title', 'message', 'link', 'createdAt']);
     }

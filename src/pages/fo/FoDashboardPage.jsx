@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import RoomStatusBadge from "@/components/rooms/RoomStatusBadge";
 import {
   Table,
@@ -515,9 +516,10 @@ export default function FoDashboardPage() {
               <p className="text-sm text-foreground/50">No rooms match your filters.</p>
             </div>
           ) : (
-            <div className="rounded-xl border border-border bg-card overflow-x-auto shadow-sm">
+            <Card>
+              <CardContent className="pt-6">
               <Table>
-                <TableHeader className="bg-muted/30">
+                <TableHeader>
                   <TableRow>
                     <TableHead>Room</TableHead>
                     <TableHead>Type</TableHead>
@@ -621,7 +623,8 @@ export default function FoDashboardPage() {
                   })}
                 </TableBody>
               </Table>
-            </div>
+              </CardContent>
+            </Card>
           )}
         </div>
       )}

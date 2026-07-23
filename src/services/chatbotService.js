@@ -25,7 +25,7 @@ You ONLY answer questions related to:
 - Booking process and how to make a reservation
 - Check-in time (2:00 PM) and check-out time (12:00 NN)
 - Room amenities and inclusions
-- Payment methods (GCash, Cash, Check, Credit Card)
+- Payment methods: GCash and Bank Transfer (upload proof online), or Over-the-Counter and Credit/Debit Card (pay at the front desk upon arrival)
 - Hotel announcements and events
 - General hotel policies and hospitality questions
 

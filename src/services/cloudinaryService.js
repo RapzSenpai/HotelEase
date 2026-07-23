@@ -23,7 +23,7 @@ export async function uploadImageToCloudinary(file, { folder = "rooms", onProgre
     const formData = new FormData();
     formData.append("file", file);
     formData.append("upload_preset", UPLOAD_PRESET);
-    if (folder) formData.append("folder", folder);
+    // Note: folder parameter removed since preset has 'use asset folder as public id prefix: false'
 
     const xhr = new XMLHttpRequest();
 

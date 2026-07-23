@@ -14,9 +14,14 @@ import {
 } from "firebase/firestore";
 import { db } from "@/firebase/firebase.config";
 import { getCol } from "@/lib/db-utils";
-import { isRoomActive, isRoomBookable } from "./roomsService";
+import { isRoomActive, isRoomBookable, listRooms } from "./roomsService";
 import { listUsers } from "./userService";
 import { createNotification } from "./notificationService";
+import { uploadImageToCloudinary } from "./cloudinaryService";
+import { sendBookingConfirmation } from "./emailService";
+import { recordPayment } from "./paymentsService";
+import { calculatePartialPayment, PROOF_REQUIRED_METHODS } from "@/lib/paymentDetails";
+import { auth } from "@/firebase/firebase.config";
 
 const CANCELLED_STATUS = "Cancelled";
 
@@ -101,8 +106,42 @@ export async function approveBooking(bookingId, { trainingMode = null } = {}) {
     throw new Error("Invalid bookingId passed to approveBooking");
   }
 
+  const bCol = bookingsCollection(trainingMode);
+
+  // Conflict re-check must run OUTSIDE the transaction (queries aren't allowed inside).
+  // Block approval if another booking for the same room/dates is already Approved or later.
+  const preRef = doc(db, bCol, bookingId);
+  const preSnap = await getDoc(preRef);
+  if (!preSnap.exists()) throw new Error("Booking not found.");
+  const preBooking = preSnap.data();
+  if (preBooking.status !== "Pending") {
+    throw new Error("Booking must be Pending to approve.");
+  }
+
+  const checkIn = toDate(preBooking.checkInDate);
+  const checkOut = toDate(preBooking.checkOutDate);
+  if (preBooking.roomId && checkIn && checkOut) {
+    const conflictsQuery = query(
+      collection(db, bCol),
+      where("roomId", "==", preBooking.roomId),
+      where("status", "in", ["Approved", "Checked In"]),
+    );
+    const conflictsSnap = await getDocs(conflictsQuery);
+    const hasConflict = conflictsSnap.docs.some((conflictDoc) => {
+      if (conflictDoc.id === bookingId) return false;
+      const b = conflictDoc.data();
+      const bIn = toDate(b.checkInDate);
+      const bOut = toDate(b.checkOutDate);
+      return bIn && bOut && checkIn < bOut && checkOut > bIn;
+    });
+    if (hasConflict) {
+      throw new Error(
+        "Cannot approve — another booking for this room already covers these dates.",
+      );
+    }
+  }
+
   return runTransaction(db, async (transaction) => {
-    const bCol = bookingsCollection(trainingMode);
     const rCol = getCol("rooms", trainingMode);
 
     const bookingRef = doc(db, bCol, bookingId);
@@ -112,6 +151,12 @@ export async function approveBooking(bookingId, { trainingMode = null } = {}) {
     const booking = bookingSnap.data();
     if (booking.status !== "Pending") {
       throw new Error("Booking must be Pending to approve.");
+    }
+
+    // Phase 17.3: Only require payment proof for GCash and Bank Transfer methods
+    const requiresProof = PROOF_REQUIRED_METHODS.includes(booking.paymentMethod);
+    if (requiresProof && !booking.paymentProofUrl) {
+      throw new Error("Cannot approve — no payment proof submitted.");
     }
 
     const roomId = booking.roomId;
@@ -128,6 +173,7 @@ export async function approveBooking(bookingId, { trainingMode = null } = {}) {
 
     transaction.update(bookingRef, {
       status: "Approved",
+      proofVerifiedAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
 
@@ -136,8 +182,35 @@ export async function approveBooking(bookingId, { trainingMode = null } = {}) {
       updatedAt: serverTimestamp(),
     });
 
-    return { ok: true, roomName: roomSnap.data().name || roomSnap.data().type || "Room", guestId: booking.guestId };
+    return { ok: true, roomName: roomSnap.data().name || roomSnap.data().type || "Room", guestId: booking.guestId, booking };
   }).then(async (result) => {
+    // Only auto-record payment for proof-required methods that actually uploaded proof.
+    // OTC/Card: deposit stays 0 until FO manually records payment at the desk.
+    const requiresProof = PROOF_REQUIRED_METHODS.includes(result.booking.paymentMethod);
+    if (requiresProof && result.booking.paymentProofUrl) {
+      try {
+        const paymentType = result.booking.paymentType || "Full";
+        const paymentMethod = result.booking.paymentMethod || "GCash";
+        const totalCost = Number(result.booking.totalCost ?? 0);
+        const paymentAmount = paymentType === "Partial"
+          ? calculatePartialPayment(totalCost)
+          : totalCost;
+
+        await recordPayment({
+          bookingId,
+          amount: paymentAmount,
+          method: paymentMethod,
+          note: "Initial payment via proof upload",
+          source: "guest_proof",
+          processedBy: "system",
+          trainingMode,
+        });
+      } catch (e) {
+        console.error("Payment recording error:", e);
+        // Don't block approval if payment recording fails - log and continue
+      }
+    }
+
     try {
       await createNotification(result.guestId, {
         type: "booking_approved",
@@ -146,6 +219,37 @@ export async function approveBooking(bookingId, { trainingMode = null } = {}) {
         link: "/my-bookings"
       });
     } catch (e) { console.error("Notif error", e); }
+
+    // Send booking confirmation email (fire-and-forget)
+    try {
+      const guestDoc = await getDoc(doc(db, getCol("users", trainingMode), result.guestId));
+      if (guestDoc.exists()) {
+        const guestData = guestDoc.data();
+        const toEmail = guestData.email;
+        const toName = guestData.fullName || guestData.email?.split('@')[0] || "Guest";
+
+        // Format dates for email
+        const checkInDate = result.booking.checkInDate?.toDate ? result.booking.checkInDate.toDate() : new Date();
+        const checkOutDate = result.booking.checkOutDate?.toDate ? result.booking.checkOutDate.toDate() : new Date();
+        const checkInStr = checkInDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+        const checkOutStr = checkOutDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+
+        const paymentType = result.booking.paymentType || "Full";
+
+        sendBookingConfirmation({
+          toEmail,
+          toName,
+          roomName: result.roomName,
+          checkIn: checkInStr,
+          checkOut: checkOutStr,
+          bookingId: bookingId,
+          paymentType,
+        });
+      }
+    } catch (e) {
+      console.error("Email service error:", e);
+    }
+
     return result;
   });
 }
@@ -257,7 +361,7 @@ export async function createBooking(payload) {
   const guestBookingsQuery = query(
     collection(db, BOOKINGS_COL),
     where("guestId", "==", guestId),
-    where("status", "in", ["Pending", "Approved"]),
+    where("status", "in", ["Awaiting Payment", "Pending", "Approved"]),
   );
   const guestBookingsSnap = await getDocs(guestBookingsQuery);
   if (guestBookingsSnap.size >= MAX_ACTIVE_BOOKINGS_PER_GUEST) {
@@ -269,7 +373,7 @@ export async function createBooking(payload) {
   const conflictsQuery = query(
     collection(db, BOOKINGS_COL),
     where("roomId", "==", roomId),
-    where("status", "in", ["Pending", "Approved", "Checked In"]),
+    where("status", "in", ["Awaiting Payment", "Pending", "Approved", "Checked In"]),
   );
   const conflictsSnap = await getDocs(conflictsQuery);
   const hasConflict = conflictsSnap.docs.some((conflictDoc) => {
@@ -300,25 +404,49 @@ export async function createBooking(payload) {
 
     const totalCost = Number(dataOr(roomData, "ratePerNight", 0)) * nights;
 
+    // Phase 18.2: Determine initial status based on payment method
+    // Proof-exempt methods (OTC, Card) skip "Awaiting Payment" and go straight to "Pending"
+    const paymentMethod = payload.paymentMethod;
+    if (!paymentMethod) {
+      throw new Error("Payment method is required");
+    }
+    const requiresProof = PROOF_REQUIRED_METHODS.includes(paymentMethod);
+    const initialStatus = requiresProof ? "Awaiting Payment" : "Pending";
+
     const bookingRef = doc(collection(db, BOOKINGS_COL));
-    transaction.set(bookingRef, {
+    const paymentDeadline = new Date(Date.now() + 48 * 60 * 60 * 1000); // 48 hours from now
+
+    const bookingData = {
       guestId,
       roomId,
       checkInDate: checkInTs,
       checkOutDate: checkOutTs,
       nights,
       totalCost,
-      status: "Pending",
+      status: initialStatus,
       bookingType: "Online",
       paxCount: Number(payload.paxCount ?? 1),
       specialRequests: payload.specialRequests ?? "",
+      // P0.3 — lead guest fields (supports booking-on-behalf-of, separate from guestId)
+      leadGuestName: payload.leadGuestName ?? null,
+      leadGuestEmail: payload.leadGuestEmail ?? null,
+      leadGuestPhone: payload.leadGuestPhone ?? null,
+      arrivalTime: payload.arrivalTime ?? "I don't know",
       payment: {
-        method: null,
+        method: paymentMethod,
         deposit: 0,
       },
+      paymentProofUrl: null,
+      paymentType: payload.paymentType || null,
+      paymentMethod: paymentMethod,
+      paymentDeadline: Timestamp.fromDate(paymentDeadline),
+      proofUploadedAt: null,
+      proofVerifiedAt: null,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
-    });
+    };
+
+    transaction.set(bookingRef, bookingData);
 
     return { id: bookingRef.id, roomName: roomData.name || roomData.type || "Room" };
   }).then(async (result) => {
@@ -341,6 +469,16 @@ export async function createBooking(payload) {
         message: `${guestName} requested ${result.roomName} from ${checkInStr} to ${checkOutStr}`,
         link: "/fo/bookings"
       })));
+
+      // Guest notification: payment proof required — only for methods that need proof upload
+      if (PROOF_REQUIRED_METHODS.includes(payload.paymentMethod)) {
+        await createNotification(guestId, {
+          type: "payment_proof_required",
+          title: "Payment Proof Required",
+          message: `Upload payment proof to complete your booking for ${result.roomName}`,
+          link: "/my-bookings"
+        });
+      }
     } catch (e) { console.error("Notif error", e); }
     return result;
   });
@@ -455,6 +593,9 @@ export async function cancelBooking(bookingId, { trainingMode = null } = {}) {
 
     if (userSnap && userSnap.exists()) {
       const count = userSnap.data().cancellationCount || 0;
+      if (count >= 3) {
+        throw new Error("This guest has reached the maximum cancellation limit (3). Cannot cancel further bookings.");
+      }
       transaction.update(userRef, {
         cancellationCount: count + 1,
         updatedAt: serverTimestamp(),
@@ -516,8 +657,8 @@ export async function cancelBooking(bookingId, { trainingMode = null } = {}) {
 
 /**
  * Returns a Set of room IDs that have conflicting bookings for the selected date range.
- * A conflict is defined as a booking in status "Pending", "Approved", or "Checked In" 
- * that overlaps with [checkInStr, checkOutStr].
+ * A conflict is defined as a booking in status "Awaiting Payment", "Pending", "Approved",
+ * or "Checked In" that overlaps with [checkInStr, checkOutStr].
  *
  * @param {string} checkInStr YYYY-MM-DD
  * @param {string} checkOutStr YYYY-MM-DD
@@ -529,7 +670,10 @@ export async function getAvailableRoomIds(checkInStr, checkOutStr, { trainingMod
   const checkOut = toDate(checkOutStr);
   if (!checkIn || !checkOut || checkOut <= checkIn) return new Set();
 
-  const activeBookings = await listBookingsByStatuses(["Pending", "Approved", "Checked In"], { trainingMode });
+  const activeBookings = await listBookingsByStatuses(
+    ["Awaiting Payment", "Pending", "Approved", "Checked In"],
+    { trainingMode },
+  );
 
   const conflictingRoomIds = new Set();
   for (const b of activeBookings) {
@@ -542,6 +686,31 @@ export async function getAvailableRoomIds(checkInStr, checkOutStr, { trainingMod
     }
   }
   return conflictingRoomIds;
+}
+
+/**
+ * Returns full room objects that are available (not conflicted) for the given
+ * date range. Only includes active rooms. This is the single source of truth
+ * used by Browse Rooms filtering AND the wizard's defensive pre-submit check.
+ *
+ * @param {string} checkInStr  YYYY-MM-DD
+ * @param {string} checkOutStr YYYY-MM-DD
+ * @param {{ trainingMode?: boolean }} options
+ * @returns {Promise<Array>} Array of room objects available for those dates
+ */
+export async function getAvailableRooms(checkInStr, checkOutStr, { trainingMode = null } = {}) {
+  const checkIn = toDate(checkInStr);
+  const checkOut = toDate(checkOutStr);
+  if (!checkIn || !checkOut || checkOut <= checkIn) return [];
+
+  const [conflictingIds, allRooms] = await Promise.all([
+    getAvailableRoomIds(checkInStr, checkOutStr, { trainingMode }),
+    listRooms({ trainingMode }),
+  ]);
+
+  return allRooms.filter(
+    (room) => isRoomActive(room) && !conflictingIds.has(room.id)
+  );
 }
 
 export async function requestCancellation(bookingId, guestId, reason, { trainingMode = null } = {}) {
@@ -619,6 +788,9 @@ export async function approveCancellation(bookingId, { trainingMode = null } = {
 
     if (userSnap && userSnap.exists()) {
       const count = userSnap.data().cancellationCount || 0;
+      if (count >= 3) {
+        throw new Error("This guest has reached the maximum cancellation limit (3). Cannot approve further cancellations.");
+      }
       transaction.update(userRef, {
         cancellationCount: count + 1,
         updatedAt: serverTimestamp(),
@@ -706,4 +878,104 @@ export async function rejectCancellation(bookingId, rejectionReason, { trainingM
   }
 
   return { ok: true };
+}
+
+export async function uploadPaymentProof(bookingId, file, paymentType, paymentMethod, { trainingMode = null } = {}) {
+  if (!bookingId || typeof bookingId !== "string") {
+    throw new Error("Invalid bookingId passed to uploadPaymentProof");
+  }
+  if (!file) {
+    throw new Error("File is required for payment proof upload");
+  }
+  if (!paymentType || !["Full", "Partial"].includes(paymentType)) {
+    throw new Error("paymentType must be 'Full' or 'Partial'");
+  }
+  if (!paymentMethod || !["GCash", "Bank Transfer", "Credit/Debit Card", "Over-the-Counter"].includes(paymentMethod)) {
+    throw new Error("Invalid payment method");
+  }
+
+  const currentUser = auth.currentUser;
+  if (!currentUser) {
+    throw new Error("You must be logged in to upload payment proof");
+  }
+
+  const col = bookingsCollection(trainingMode);
+  const bookingRef = doc(db, col, bookingId);
+  const bookingSnap = await getDoc(bookingRef);
+  
+  if (!bookingSnap.exists()) {
+    throw new Error("Booking not found");
+  }
+
+  const booking = bookingSnap.data();
+  if (booking.guestId !== currentUser.uid) {
+    throw new Error("You can only upload payment proof for your own bookings");
+  }
+  if (booking.status !== "Awaiting Payment") {
+    throw new Error("Payment proof can only be uploaded for bookings in 'Awaiting Payment' status");
+  }
+
+  const { url } = await uploadImageToCloudinary(file);
+
+  await updateDoc(bookingRef, {
+    paymentProofUrl: url,
+    paymentType: paymentType,
+    paymentMethod: paymentMethod,
+    proofUploadedAt: serverTimestamp(),
+    status: "Pending",
+    updatedAt: serverTimestamp(),
+  });
+
+  try {
+    const foUsers = await listUsers({ trainingMode }).then(users =>
+      users.filter(u => u.role === "fo" && u.id !== currentUser.uid)
+    );
+
+    await Promise.all(foUsers.map(fo => createNotification(fo.id, {
+      type: "booking_request",
+      title: "Payment Proof Uploaded",
+      message: `Payment proof has been uploaded for a booking request`,
+      link: "/fo/bookings"
+    })));
+  } catch (e) {
+    console.error("Notif error", e);
+  }
+
+  return { ok: true, paymentProofUrl: url };
+}
+
+export async function checkAndExpireStaleBookings({ trainingMode = null } = {}) {
+  const col = bookingsCollection(trainingMode);
+  const now = new Date();
+  
+  const q = query(
+    collection(db, col),
+    where("status", "==", "Awaiting Payment"),
+    where("paymentDeadline", "<", Timestamp.fromDate(now))
+  );
+  
+  const snap = await getDocs(q);
+  const expiredBookings = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  
+  for (const booking of expiredBookings) {
+    const ref = doc(db, col, booking.id);
+    await updateDoc(ref, {
+      status: "Cancelled",
+      rejectionReason: "Payment deadline expired",
+      updatedAt: serverTimestamp(),
+    });
+    
+    try {
+      await createNotification(booking.guestId, {
+        type: "booking_cancelled",
+        title: "Booking Cancelled",
+        message: `Your booking was cancelled because payment was not submitted before the deadline.`,
+        link: "/my-bookings",
+      });
+    } catch (e) {
+      console.error("Notif error", e);
+    }
+  }
+  
+  return { expiredCount: expiredBookings.length };
 }

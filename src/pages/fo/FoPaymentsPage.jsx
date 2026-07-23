@@ -164,6 +164,10 @@ export default function FoPaymentsPage() {
       setError("Please enter a valid payment amount.");
       return;
     }
+    if (amt > balance + 0.01) {
+      setError(`Payment amount cannot exceed the remaining balance of ₱${balance.toLocaleString()}.`);
+      return;
+    }
     if (!method.trim()) {
       setError("Please select a payment method.");
       return;
@@ -227,7 +231,7 @@ export default function FoPaymentsPage() {
       <div className="space-y-1">
         <h1 className="font-playfair text-3xl font-semibold">Payments</h1>
         <p className="text-foreground/80">
-          Record and track payment transactions for active bookings.
+          Record remaining balance payments and on-site charges for checked-in guests.
         </p>
       </div>
 
@@ -511,6 +515,7 @@ export default function FoPaymentsPage() {
                           const ref = paymentNote(p);
                           const ts = formatDateTime(p.createdAt);
                           const isLatest = idx === 0;
+                          const source = p.source || "fo_manual";
 
                           return (
                             <div
@@ -527,6 +532,16 @@ export default function FoPaymentsPage() {
                                 <span className="text-xs rounded-full bg-primary/15 border border-primary/20 px-2 py-0.5 font-medium">
                                   {p.method || "—"}
                                 </span>
+                              </div>
+
+                              {/* Source badge */}
+                              <div className="flex items-center gap-2">
+                                <Badge 
+                                  variant={source === "guest_proof" ? "success" : "outline"} 
+                                  className="text-[10px]"
+                                >
+                                  {source === "guest_proof" ? "Guest Upload" : "Front Desk"}
+                                </Badge>
                               </div>
 
                               {/* Reference / note */}

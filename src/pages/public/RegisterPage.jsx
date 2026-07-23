@@ -5,6 +5,7 @@ import { Label } from "@/components/ui/label";
 import { useAuth } from "@/contexts/AuthContext";
 import { NavLink, useNavigate } from "react-router-dom";
 import { Eye, EyeOff } from "lucide-react";
+import { toast } from "sonner";
 
 export default function RegisterPage() {
   const navigate = useNavigate();
@@ -16,16 +17,29 @@ export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [localError, setLocalError] = useState(null);
   const [passwordError, setPasswordError] = useState(null);
+  const [honeypot, setHoneypot] = useState("");
+  const [cooldown, setCooldown] = useState(false);
 
   function validatePassword(pw) {
     if (pw.length < 8) return "Password must be at least 8 characters.";
     if (!/\d/.test(pw)) return "Password must contain at least one number.";
+    if (!/[A-Z]/.test(pw)) return "Password must contain at least one uppercase letter.";
+    if (!/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(pw)) return "Password must contain at least one special character.";
     return null;
   }
 
   async function onSubmit(e) {
     e.preventDefault();
     setLocalError(null);
+
+    // Honeypot check — bots fill hidden fields
+    if (honeypot) return;
+
+    // Rate limit — cooldown after previous registration
+    if (cooldown) {
+      setLocalError("Please wait a moment before creating another account.");
+      return;
+    }
 
     const pwError = validatePassword(password);
     if (pwError) {
@@ -36,8 +50,10 @@ export default function RegisterPage() {
 
     try {
       await register({ email, password, fullName });
-      // New users are created as 'guest' in Phase 1.
-      navigate("/my-bookings");
+      setCooldown(true);
+      setTimeout(() => setCooldown(false), 60000);
+      toast.success("Account created! Please log in.");
+      navigate("/login");
     } catch (err) {
       setLocalError(err?.message || "Registration failed.");
     }
@@ -53,12 +69,24 @@ export default function RegisterPage() {
       </div>
 
       <form className="space-y-4 rounded-xl border border-border bg-background p-6 shadow-sm" onSubmit={onSubmit}>
+        {/* Honeypot — hidden from humans, bots will fill it */}
+        <input
+          type="text"
+          name="website"
+          tabIndex={-1}
+          autoComplete="off"
+          aria-hidden="true"
+          value={honeypot}
+          onChange={(e) => setHoneypot(e.target.value)}
+          style={{ position: "absolute", left: "-9999px", opacity: 0, height: 0, width: 0 }}
+        />
+
         <div className="space-y-2">
           <Label htmlFor="fullName">Full Name</Label>
           <Input
             id="fullName"
             required
-            placeholder="Juan Dela Cruz"
+            placeholder="Enter your full name"
             value={fullName}
             onChange={(e) => setFullName(e.target.value)}
             className="h-11"
@@ -72,7 +100,7 @@ export default function RegisterPage() {
             type="email"
             required
             autoComplete="email"
-            placeholder="example@gmail.com"
+            placeholder="Enter your email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             className="h-11"
@@ -87,7 +115,7 @@ export default function RegisterPage() {
               type={showPassword ? "text" : "password"}
               required
               autoComplete="new-password"
-              placeholder="••••••••"
+              placeholder="Enter your password"
               value={password}
               onChange={(e) => {
                 setPassword(e.target.value);
@@ -106,6 +134,7 @@ export default function RegisterPage() {
             </Button>
           </div>
           {passwordError && <p className="text-xs text-destructive">{passwordError}</p>}
+          {!passwordError && <p className="text-xs text-foreground/45">Min 8 characters, 1 uppercase, 1 number, 1 special character.</p>}
         </div>
 
         {(localError || authError) ? (
@@ -114,8 +143,8 @@ export default function RegisterPage() {
           </div>
         ) : null}
 
-        <Button type="submit" size="lg" className="w-full" disabled={loading}>
-          {loading ? "Creating account..." : "Register"}
+        <Button type="submit" size="lg" className="w-full" disabled={loading || cooldown}>
+          {cooldown ? "Please wait..." : loading ? "Creating account..." : "Register"}
         </Button>
 
         <div className="text-center text-sm text-foreground/70 pt-1">

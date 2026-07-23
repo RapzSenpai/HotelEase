@@ -1,0 +1,577 @@
+[0] Normal: CEBU INSTITUTE OF TECHNOLOGY UNIVERSITY
+[2] Normal: COLLEGE OF COMPUTER STUDIES
+[8] Normal: Software Requirements Specifications
+[9] Normal: for
+[10] Normal: HotelEase: BSHM Property Management System
+[16] Normal: TABLE OF CONTENTS
+[18] Normal: 1.    Introduction
+[19] Normal:       1.1.  Purpose
+[20] Normal:       1.2.  Scope
+[21] Normal:       1.3.  Definitions, Acronyms and Abbreviations
+[22] Normal:       1.4.  References
+[23] Normal: 2.    Overall Description
+[24] Normal:       2.1.  Product Perspective
+[25] Normal:       2.2.  Product Functions (Modular Decomposition)
+[26] Normal:       2.3.  User Characteristics
+[27] Normal:       2.4.  Constraints
+[28] Normal:       2.5.  Assumptions and Dependencies
+[29] Normal: 3.    Specific Requirements
+[30] Normal:       3.1.  Hardware Interfaces
+[31] Normal:       3.2.  Software Interfaces
+[32] Normal:       3.3.  Communications Interfaces
+[33] Normal:       3.4.  Module 1 — User & Authentication Management
+[34] Normal:       3.5.  Module 2 — Room & Booking Management
+[35] Normal:       3.6.  Module 3 — Housekeeping, Payments & Operations
+[36] Normal:       3.7.  Module 4 — Administration & Analytics
+[37] Normal:       3.8.  Data Model (ERD)
+[38] Normal:       3.9.  Performance
+[39] Normal:       3.10. Security
+[40] Normal:       3.11. Reliability
+[41] Body Text: Note: Page numbers should be updated after final formatting. Use Insert > Table of Contents in Word to auto-generate.
+[43] Heading 1: Introduction
+[45] Body Text: The purpose of this Software Requirements Specification (SRS) is to provide a comprehensive and detailed description of the HotelEase system — a web-based Property Management System (PMS) developed for the Bachelor of Science in Hospitality Management (BSHM) department. This document defines the functional and non-functional requirements necessary for the successful development, deployment, and maintenance of the software, ensuring a shared understanding among developers, testers, stakeholders, and academic advisors.
+[47] Body Text: HotelEase is a web-based hotel/property management system that simulates a real-world hotel environment to support academic learning, departmental operations, and practical training for BSHM students. The system mirrors industry-standard PMS workflows while being tailored to the academic context of the institution.
+[48] Body Text: Key features of the platform include:
+[49] List Bullet: Room Management: Administrators can add, edit, activate, and deactivate rooms with details such as room type, rate, amenities, floor, and photo gallery.
+[50] List Bullet: Online Booking: Guests can browse available rooms, select dates, and submit booking requests. The system includes double-booking prevention with date-overlap validation.
+[51] List Bullet: Booking Lifecycle: Full workflow from Pending → Approved → Checked In → Checked Out → Cancelled, with Front Office (FO) staff managing approvals, check-ins, check-outs, and a new FO-mediated cancellation flow (Cancellation Requested state).
+[52] List Bullet: Housekeeping Workflow: Automated room status transitions (Dirty → Being Cleaned → Pending Approval → Available) with audit logging of all status changes.
+[53] List Bullet: Payment Processing: Support for 4 methods (GCash, Bank Transfer, Credit/Debit Card, Over-the-Counter). Features proof-required vs proof-exempt logic, Full/Partial payment types, 48-hr payment deadline with auto-expiry, balance overpayment validation, folio management, and PDF receipt generation via jsPDF.
+[54] List Bullet: Announcements & Events: FO staff can create, edit, and publish announcements with optional image uploads via Cloudinary, visible on the guest-facing landing page.
+[55] List Bullet: Guest Reviews & Testimonials: Guests can submit star-rated reviews for rooms and general testimonials, with FO moderation (approve/reject) for testimonials.
+[56] List Bullet: AI Chatbot: A Groq-powered (LLaMA 3.1 8B) chatbot widget on the landing page that answers hotel-related inquiries using real-time room data.
+[57] List Bullet: In-App Notifications: Real-time notification system for booking events, housekeeping alerts, announcements, and support messages across all user roles.
+[58] List Bullet: Contact & Support Messaging: Guests can submit support messages; FO staff can view, mark as read, and reply with optional email notification (via Cloud Functions if deployed, otherwise handled via in-app notifications).
+[59] List Bullet: Analytics Dashboard: Admin dashboard showing occupancy rates, revenue summaries, booking trends (7-day chart), and peak booking periods.
+[60] List Bullet: Training/Demo Mode: Admin-controlled training mode with session codes, sandboxed Firestore collections (training_ prefix), and one-click data reset for classroom use.
+[61] List Bullet: Role-Based Access Control: Three distinct roles (Guest, Front Office, Admin) with Firestore security rules and client-side route protection via PrivateRoute component.
+[62] Body Text: The system is not designed for comprehensive learning management (LMS) functionalities such as grading, assignment tracking, or curriculum management. It does not process real financial transactions or integrate with payment gateways for live monetary transfers.
+[63] Heading 4: Application Benefits:
+[64] List Bullet: BSHM Students: Gain hands-on experience with industry-standard hotel management workflows in a safe, sandboxed training environment.
+[65] List Bullet: Faculty/Instructors: Facilitate practical exercises using the training mode with session codes and resettable demo data.
+[66] List Bullet: Department: Streamline room booking operations, guest management, and event announcements for departmental activities.
+[67] List Bullet: Institution: Serve as a capstone project demonstrating full-stack web development competency with real-world applicability.
+[68] Normal: The objectives of HotelEase are to:
+[69] List Bullet: Provide a centralized, web-accessible platform for managing hotel room bookings, guest check-ins/check-outs, payments, and housekeeping operations.
+[70] List Bullet: Implement a role-based access control system with three distinct user types (Guest, Front Office, Admin) enforced at both client and database levels.
+[71] List Bullet: Deliver a training/demo mode that allows instructors to create sandboxed sessions for student learning without affecting production data.
+[72] List Bullet: Integrate an AI-powered chatbot to assist guests with hotel-related inquiries using real-time room data.
+[73] List Bullet: Generate professional PDF receipts and provide analytics dashboards for operational insights.
+[75] Heading 2: Definitions, Acronyms and Abbreviations
+[77] Heading 2: References
+[78] List Bullet: IEEE Std 830-1998: IEEE Standard for Software Requirements Specifications
+[79] Body Text: Date: 1998  |  Publisher: Institute of Electrical and Electronics Engineers (IEEE)  |  Source: IEEE Xplore Digital Library
+[81] List Bullet: Firebase Documentation: Cloud Firestore, Firebase Auth, Cloud Functions
+[82] Body Text: Date: Ongoing  |  Publisher: Google LLC  |  Source: https://firebase.google.com/docs
+[84] List Bullet: React Documentation: React 19 Official Documentation
+[85] Body Text: Date: Ongoing  |  Publisher: Meta Platforms, Inc.  |  Source: https://react.dev
+[87] List Bullet: Vite Documentation: Vite Build Tool Documentation
+[88] Body Text: Date: Ongoing  |  Publisher: Evan You / Vite Contributors  |  Source: https://vitejs.dev
+[90] List Bullet: Groq API Documentation: Groq Cloud AI Inference Platform
+[91] Body Text: Date: Ongoing  |  Publisher: Groq, Inc.  |  Source: https://console.groq.com/docs
+[93] List Bullet: Cloudinary Documentation: Image and Video Management API
+[94] Body Text: Date: Ongoing  |  Publisher: Cloudinary Ltd.  |  Source: https://cloudinary.com/documentation
+[97] Heading 1: Overall Description
+[99] Heading 2: Product Perspective
+[100] Body Text: HotelEase is a self-contained, web-based Property Management System built with a modern JavaScript stack. The frontend is a React 19 single-page application bundled with Vite 8, styled with Tailwind CSS 3.4, and enhanced with shadcn/ui components (Radix UI primitives). The backend relies entirely on Firebase services: Cloud Firestore for data persistence, Firebase Authentication for identity management, and EmailJS for client-side booking confirmation emails, and Firebase Cloud Functions (if deployed) for backend logic. Image assets (room photos, announcement images) are stored on Cloudinary CDN via unsigned uploads. The AI chatbot is powered by the Groq inference platform using the LLaMA 3.1 8B model.
+
+The system operates independently and does not require integration with external hotel management systems. However, its modular service-layer architecture (with dedicated service files for each domain) allows for future expansion, such as integrating payment gateways or external booking aggregators.
+
+A key architectural feature is the Training Mode, which routes all data operations to sandboxed Firestore collections (prefixed with 'training_') via a centralized utility function (getCol in db-utils.js). This ensures complete isolation between production and training data.
+[102] Heading 2: Product Functions (Modular Decomposition)
+[103] Heading 3: Module 1: User & Authentication Management
+[104] List Bullet: Transaction 1.1: Guest Registration (email/password via Firebase Auth)
+[105] List Bullet: Transaction 1.2: User Login (email/password authentication)
+[106] List Bullet: Transaction 1.3: Password Reset (Firebase sendPasswordResetEmail)
+[107] List Bullet: Transaction 1.4: Anonymous Sign-In for Training Mode
+[108] List Bullet: Transaction 1.5: User Role Management (Admin assigns guest/fo/admin roles)
+[109] List Bullet: Transaction 1.6: User Profile Management (view/edit profile, delete user)
+[110] Heading 3: Module 2: Room & Booking Management
+[111] List Bullet: Transaction 2.1: Browse and Filter Available Rooms
+[112] List Bullet: Transaction 2.2: View Room Details, Photos, Amenities, and Reviews
+[113] List Bullet: Transaction 2.3: Create Online Booking (with date validation and conflict detection)
+[114] List Bullet: Transaction 2.4: Approve or Reject Booking Requests (FO)
+[115] List Bullet: Transaction 2.5: Guest Check-In (FO — triggers room status to Occupied)
+[116] List Bullet: Transaction 2.6: Guest Check-Out (FO — triggers room status to Dirty)
+[117] List Bullet: Transaction 2.7: Cancel Booking (Guest or FO)
+[118] List Bullet: Transaction 2.8: View Booking History and Status (Guest: My Bookings)
+[119] List Bullet: Transaction 2.9: Room CRUD — Add, Edit, Activate, Deactivate Rooms (Admin)
+[120] List Bullet: Transaction 2.10: Adjust Room Rates (FO)
+[122] Heading 3: Module 3: Housekeeping, Payments & Operations
+[123] List Bullet: Transaction 3.1: Update Room Cleaning Status (Dirty → Being Cleaned → Pending Approval → Available)
+[124] List Bullet: Transaction 3.2: Record Payment (GCash, Cash, Check, Credit Card with partial deposit tracking)
+[125] List Bullet: Transaction 3.3: Generate and Download PDF Receipt (jsPDF + AutoTable)
+[126] List Bullet: Transaction 3.4: View Payment History for a Booking
+[127] List Bullet: Transaction 3.5: Create, Edit, and Delete Announcements (with Cloudinary image upload)
+[128] List Bullet: Transaction 3.6: Submit and Moderate Guest Testimonials (Pending → Approved/Rejected)
+[129] List Bullet: Transaction 3.7: Submit Room Reviews (star rating + feedback after checkout)
+[130] List Bullet: Transaction 3.8: Guest Contact/Support Messaging with FO Reply
+[132] Heading 3: Module 4: Administration & Analytics
+[133] List Bullet: Transaction 4.1: Analytics Dashboard (occupancy rate, revenue, booking trends, peak days)
+[134] List Bullet: Transaction 4.2: User Management (view all users, change roles, delete accounts)
+[135] List Bullet: Transaction 4.3: System Settings Configuration
+[136] List Bullet: Transaction 4.4: Toggle Training Mode ON/OFF
+[137] List Bullet: Transaction 4.5: Generate Training Session Code (with TTL expiry)
+[138] List Bullet: Transaction 4.6: Reset All Training Data (clears sandboxed collections)
+[144] Heading 2: User Characteristics
+[145] Body Text: HotelEase is designed for three types of users with specific roles and privileges:
+[146] Heading 3: Guest
+[147] Body Text: Role: Primary end-user of the system.
+[148] Body Text: Privileges:
+[149] List Bullet: Register an account and log in with email/password.
+[150] List Bullet: Browse available rooms with details, photos, amenities, and rates.
+[151] List Bullet: Create online booking requests with date selection and conflict validation.
+[152] List Bullet: View booking history and status updates (My Bookings page).
+[153] List Bullet: Self-cancel a Pending booking (no FO involvement) or request cancellation of an Approved booking (FO-mediated; max 3 lifetime cancellations enforced).
+[154] List Bullet: Submit star-rated reviews for rooms after checkout.
+[155] List Bullet: Submit general testimonials (subject to FO moderation).
+[156] List Bullet: Interact with the AI chatbot for hotel inquiries.
+[157] List Bullet: Receive in-app notifications for booking status changes and announcements.
+[158] List Bullet: Send contact/support messages to Front Office staff.
+[159] List Bullet: View and manage personal profile.
+[161] Heading 3: Front Office (FO)
+[162] Body Text: Role: Operational staff managing day-to-day hotel front desk functions.
+[163] Body Text: Privileges:
+[164] List Bullet: Access the FO Dashboard with color-coded room status grid.
+[165] List Bullet: Approve or reject guest booking requests with notification to guest.
+[166] List Bullet: Process guest check-in (booking → Checked In, room → Occupied).
+[167] List Bullet: Process guest check-out (booking → Checked Out, room → Dirty).
+[168] List Bullet: Manage housekeeping workflow (update room cleaning status with audit logging).
+[169] List Bullet: Record payments (GCash, Bank Transfer, Credit/Debit Card, Over-the-Counter) with folio tracking, balance overpayment validation, and payment proof verification.
+[170] List Bullet: Generate and download professional PDF receipts.
+[171] List Bullet: Create, edit, and delete announcements with optional image uploads.
+[172] List Bullet: Adjust room rates per room.
+[173] List Bullet: View and manage all bookings across the system.
+[174] List Bullet: Moderate guest testimonials (approve/reject).
+[175] List Bullet: Read and reply to guest support messages.
+[176] List Bullet: Receive in-app notifications for new bookings, cancellations, and dirty rooms.
+[179] Heading 3: Admin
+[180] Body Text: Role: System administrator with full access to configuration and analytics.
+[181] Body Text: Privileges:
+[182] List Bullet: Access the Analytics Dashboard (occupancy, revenue, trends, peaks).
+[183] List Bullet: Manage all user accounts: view, assign roles (guest/fo/admin), delete.
+[184] List Bullet: Full room management: add, edit, activate/deactivate rooms with photos.
+[185] List Bullet: Configure system settings.
+[186] List Bullet: Enable/disable Training Mode for classroom use.
+[187] List Bullet: Generate time-limited training session codes.
+[188] List Bullet: Reset all training/demo data across sandboxed collections.
+[190] Heading 2: Constraints
+[191] Body Text: Several constraints govern the development and operational scope of HotelEase:
+[192] Body Text: Regulatory Policies:
+[193] List Bullet: The system must comply with the Philippine Data Privacy Act of 2012 (RA 10173) for handling personal guest data including names, emails, and booking information.
+[194] Body Text: Hardware Limitations:
+[195] List Bullet: The system is web-based and runs on standard web infrastructure. No specialized hardware is required, though server performance may be affected by concurrent Firestore read/write operations during peak usage.
+[196] Body Text: Interfaces to Other Applications:
+[197] List Bullet: The current version integrates with Firebase (Auth, Firestore, Cloud Functions), Cloudinary (image hosting), and Groq (AI chatbot). Future versions may integrate with payment gateways or external booking platforms.
+[198] Body Text: Parallel Operation:
+[199] List Bullet: The system supports multiple simultaneous users across all roles. Firestore transactions (runTransaction) are used for critical operations like booking creation, check-in/check-out, and payment recording to prevent race conditions.
+[200] Body Text: Audit Functions:
+[201] List Bullet: All housekeeping status changes are logged in the housekeeping_logs collection with timestamps, from/to status, and the role of the user who made the change.
+[202] Body Text: Reliability Requirements:
+[203] List Bullet: The system targets high availability by leveraging Firebase's managed infrastructure. Client-side error handling with graceful fallbacks ensures users are notified of failures.
+[204] Body Text: Criticality of the Application:
+[205] List Bullet: Medium criticality — the platform supports academic operations and training. While not life-critical, extended downtime would disrupt scheduled classroom exercises and departmental booking operations.
+[206] Body Text: Safety and Security Considerations:
+[207] List Bullet: Firebase Auth provides encrypted credential management. Firestore Security Rules enforce role-based access at the database level. HTTPS is enforced for all communications. Anonymous users (training mode) have restricted write access. Input validation is applied on both client and database rule levels.
+[209] Heading 2: Assumptions and Dependencies
+[210] Body Text: The following assumptions were made during design and development:
+[211] List Bullet: The application will be deployed using Firebase Hosting (frontend) and Firebase Cloud Functions (backend APIs and email triggers).
+[212] List Bullet: Users will access the platform through modern web browsers supporting HTML5, CSS3, ES2020+ JavaScript, and WebSocket connections for Firestore real-time listeners.
+[213] List Bullet: A stable internet connection is required for all operations, as the system relies entirely on cloud services (Firebase, Cloudinary, Groq).
+[214] List Bullet: Environment variables (API keys for Firebase, Cloudinary, Groq) will be properly configured in the deployment environment.
+[215] List Bullet: The Groq API service will remain available for chatbot functionality; if unavailable, the chatbot gracefully returns a fallback message.
+[216] List Bullet: Cloudinary's free tier will be sufficient for the expected volume of image uploads during academic use.
+[217] List Bullet: Training mode sessions will be managed by instructors who generate session codes and reset data between class sessions.
+[220] Heading 1: Specific Requirements
+[222] Heading 2: Hardware Interfaces
+[223] Body Text: HotelEase is a cloud-hosted web application with minimal local hardware dependencies. All server-side operations are managed by Firebase's infrastructure.
+[224] Body Text: Cloud Infrastructure:
+[225] List Bullet: Cloud Infrastructure: Google Cloud Platform (via Firebase) handles all server-side compute, storage, and networking. No on-premise server hardware is required.
+[226] List Bullet: Firestore Database: Managed by Google Cloud with automatic scaling, replication, and backup.
+[227] List Bullet: Cloud Functions: Serverless compute for backend logic (Note: email notifications are primarily handled client-side via EmailJS).
+[228] Body Text: Supported Devices:
+[229] List Bullet: Desktop and laptop computers: Full-screen responsive interface optimized for 1024px+ viewport widths.
+[230] List Bullet: Tablets: Responsive layout adapts to medium-sized screens (768px–1024px).
+[231] List Bullet: Mobile devices (smartphones): Responsive mobile layout with collapsible sidebar navigation and touch-friendly UI elements.
+[233] Heading 2: Software Interfaces
+[234] Body Text: The system integrates several software components and third-party services:
+[235] Body Text: Frontend Stack:
+[236] List Bullet: React 19 — Component-based UI library for building the single-page application.
+[237] List Bullet: Vite 8 — Next-generation frontend build tool and development server.
+[238] List Bullet: Tailwind CSS 3.4 — Utility-first CSS framework for responsive styling.
+[239] List Bullet: shadcn/ui (Radix UI) — Accessible, unstyled UI component primitives.
+[240] List Bullet: React Router v7 — Client-side routing with role-based route protection (PrivateRoute).
+[241] List Bullet: FullCalendar.js — Interactive booking calendar component.
+[242] List Bullet: Framer Motion — Animation library for UI transitions and micro-interactions.
+[243] List Bullet: Recharts — Charting library for analytics dashboard visualizations.
+[244] List Bullet: jsPDF + jsPDF-AutoTable — Client-side PDF receipt generation.
+[245] List Bullet: Lucide React — Icon library for consistent UI iconography.
+[246] List Bullet: Framer Motion — Animation library for UI transitions and micro-interactions.
+[247] List Bullet: @dnd-kit/core + utilities — Drag-and-drop for housekeeping kanban.
+[248] List Bullet: React Hook Form — Form state management.
+[249] List Bullet: Sonner — Toast notifications.
+[250] List Bullet: Geist Variable — Typography font.
+[251] Body Text: Backend / Cloud Services:
+[252] List Bullet: Firebase Authentication — Email/password and anonymous sign-in for user identity management.
+[253] List Bullet: Cloud Firestore — NoSQL document database for all persistent data storage.
+[254] List Bullet: EmailJS (@emailjs/browser) — Client-side email service used for sending automated booking confirmation emails.
+[255] List Bullet: Firebase Hosting — Static site hosting for the production frontend build.
+[256] Body Text: Third-Party Integrations:
+[257] List Bullet: Cloudinary — Cloud-based image upload, transformation, and CDN delivery for room photos and announcement images. Uses unsigned upload presets.
+[258] List Bullet: Groq API — AI inference platform powering the chatbot via the LLaMA 3.1 8B Instant model. Context-aware with real-time room data injection.
+[260] Heading 2: Communications Interfaces
+[261] Body Text: Network Protocols:
+[262] List Bullet: HTTPS is enforced for all client-server communication to protect sensitive data including credentials, booking details, and payment information.
+[263] List Bullet: WebSocket connections are used by Firestore's onSnapshot real-time listeners for live data updates across bookings, rooms, notifications, and messages.
+[264] List Bullet: TCP/IP is the underlying transport protocol for all network communication.
+[265] Body Text: Email Services:
+[266] List Bullet: EmailJS integrates with the frontend to send automated booking confirmation emails upon FO approval. Firebase Cloud Functions are loosely referenced for support replies but are not required for core email functionality.
+[267] List Bullet: Support reply emails can be toggled on/off via the VITE_ENABLE_SUPPORT_REPLY_EMAIL environment variable.
+[268] Body Text: API Endpoints:
+[269] List Bullet: Firebase Cloud Functions expose HTTPS callable endpoints for server-side operations such as sendSupportReplyEmail.
+[270] List Bullet: The Groq REST API is consumed directly from the client for chatbot inference (with the API key stored as an environment variable).
+[271] List Bullet: Cloudinary's Upload API is consumed directly from the client using unsigned upload presets for image management.
+[274] Heading 2: Module 1 — User & Authentication Management
+[275] Heading 3: Transaction Name: Guest Registration
+[276] List Bullet: Use Case Diagram
+[278] List Bullet: Use Case Description
+[279] Body Text: A new user provides their full name, email address, and password to create a guest account. The system creates a Firebase Auth credential and a corresponding user profile document in Firestore with the role set to 'guest'.
+[280] List Bullet: Preconditions: The user must not already have an account with the provided email. All required fields (full name, email, password) must be completed.
+[281] List Bullet: Postconditions: The user is registered in Firebase Auth and a profile document is created in the users collection. The user is automatically signed in and redirected to the landing page.
+[283] Body Text: Main Success Scenario:
+[284] List Bullet: 1. The guest navigates to the Registration page.
+[285] List Bullet: 2. The guest enters their full name, email, and password.
+[286] List Bullet: 3. The system validates the input fields.
+[287] List Bullet: 4. Firebase Auth creates the user credential.
+[288] List Bullet: 5. The system creates a user profile in Firestore with role 'guest'.
+[289] List Bullet: 6. The guest is signed in and redirected to the landing page.
+[291] List Bullet: Activity Diagram
+[292] List Bullet: Wireframe
+[302] Heading 3: Transaction Name: User Login
+[303] List Bullet: Use Case Diagram
+[305] List Bullet: Use Case Description
+[306] Body Text: A registered user provides their email and password to access the system. Upon successful authentication, the system reads the user's role from Firestore and redirects to the appropriate dashboard.
+[307] List Bullet: Preconditions: The user must have a registered account. Credentials must be correct.
+[308] List Bullet: Postconditions: The user is authenticated and redirected based on their role: Guest → Landing Page, FO → FO Dashboard, Admin → Admin Analytics.
+[309] List Bullet: Main Success Scenario:
+[310] List Bullet: 1. The user navigates to the Login page.
+[311] List Bullet: 2. The user enters their email and password.
+[312] List Bullet: 3. Firebase Auth validates the credentials.
+[313] List Bullet: 4. The system reads the user's profile and role from Firestore.
+[314] List Bullet: 5. The user is redirected to their role-appropriate dashboard.
+[316] List Bullet: Activity Diagram
+[317] Normal: (To be filled — Insert Activity Diagram for User Login)
+[319] List Bullet: Wireframe
+[322] Heading 2: Module 2 — Room & Booking Management
+[323] Heading 3: Transaction Name: Online Room Booking
+[324] List Bullet: Use Case Diagram
+[326] List Bullet: Use Case Description
+[327] Body Text: An authenticated guest selects a room, chooses check-in and check-out dates, specifies the number of guests (pax) and any special requests, then submits the booking. The system validates dates, checks for conflicts against existing bookings, and creates the booking record in a Firestore transaction.
+[328] List Bullet: Preconditions: The guest must be logged in. The selected room must be active. Check-out date must be after check-in date. No overlapping bookings may exist for the same room and dates.
+[329] List Bullet: Postconditions: A new booking document is created with status 'Pending'. All FO staff receive an in-app notification about the new booking request. The total cost is calculated as (rate per night × number of nights).
+[331] Body Text: Main Success Scenario:
+[332] List Bullet: 1. The guest browses the Rooms page and selects a room.
+[333] List Bullet: 2. The guest views room details (photos, amenities, rate, reviews).
+[334] List Bullet: 3. The guest clicks 'Book Now' and is directed to the Booking page.
+[335] List Bullet: 4. The guest selects check-in date, check-out date, pax count, and optional special requests.
+[336] List Bullet: 5. The system validates that check-out is after check-in.
+[337] List Bullet: 6. The system queries existing bookings for the room and checks for date overlaps.
+[338] List Bullet: 7. No conflicts found — the system creates the booking via Firestore runTransaction.
+[339] List Bullet: 8. The booking is saved with status 'Pending', calculated total cost, and payment initialized to zero.
+[340] List Bullet: 9. All FO staff receive notifications about the new booking request.
+[341] List Bullet: 10. The guest sees a success confirmation.
+[351] List Bullet: Activity Diagram
+[353] Normal: (To be filled — Insert Activity Diagram for Multi-Step Booking Wizard)
+[354] List Bullet: Wireframe
+[365] Heading 3: Transaction Name: Approve or Reject Booking Requests
+[366] List Bullet: Use Case Diagram
+[367] Normal: (To be filled — Insert Use Case Diagram for Approve or Reject Booking Requests)
+[368] List Bullet: Use Case Description
+[369] Body Text: FO staff reviews a Pending booking request. The FO approves the request (which changes the status to Approved, reserves the room, and notifies the guest via in-app and email notification) or rejects the request (which changes the status to Cancelled, records the rejection reason, and notifies the guest).
+[370] List Bullet: Preconditions: The booking status must be 'Pending'. The room must be active and available for the requested dates. For bookings using proof-required payment methods, a valid payment proof URL must have been uploaded.
+[371] List Bullet: Postconditions: If approved: Booking status is set to 'Approved'. The room status transitions to 'Reserved'. An initial payment transaction is automatically recorded if payment proof was verified. Guest is notified via in-app and email. If rejected: Booking status is set to 'Cancelled'. The room status remains unaffected. Rejection reason is recorded on the booking. Guest is notified via in-app notification.
+[372] Body Text: Main Success Scenario:
+[373] List Bullet: 1. The FO staff member navigates to the FO Bookings Dashboard and views the list of 'Pending' booking requests.
+[374] List Bullet: 2. The FO staff member selects a booking request to view its details (guest name, room details, requested dates, pax count, payment method, and uploaded payment proof if GCash or Bank Transfer).
+[375] List Bullet: 3. The system checks if there are any date overlaps with other Approved or Checked-In bookings for the same room. If conflicts exist, the approval is blocked.
+[376] List Bullet: 4. The FO staff member performs one of the following actions:
+[377] List Bullet:     a. Approve Booking:
+[378] List Bullet:         i. The FO staff member confirms the approval of the booking request.
+[379] List Bullet:         ii. The system executes a Firestore transaction to change the booking status to 'Approved' and update the room status to 'Reserved'.
+[380] List Bullet:         iii. For GCash or Bank Transfer payments, the system automatically records the initial payment (Full or Partial) in the payments collection and increments the booking's deposit.
+[381] List Bullet:         iv. The system sends an in-app notification and booking confirmation email to the guest.
+[382] List Bullet:     b. Reject Booking:
+[383] List Bullet:         i. The FO staff member inputs a rejection reason and submits the rejection.
+[384] List Bullet:         ii. The system updates the booking status to 'Cancelled' and stores the rejection reason in the booking document.
+[385] List Bullet:         iii. The system sends an in-app notification to the guest with the rejection reason.
+[386] List Bullet: 5. The bookings list is refreshed in the dashboard.
+[387] List Bullet: Activity Diagram
+[388] Normal: (To be filled — Insert Activity Diagram for Approve or Reject Booking Requests)
+[389] List Bullet: Wireframe
+[390] Normal: (To be filled — Insert Wireframe for Approve or Reject Booking Requests)
+[392] Heading 3: Transaction Name: FO-Mediated Cancellation
+[393] List Bullet: Use Case Diagram
+[394] Normal: (To be filled — Insert Use Case Diagram for FO-Mediated Cancellation)
+[395] List Bullet: Use Case Description
+[396] Body Text: Guest requests cancellation of an Approved booking, which undergoes FO review. Alternatively, a Guest can self-cancel a Pending booking directly. The system enforces a maximum of 3 lifetime cancellations of Approved bookings per guest.
+[397] List Bullet: Preconditions: Self-Cancellation: Booking status must be 'Pending'. FO-Mediated Cancellation: Booking status must be 'Approved', guest cancellation count must be less than 3, and reviewer must have Front Office (FO) role.
+[398] List Bullet: Postconditions: Self-Cancellation: Booking status transitions to 'Cancelled' (room status unaffected). FO-Mediated Cancellation: Booking status transitions to 'Cancelled' (room status transitions to 'Available', guest cancellation count incremented by 1) OR booking status reverts to 'Approved' (room status remains 'Reserved').
+[399] Body Text: Main Success Scenario:
+[400] List Bullet: 1. (Self-Cancellation Path) The guest navigates to the My Bookings page and selects a booking with 'Pending' status.
+[401] List Bullet: 2. The guest clicks 'Cancel Booking' and confirms the cancellation.
+[402] List Bullet: 3. The system executes a Firestore transaction, transitioning the booking status to 'Cancelled'. Room status remains unaffected.
+[403] List Bullet: 4. The guest receives a success confirmation toast, and the My Bookings list is refreshed.
+[404] List Bullet: 5. (FO-Mediated Cancellation Path) The guest navigates to the My Bookings page and selects a booking with 'Approved' status.
+[405] List Bullet: 6. The guest clicks 'Request Cancellation', enters a cancellation reason, and submits the request.
+[406] List Bullet: 7. The system queries the guest's profile in the users collection to verify their cancellationCount.
+[407] List Bullet: 8. The system validates that the guest's lifetime cancellation count is less than 3.
+[408] List Bullet: 9. The system executes a Firestore transaction: updates booking status to 'Cancellation Requested', records the cancellation reason, and sets the request timestamp.
+[409] List Bullet: 10. The system sends an in-app notification to all Front Office (FO) staff.
+[410] List Bullet: 11. FO staff opens the FO Cancellations page and selects the pending cancellation request.
+[411] List Bullet: 12. FO staff reviews the request and performs one of the following actions:
+[412] List Bullet:     a. Approve Cancellation: The system executes a transaction: sets booking status to 'Cancelled', updates room status from 'Reserved' to 'Available', and increments the guest's cancellationCount in the users collection by 1. The system notifies the guest.
+[413] List Bullet:     b. Reject Cancellation: The FO staff inputs a rejection reason. The system executes a transaction: reverts booking status to 'Approved', records the rejection reason, and preserves the room status as 'Reserved'. The system notifies the guest.
+[414] List Bullet: Activity Diagram
+[415] Normal: (To be filled — Insert Activity Diagram for FO-Mediated Cancellation Flow)
+[416] List Bullet: Wireframe
+[417] Normal: (To be filled — Insert Wireframe for FO-Mediated Cancellation)
+[418] Heading 3: Transaction Name: Guest Check-In and Check-Out
+[419] List Bullet: Use Case Diagram
+[421] List Bullet: Use Case Description
+[422] Body Text: FO staff process guest check-in by transitioning an approved booking to 'Checked In' and the room to 'Occupied'. During check-out, the booking transitions to 'Checked Out' and the room status changes to 'Dirty / Needs Cleaning', triggering housekeeping notifications.
+[423] List Bullet: Preconditions: Check-in: Booking status must be 'Approved'. Check-out: Booking status must be 'Checked In'.
+[424] List Bullet: Postconditions: Check-in: Booking → Checked In, Room → Occupied. Check-out: Booking → Checked Out, Room → Dirty / Needs Cleaning. FO staff notified for housekeeping.
+[426] Body Text: Main Success Scenario:
+[427] List Bullet: 1. FO staff opens the Check-In page and selects an approved booking.
+[428] List Bullet: 2. The system executes a Firestore transaction updating both the booking and room status atomically.
+[429] List Bullet: 3. The guest is checked in; room status changes to Occupied.
+[430] List Bullet: 4. During checkout, FO opens Check-Out page and selects the active booking.
+[431] List Bullet: 5. The system executes a checkout transaction: booking → Checked Out, room → Dirty.
+[432] List Bullet: 6. FO staff are notified that the room needs cleaning.
+[446] List Bullet: Activity Diagram
+[448] List Bullet: Wireframe
+[452] Normal: Module 3 — Housekeeping, Payments & Operations
+[453] Heading 3: Transaction Name: Housekeeping Workflow
+[454] List Bullet: Use Case Diagram
+[457] List Bullet: Use Case Description
+[458] Body Text: When a guest checks out, the room status automatically transitions to 'Dirty / Needs Cleaning'. FO/Housekeeping staff update the status through the workflow: Dirty → Being Cleaned → Pending Approval → Available. Each status change is logged in the housekeeping_logs collection with timestamps and the role of the user who made the change.
+[459] List Bullet: Preconditions: Room must exist in the system. User must have FO role.
+[460] List Bullet: Postconditions: Room status is updated. A housekeeping log entry is created. FO staff are notified when rooms need cleaning.
+[462] Body Text: Main Success Scenario:
+[463] List Bullet: 1. FO staff opens the Housekeeping page.
+[464] List Bullet: 2. Staff views rooms grouped by current status.
+[465] List Bullet: 3. Staff selects a dirty room and updates status to 'Being Cleaned'.
+[466] List Bullet: 4. After cleaning, staff updates status to 'Pending Approval'.
+[467] List Bullet: 5. FO supervisor reviews and approves — room becomes 'Available'.
+[468] List Bullet: 6. Each transition is logged with timestamp and role.
+[482] List Bullet: Activity Diagram
+[486] List Bullet: Wireframe
+[501] Heading 3: Transaction Name: Payment Processing
+[502] List Bullet: Use Case Diagram
+[503] Normal: (To be filled — Insert Use Case Diagram for Payment Processing)
+[504] List Bullet: Use Case Description
+[505] Body Text: FO staff records and validates guest payments. The system supports 4 payment methods: GCash (reference number), Bank Transfer (reference number, bank name), Credit/Debit Card (cardholder name, last 4 digits), and Over-the-Counter (staff name/ID, OTC transaction reference). Proof-required methods (GCash, Bank Transfer) require guest proof-of-payment image upload, putting the booking in 'Awaiting Payment' with a 48-hour deadline; once proof is uploaded, the status transitions to 'Pending' for FO verification. Proof-exempt methods (Credit/Debit Card, Over-the-Counter) transition booking directly to 'Pending'. Payments can be Full (100% of total cost) or Partial (50% deposit), with the booking's folio tracking the deposit and outstanding balance. A client-side lazy check automatically cancels bookings in 'Awaiting Payment' status that exceed the 48-hour deadline, setting status to 'Cancelled' with reason 'Payment deadline expired'. The system enforces balance overpayment validation, rejecting any payment amount exceeding the outstanding balance. On successful transaction, FO staff can generate a PDF receipt via jsPDF.
+[506] List Bullet: Preconditions: A valid booking must exist. Payment amount must be positive. Payment method must be specified. For manual FO recording, the user must have Front Office (FO) role. For proof upload, the user must be the authenticated guest who owns the booking. The payment amount must not exceed the outstanding balance.
+[507] List Bullet: Postconditions: A payment record is created. The booking's accumulated deposit is incremented. The outstanding balance is dynamically reduced. If the 48-hour deadline is exceeded without proof, the booking is set to 'Cancelled'. A PDF receipt is generated.
+[508] Body Text: Main Success Scenario:
+[509] List Bullet: 1. The guest creates an online booking and selects a payment method (either GCash, Bank Transfer, Credit/Debit Card, or Over-the-Counter) and payment type (Full or Partial).
+[510] List Bullet: 2. For proof-required methods (GCash, Bank Transfer):
+[511] List Bullet:     a. The booking is created with status 'Awaiting Payment', and a 48-hour payment deadline is set.
+[512] List Bullet:     b. The guest submits the payment externally, uploads the screenshot of the payment proof, and the booking status transitions to 'Pending'.
+[513] List Bullet: 3. For proof-exempt methods (Credit/Debit Card, Over-the-Counter):
+[514] List Bullet:     a. The booking is created directly with status 'Pending' (proof-upload is skipped).
+[515] List Bullet: 4. (Lazy Expiry Check) When a Guest or FO staff accesses the bookings list, the system checks for any 'Awaiting Payment' bookings that have exceeded their 48-hour deadline and automatically updates their status to 'Cancelled' (reason: 'Payment deadline expired').
+[516] List Bullet: 5. FO reviews the booking, verifies any uploaded proof image (if GCash/Bank Transfer), and approves it (booking transitions to 'Approved', room transitions to 'Reserved'). For proof-required methods, the system automatically records the initial payment (Full or Partial) and updates the deposit. For proof-exempt methods, the deposit remains ₱0.00.
+[517] List Bullet: 6. FO staff opens the Payments page and selects the approved or checked-in booking.
+[518] List Bullet: 7. Staff views the folio details: total cost, accumulated deposits, and outstanding balance.
+[519] List Bullet: 8. Staff enters the payment amount and selects the payment method, capturing the required fields:
+[520] List Bullet:     - GCash: reference number
+[521] List Bullet:     - Bank Transfer: reference number, bank name
+[522] List Bullet:     - Credit/Debit Card: cardholder name, last 4 digits of card number
+[523] List Bullet:     - Over-the-Counter: receiving staff name, OTC reference number
+[524] List Bullet: 9. The system validates that the payment amount does not exceed the outstanding balance. If validation fails, the transaction is rejected.
+[525] List Bullet: 10. The system executes a Firestore transaction to create the payment document and atomically increment the booking's deposit.
+[526] List Bullet: 11. FO staff triggers receipt generation, and the system downloads a professional PDF receipt.
+[527] List Bullet: Activity Diagram
+[528] Normal: (To be filled — Insert Activity Diagram for Payment Processing and Proof Flow)
+[529] List Bullet: Wireframe
+[530] Normal: (To be filled — Insert Wireframe for Payment Processing)
+[531] Heading 3: Transaction Name: Announcements Management
+[532] List Bullet: Use Case Diagram
+[536] List Bullet: Use Case Description
+[537] Body Text: FO staff creates event announcements with a title, description, date, and optional image (uploaded to Cloudinary). Announcements are displayed on the guest-facing landing page. All guest users receive in-app notifications when a new announcement is published.
+[538] List Bullet: Preconditions: User must have FO role. Title, description, and date are required.
+[539] List Bullet: Postconditions: Announcement is published. All guests receive notifications.
+[541] Body Text: Main Success Scenario:
+[542] List Bullet: 1. FO staff opens the Announcements page.
+[543] List Bullet: 2. Staff clicks 'Create Announcement'.
+[544] List Bullet: 3. Staff fills in title, description, date, and optionally uploads an image.
+[545] List Bullet: 4. The system uploads the image to Cloudinary (if provided).
+[546] List Bullet: 5. The announcement is saved to Firestore with status 'Published'.
+[547] List Bullet: 6. All guest users receive in-app notifications.
+[549] List Bullet: Activity Diagram
+[550] Normal: (To be filled — Insert Activity Diagram for Announcements)
+[563] List Bullet: Wireframe
+[565] Heading 3: Transaction Name: Guest Support Messaging
+[566] List Bullet: Use Case Diagram
+[567] Normal: (To be filled — Insert Use Case Diagram for Support Messaging)
+[569] List Bullet: Use Case Description
+[570] Body Text: Guests submit support messages via the Contact page with their name, email, subject, and message. FO staff receive in-app notifications and can view, mark as read, and reply to messages. Replies can optionally trigger email notifications via Firebase Cloud Functions.
+[571] List Bullet: Preconditions: All contact form fields must be completed.
+[572] List Bullet: Postconditions: Message is saved with status 'unread'. FO staff are notified.
+[574] Body Text: Main Success Scenario:
+[575] List Bullet: 1. Guest opens the Contact page.
+[576] List Bullet: 2. Guest fills in name, email, subject, and message.
+[577] List Bullet: 3. The system saves the message to Firestore with status 'unread'.
+[578] List Bullet: 4. FO staff receive in-app notifications about the new message.
+[579] List Bullet: 5. FO staff opens Messages page and reads/replies to the message.
+[581] List Bullet: Activity Diagram
+[582] Normal: (To be filled — Insert Activity Diagram for Support Messaging)
+[584] List Bullet: Wireframe
+[586] Normal: Module 4 — Administration & Analytics
+[587] Heading 3: Transaction Name: Analytics Dashboard
+[588] List Bullet: Use Case Diagram
+[590] List Bullet: Use Case Description
+[591] Body Text: The Admin accesses the Analytics Dashboard to view KPIs: occupancy rate (occupied nights / total available nights), total revenue from payments, booking trend chart (last 7 days), and peak booking days. Date range filtering is supported.
+[592] List Bullet: Preconditions: User must have Admin role.
+[593] List Bullet: Postconditions: Analytics data is displayed. No data is modified.
+[595] Body Text: Main Success Scenario:
+[596] List Bullet: 1. Admin navigates to the Analytics page.
+[597] List Bullet: 2. System fetches bookings and payments within the date range.
+[598] List Bullet: 3. Occupancy rate is calculated from booking nights vs. available room-nights.
+[599] List Bullet: 4. Revenue is summed from all payments in the range.
+[600] List Bullet: 5. A 7-day booking trend chart is displayed using Recharts.
+[601] List Bullet: 6. Peak booking days (top 3) are highlighted.
+[603] List Bullet: Activity Diagram
+[604] Normal: (To be filled — Insert Activity Diagram for Analytics)
+[617] List Bullet: Wireframe
+[631] Heading 3: Transaction Name: Training Mode Management
+[632] List Bullet: Use Case Diagram
+[634] List Bullet: Use Case Description
+[635] Body Text: Admin toggles Training Mode on/off. When enabled, all operations route to sandboxed collections (training_ prefix). Admin generates time-limited session codes for students. Training data can be reset between sessions.
+[636] List Bullet: Preconditions: User must have Admin role.
+[637] List Bullet: Postconditions: Training mode state is updated. Session codes generated with expiry. Training data can be cleared.
+[639] Body Text: Main Success Scenario:
+[640] List Bullet: 1. Admin opens System Settings and enables Training Mode.
+[641] List Bullet: 2. Admin generates a training session code with a TTL (hours).
+[642] List Bullet: 3. Students use the session code to sign in anonymously with a selected role.
+[643] List Bullet: 4. All student actions write to training_ collections, isolated from production.
+[644] List Bullet: 5. After the session, Admin resets training data to clear all sandboxed records.
+[646] List Bullet: Activity Diagram
+[647] Normal: (To be filled — Insert Activity Diagram for Training Mode Session Flow)
+[660] List Bullet: Wireframe
+[664] Heading 2: Data Model (Entity Relationship Diagram)
+[665] Body Text: The following Entity Relationship Diagram represents the complete Firestore data model for HotelEase, including all production and training collections:
+[666] Normal: (To be filled — Insert Entity Relationship Diagram.
+Source: srs_diagrams/erd_data_model.mmd)
+[668] Body Text: Room Status Definitions:
+[670] Body Text: Booking Status Flow:
+[671] Body Text: Awaiting Payment → Pending → Approved → Checked In → Checked Out
+[672] Body Text: Pending → Cancelled (direct guest self-cancellation)
+[673] Body Text: Approved → Cancellation Requested → Cancelled (FO approved) OR Approved (FO rejected)
+[676] Heading 2: Performance
+[677] Body Text: HotelEase must meet the following performance criteria:
+[678] Body Text: Response Time:
+[679] List Bullet: Pages should load within 3 seconds on standard broadband connections, including Firestore data fetching and rendering.
+[680] List Bullet: Booking operations (create, approve, check-in, check-out) should complete within 2 seconds, including Firestore transaction execution.
+[681] List Bullet: Payment recording and receipt generation should complete within 3 seconds.
+[682] Body Text: Concurrent Users:
+[683] List Bullet: The system should support at least 100 concurrent users without significant performance degradation, leveraging Firestore's automatic scaling.
+[684] List Bullet: Real-time listeners (onSnapshot) should deliver updates within 1 second of data changes in Firestore.
+[685] Body Text: Database Performance:
+[686] List Bullet: Firestore queries with proper indexing should return results within 500 milliseconds.
+[687] List Bullet: The system should handle 1,000+ room documents, 10,000+ booking documents, and 50,000+ payment records without performance degradation.
+[688] Body Text: File Upload:
+[689] List Bullet: Room image uploads to Cloudinary should complete within 5 seconds for files up to 5MB each.
+[690] List Bullet: Upload progress is tracked and displayed to the user via XMLHttpRequest progress events.
+[691] Heading 2: Security
+[692] Body Text: Security measures for HotelEase:
+[693] Body Text: User Authentication:
+[694] List Bullet: Firebase Authentication handles all credential management with industry-standard encryption.
+[695] List Bullet: Passwords are hashed using Firebase's built-in secure hashing (scrypt-based).
+[696] List Bullet: Session persistence is set to browserLocalPersistence to maintain authentication state across page reloads.
+[697] List Bullet: Anonymous authentication is used exclusively for training mode access with restricted permissions.
+[698] Body Text: Data Encryption:
+[699] List Bullet: All communication uses HTTPS (TLS 1.2+) enforced by Firebase Hosting.
+[700] List Bullet: Firestore data is encrypted at rest using Google Cloud's default encryption (AES-256).
+[701] List Bullet: No sensitive payment data (full credit card numbers) is stored — only the last 4 digits are captured for reference.
+[702] Body Text: Access Control:
+[703] List Bullet: Role-based access control (RBAC) is implemented at two layers: (1) Client-side via PrivateRoute component checking user role against allowedRoles, and (2) Server-side via Firestore Security Rules with helper functions (isProdFOOrAdmin, isAdmin, isOwner).
+[704] List Bullet: Anonymous users (training mode) are explicitly blocked from writing to production collections.
+[705] List Bullet: Guests can only create bookings where guestId matches their authenticated UID.
+[706] Body Text: Input Validation:
+[707] List Bullet: All service functions validate input parameters (type checking, null guards, string trimming) before Firestore operations.
+[708] List Bullet: Firestore Security Rules enforce data integrity constraints (e.g., booking guestId must match auth UID).
+[709] List Bullet: Password validation: Enforced in RegisterPage (min 8 characters, at least 1 number).
+[710] List Bullet: Date validation prevents check-out before check-in and detects overlapping bookings.
+[711] List Bullet: Password validation: Enforced in RegisterPage (min 8 characters, at least 1 number).
+[712] Body Text: Data Backup and Recovery:
+[713] List Bullet: Firestore provides automatic daily backups as part of Google Cloud's managed infrastructure.
+[714] List Bullet: Training data is isolated in separate collections and can be reset independently without affecting production data.
+[715] Heading 2: Reliability
+[716] Body Text: Reliability requirements for continuous availability:
+[717] Body Text: Uptime:
+[718] List Bullet: The system targets 99.9% uptime by leveraging Firebase's globally distributed, managed infrastructure with automatic failover.
+[719] Body Text: Failover Mechanism:
+[720] List Bullet: Firebase services provide built-in failover across multiple Google Cloud data centers.
+[721] List Bullet: Client-side Firestore queries include fallback mechanisms (e.g., housekeepingService retries queries without orderBy if a composite index is missing).
+[722] Body Text: Redundancy:
+[723] List Bullet: Firestore automatically replicates data across multiple zones within the selected region.
+[724] List Bullet: Cloudinary CDN provides geographically distributed image delivery with built-in redundancy.
+[725] Body Text: Error Handling:
+[726] List Bullet: All service functions use try-catch blocks with descriptive error messages propagated to the UI via toast notifications (Sonner).
+[727] List Bullet: Failed notification deliveries are caught and logged without blocking the primary operation.
+[728] List Bullet: The AI chatbot returns a graceful fallback message ('I'm currently unavailable...') if the Groq API is unreachable or the API key is missing.
+[729] List Bullet: Firestore onSnapshot listeners include error callbacks that fall back to one-time getDocs queries.
+[730] Body Text: Database Consistency:
+[731] List Bullet: Critical multi-document operations (booking creation, check-in, check-out, payment recording) use Firestore runTransaction to guarantee ACID properties.
+[732] List Bullet: Room status and booking status are always updated atomically within the same transaction to prevent inconsistent states.
+[733] Heading 2: Known Limitations
+[734] List Bullet: No real payment gateway. Uses manual proof-upload + FO verification model.
+[735] List Bullet: Groq API key exposed client-side (dangerouslyAllowBrowser: true).
+[736] List Bullet: No Cloud Functions (Firebase Spark plan limitation). Auto-expiry uses lazy client-side checking.
+[737] List Bullet: Testimonials, messages, and announcements are NOT training-mode sandboxed.
+[738] List Bullet: Partial real-time sync. Several FO operational pages use one-shot data fetch instead of onSnapshot.
+[739] List Bullet: No SMS notifications. In-app and email only.
+[740] List Bullet: No multi-language or multi-currency support.
+[741] List Bullet: No automated tests or CI pipeline.
+[742] List Bullet: No real-time conflict prevention during booking wizard (checked at creation time, race condition possible).
+[743] Heading 2: Future Enhancements
+[744] List Bullet: Real payment gateway integration (PayMongo, GCash API, Stripe).
+[745] List Bullet: Serverless email and background job migration (Cloud Functions).
+[746] List Bullet: Real-time sync for remaining one-shot FO pages.
+[747] List Bullet: Automated refund and cancellation-window logic.
+[748] List Bullet: Groq API key proxy (Vercel Edge Function / Cloudflare Worker).
+[749] List Bullet: Training-mode sandboxing for testimonials, messages, and announcements.
+[750] List Bullet: Multi-language support.
+[751] List Bullet: Composite Firestore index optimizations.
+[752] List Bullet: Mobile-native application (React Native or Flutter).
+
+
+--- TABLES ---
+
+Table 0:
+  Row 0: | Term | Definition |
+  Row 1: | HotelEase | The name of the web-based Property Management System for the BSHM department. |
+  Row 2: | PMS | Property Management System — software used by hotels to manage front-office operations. |
+  Row 3: | Guest | A registered user who can browse rooms, make bookings, submit reviews, and interact with the chatbot. |
+  Row 4: | Front Office (FO) | A staff user responsible for managing check-ins, check-outs, payments, housekeeping, announcements, and guest communications. |
+  Row 5: | Admin | A privileged user who manages system settings, user roles, room inventory, analytics, and the training mode. |
+  Row 6: | Firestore | Google Cloud Firestore — the NoSQL cloud database used for all data persistence in HotelEase. |
+  Row 7: | Firebase Auth | Firebase Authentication service used for user registration, login, and anonymous sign-in for training mode. |
+  Row 8: | Training Mode | A sandboxed operational mode where all data operations are routed to separate Firestore collections prefixed with 'training_'. |
+  Row 9: | Cloudinary | A cloud-based image management service used for uploading and hosting room photos and announcement images. |
+  Row 10: | Groq | An AI inference platform used to power the HotelEase chatbot via the LLaMA 3.1 8B model. |
+  Row 11: | Folio | An itemized billing summary for a guest's stay, tracking total cost, deposits, and outstanding balance. |
+  Row 12: | RBAC | Role-Based Access Control — a security mechanism restricting system access based on assigned user roles. |
+
+Table 1:
+  Row 0: | Status | Color | Description |
+  Row 1: | Available | Green | Clean, approved, and ready to book |
+  Row 2: | Reserved | Purple | Booked but guest not yet checked in |
+  Row 3: | Occupied | Red | Guest is currently checked in |
+  Row 4: | Being Cleaned | Blue | Housekeeping is actively cleaning |
+  Row 5: | Pending Approval | Yellow | Cleaned, awaiting supervisor sign-off |
+  Row 6: | Out of Order | Gray | Under maintenance, not bookable |
+  Row 7: | Dirty / Needs Cleaning | Orange | Guest checked out, awaiting housekeeping |
+

@@ -53,16 +53,22 @@ export async function updateRoomStatus({
 
     if (newStatus === "Being Cleaned") {
       roomUpdate.cleaningStartedAt = serverTimestamp();
+      roomUpdate.photoUrls = deleteField();
       if (assignedToUserId) {
         roomUpdate.assignedToUserId = assignedToUserId;
         roomUpdate.assignedToName = assignedToName || "";
       }
     }
 
+    if (newStatus === "Pending Approval") {
+      roomUpdate.photoUrls = Array.isArray(photoUrls) ? photoUrls : [];
+    }
+
     if (newStatus === "Available") {
       roomUpdate.cleaningStartedAt = deleteField();
       roomUpdate.assignedToUserId = deleteField();
       roomUpdate.assignedToName = deleteField();
+      roomUpdate.photoUrls = deleteField();
     }
 
     transaction.update(roomRef, roomUpdate);

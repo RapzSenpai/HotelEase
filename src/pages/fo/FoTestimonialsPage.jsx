@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Check, Star, X } from "lucide-react";
+import { Check, Star, X, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/table";
 import {
   approveTestimonial,
+  deleteTestimonial,
   listAllTestimonials,
   rejectTestimonial,
 } from "@/services/testimonialsService";
@@ -113,6 +114,20 @@ export default function FoTestimonialsPage() {
     }
   }
 
+  async function handleDelete(id) {
+    if (!window.confirm("Are you sure you want to delete this testimonial? This cannot be undone.")) return;
+    setActingId(id);
+    try {
+      await deleteTestimonial(id);
+      toast.success("Testimonial deleted.");
+      await refresh();
+    } catch (e) {
+      toast.error(e?.message || "Failed to delete testimonial.");
+    } finally {
+      setActingId(null);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -199,32 +214,42 @@ export default function FoTestimonialsPage() {
                     <TableCell>{statusBadge(t.status)}</TableCell>
                     <TableCell>{formatDate(t.createdAt)}</TableCell>
                     <TableCell>
-                      {t.status === "Pending" ? (
-                        <div className="flex items-center gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            disabled={actingId === t.id}
-                            onClick={() => handleApprove(t.id)}
-                            className="border-success/40 bg-success/10 text-foreground hover:bg-success/20"
-                          >
-                            <Check className="mr-1 h-3.5 w-3.5" />
-                            Approve
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            disabled={actingId === t.id}
-                            onClick={() => handleReject(t.id)}
-                            className="border-destructive/40 bg-destructive/10 text-foreground hover:bg-destructive/20"
-                          >
-                            <X className="mr-1 h-3.5 w-3.5" />
-                            Reject
-                          </Button>
-                        </div>
-                      ) : (
-                        <span className="text-xs text-foreground/40">—</span>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {t.status === "Pending" && (
+                          <>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled={actingId === t.id}
+                              onClick={() => handleApprove(t.id)}
+                              className="border-success/40 bg-success/10 text-foreground hover:bg-success/20"
+                            >
+                              <Check className="mr-1 h-3.5 w-3.5" />
+                              Approve
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled={actingId === t.id}
+                              onClick={() => handleReject(t.id)}
+                              className="border-destructive/40 bg-destructive/10 text-foreground hover:bg-destructive/20"
+                            >
+                              <X className="mr-1 h-3.5 w-3.5" />
+                              Reject
+                            </Button>
+                          </>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          disabled={actingId === t.id}
+                          onClick={() => handleDelete(t.id)}
+                          className="text-destructive/70 hover:text-destructive hover:bg-destructive/10"
+                          title="Delete testimonial"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))

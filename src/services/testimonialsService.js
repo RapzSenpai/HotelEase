@@ -16,6 +16,7 @@
 import {
   addDoc,
   collection,
+  deleteDoc,
   doc,
   getDocs,
   onSnapshot,
@@ -105,6 +106,12 @@ export async function rejectTestimonial(id) {
     status: "Rejected",
     updatedAt: serverTimestamp(),
   });
+  return { ok: true };
+}
+
+export async function deleteTestimonial(id) {
+  if (!id) throw new Error("Testimonial ID is required.");
+  await deleteDoc(doc(db, TESTIMONIALS_COL, id));
   return { ok: true };
 }
 

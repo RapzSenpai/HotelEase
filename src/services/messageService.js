@@ -1,6 +1,7 @@
 import {
   collection,
   doc,
+  getDoc,
   getDocs,
   onSnapshot,
   orderBy,
@@ -118,9 +119,9 @@ export async function replyToMessage(messageId, replyMessage) {
   const cleanReply = String(replyMessage || "").trim();
   if (!cleanReply) throw new Error("Reply message is required.");
 
-  const messages = await getAllMessages();
-  const target = messages.find((m) => m.id === messageId);
-  if (!target) throw new Error("Message not found.");
+  const targetSnap = await getDoc(doc(db, MESSAGES_COL, messageId));
+  if (!targetSnap.exists()) throw new Error("Message not found.");
+  const target = { id: targetSnap.id, ...targetSnap.data() };
 
   await updateDoc(doc(db, MESSAGES_COL, messageId), {
     status: "replied",

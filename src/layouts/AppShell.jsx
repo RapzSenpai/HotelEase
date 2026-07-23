@@ -1,10 +1,13 @@
+import { useState, useCallback } from "react";
 import { Outlet, useLocation } from "react-router-dom";
 import { Toaster } from "sonner";
 import Navbar from "@/components/layout/Navbar";
 import Sidebar from "@/components/layout/Sidebar";
 import Footer from "@/components/layout/Footer";
+import ErrorBoundary from "@/components/common/ErrorBoundary";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
+import "@/components/ui/toast-custom.css";
 
 const trainingBanner = (
   <div className="rounded-xl border border-primary/30 bg-primary/10 p-4 text-sm text-foreground">
@@ -16,6 +19,10 @@ const trainingBanner = (
 export default function AppShell() {
   const { role, trainingMode } = useAuth();
   const location = useLocation();
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+
+  const toggleMobileSidebar = useCallback(() => setMobileSidebarOpen((v) => !v), []);
+  const closeMobileSidebar = useCallback(() => setMobileSidebarOpen(false), []);
 
   const hasSidebar = role === "fo" || role === "admin";
   const isLanding = location.pathname === "/";
@@ -24,27 +31,47 @@ export default function AppShell() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <Toaster position="bottom-right" richColors closeButton />
-      <Navbar />
+      <Toaster
+        position="top-right"
+        richColors={false}
+        closeButton
+        duration={4000}
+        gap={10}
+        offset={80}
+        toastOptions={{
+          classNames: {
+            toast: "rounded-xl border border-border bg-background text-foreground shadow-lg",
+            title: "text-sm font-semibold",
+            description: "text-xs text-foreground/55",
+            actionButton: "bg-primary text-primary-foreground rounded-lg text-xs font-medium px-3 py-1.5",
+            cancelButton: "bg-muted/10 text-foreground/70 rounded-lg text-xs font-medium px-3 py-1.5",
+          },
+        }}
+      />
+      <Navbar onToggleSidebar={toggleMobileSidebar} />
 
       {isLanding ? (
-        // Landing page: full-width, no padding, no sidebar
         <main className="min-h-[calc(100vh-64px)]">
           {trainingMode && <div className="px-6 pt-5">{trainingBanner}</div>}
-          <Outlet />
+          <ErrorBoundary>
+            <Outlet />
+          </ErrorBoundary>
         </main>
       ) : (
-        // All other pages
         <div
           className={cn(
             "mx-auto flex",
             hasSidebar ? "max-w-7xl" : isFullWidthPublicPage ? "w-full max-w-7xl" : "max-w-5xl",
           )}
         >
-          {hasSidebar && <Sidebar />}
+          {hasSidebar && (
+            <Sidebar open={mobileSidebarOpen} onClose={closeMobileSidebar} />
+          )}
           <main className="min-h-[calc(100vh-64px)] w-full flex-1 px-5 py-6 md:px-8 md:py-8">
             {trainingMode && <div className="mb-6">{trainingBanner}</div>}
-            <Outlet />
+            <ErrorBoundary>
+              <Outlet />
+            </ErrorBoundary>
           </main>
         </div>
       )}

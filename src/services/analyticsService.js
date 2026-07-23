@@ -123,7 +123,7 @@ function parseDateInput(dateLike) {
     if (Number.isNaN(d.getTime())) return null;
     return d;
   }
-  if (dateLike instanceof Date) return d;
+  if (dateLike instanceof Date) return dateLike;
   return null;
 }
 

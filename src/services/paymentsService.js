@@ -43,10 +43,6 @@ export async function listPaymentsForBooking(
 
   const col = paymentsCollection(trainingMode);
 
-  console.log(
-    `[paymentsService] listPaymentsForBooking — collection: "${col}", bookingId: "${bookingId}"`,
-  );
-
   const q = query(
     collection(db, col),
     where("bookingId", "==", bookingId),
@@ -55,11 +51,6 @@ export async function listPaymentsForBooking(
   );
 
   const snap = await getDocs(q);
-
-  console.log(
-    `[paymentsService] raw snapshot — size: ${snap.size}, docs:`,
-    snap.docs.map((d) => ({ id: d.id, ...d.data() })),
-  );
 
   const records = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 
@@ -102,6 +93,7 @@ export async function listPaymentsForBooking(
  *   roomName?: string,
  *   roomType?: string,
  *   processedBy?: string,
+ *   source?: string,
  * }} payload
  * @returns {Promise<{ id: string, newDeposit: number, receiptData: any }>}
  */
@@ -131,11 +123,6 @@ export async function recordPayment(payload) {
   const bCol = getCol("bookings", trainingMode);
   const pCol = paymentsCollection(trainingMode);
 
-  console.log(
-    `[paymentsService] recordPayment — bookings: "${bCol}", payments: "${pCol}"`,
-    { bookingId, amount, method, note },
-  );
-
   const receiptNo = "RCP-" + Date.now();
 
   return runTransaction(db, async (transaction) => {
@@ -151,11 +138,16 @@ export async function recordPayment(payload) {
 
     const booking = bookingSnap.data();
     const existingDeposit = Number(booking?.payment?.deposit ?? 0);
-    const newDeposit = existingDeposit + amount;
+    const totalCost = Number(booking?.totalCost ?? 0);
+    const remainingBalance = totalCost - existingDeposit;
 
-    console.log(
-      `[paymentsService] booking found — existingDeposit: ${existingDeposit}, newDeposit: ${newDeposit}`,
-    );
+    if (amount > remainingBalance + 0.01) {
+      throw new Error(
+        `Payment of ₱${amount.toLocaleString()} exceeds the outstanding balance of ₱${remainingBalance.toLocaleString()}.`
+      );
+    }
+
+    const newDeposit = existingDeposit + amount;
 
     // ── Step 2: build method-specific details (backward compatibility) ──
     const methodDetails = {};
@@ -187,6 +179,7 @@ export async function recordPayment(payload) {
       receiptNo,
       receiptGeneratedAt: serverTimestamp(),
       processedBy: payload.processedBy || "Front Office Staff",
+      source: payload.source || "fo_manual",
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
@@ -215,6 +208,7 @@ export async function recordPayment(payload) {
         checkOut: booking.checkOutDate?.toDate?.() || booking.checkOutDate,
         numberOfNights: booking.nights,
         ratePerNight: booking.nights > 0 ? booking.totalCost / booking.nights : 0,
+        total: booking.totalCost,
         subtotal: booking.totalCost,
         amountPaid: amount,
         balance: Math.max(0, booking.totalCost - newDeposit),

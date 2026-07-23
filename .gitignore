@@ -16,6 +16,7 @@ dist-ssr
 .env.*
 !.env.example
 
+
 # IDEs and local agent configs
 .vscode/*
 !.vscode/extensions.json
@@ -33,6 +34,5 @@ dist-ssr
 *.docx
 *.zip
 *.rar
-patch.md
 srs_diagrams/
 

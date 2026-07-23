@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import { Select } from "radix-ui";
 import {
   listBookingsByStatuses,
@@ -66,6 +67,7 @@ export default function FoCheckOutPage() {
   const [submitting, setSubmitting] = useState(false);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
   const [lastReceiptData, setLastReceiptData] = useState(null);
+  const [generatingReceipt, setGeneratingReceipt] = useState(false);
 
   // ── Payment history for selected booking ──────────────────────────────────
   const [payments, setPayments] = useState([]);
@@ -167,6 +169,33 @@ export default function FoCheckOutPage() {
     return Math.max(0, total - paid);
   }, [selectedBooking]);
 
+  // Build receipt data from booking and payment records
+  function buildReceiptData(booking, paymentRecords) {
+    const guest = guestsMap[booking.guestId];
+    const room = roomById.get(booking.roomId);
+    const totalPaid = paymentRecords.reduce((sum, p) => sum + Number(p.amount ?? 0), 0);
+    const latestPayment = paymentRecords.length > 0 ? paymentRecords[0] : null;
+    
+    return {
+      receiptNo: latestPayment?.receiptNo || "RCP-" + Date.now(),
+      guestName: guest?.fullName || guest?.email || booking.guestName || "Guest",
+      guestEmail: guest?.email || booking.guestEmail || "",
+      roomName: room?.name || "Room",
+      roomType: room?.type || "",
+      checkIn: booking.checkInDate?.toDate?.() || booking.checkInDate,
+      checkOut: booking.checkOutDate?.toDate?.() || booking.checkOutDate,
+      numberOfNights: booking.nights,
+      ratePerNight: booking.nights > 0 ? booking.totalCost / booking.nights : 0,
+      total: booking.totalCost,
+      subtotal: booking.totalCost,
+      amountPaid: totalPaid,
+      balance: Math.max(0, booking.totalCost - totalPaid),
+      paymentMethod: latestPayment?.method || booking.payment?.method || "N/A",
+      paymentDate: latestPayment?.createdAt?.toDate?.() || new Date(),
+      processedBy: latestPayment?.processedBy || profile?.fullName || profile?.email || "Front Office Staff",
+    };
+  }
+
   // Pre-fill payment amount with outstanding balance when booking is selected
   useEffect(() => {
     if (selectedBookingId) {
@@ -217,6 +246,10 @@ export default function FoCheckOutPage() {
       setError("Please enter a valid payment amount.");
       return;
     }
+    if (amount > selectedBalance + 0.01) {
+      setError(`Payment amount cannot exceed the remaining balance of ₱${selectedBalance.toLocaleString()}.`);
+      return;
+    }
 
     try {
       setError(null);
@@ -260,6 +293,32 @@ export default function FoCheckOutPage() {
       setError(e?.message || "Failed to record payment.");
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  // ── Generate receipt on-demand ─────────────────────────────────────────────
+  async function onDownloadReceipt() {
+    if (!selectedBooking) return;
+    
+    try {
+      setGeneratingReceipt(true);
+      
+      // Use existing receipt data if available (from recent payment), otherwise build from payment records
+      let receiptData = lastReceiptData;
+      if (!receiptData && payments.length > 0) {
+        receiptData = buildReceiptData(selectedBooking, payments);
+      }
+      
+      if (receiptData) {
+        generateReceipt(receiptData);
+      } else {
+        setError("No payment data available to generate receipt.");
+      }
+    } catch (e) {
+      console.error("[FoCheckOutPage] onDownloadReceipt error:", e);
+      setError(e?.message || "Failed to generate receipt.");
+    } finally {
+      setGeneratingReceipt(false);
     }
   }
 
@@ -450,7 +509,7 @@ export default function FoCheckOutPage() {
                 </Card>
 
                 {/* Record payment or Success state */}
-                {paymentSuccess ? (
+                {selectedBalance <= 0 ? (
                   <div className="rounded-xl border border-success/30 bg-success/5 p-6 text-center space-y-4">
                     <div className="flex justify-center">
                       <CheckCircle className="h-12 w-12 text-success" />
@@ -467,9 +526,10 @@ export default function FoCheckOutPage() {
                       <Button
                         variant="outline"
                         className="flex-1"
-                        onClick={() => generateReceipt(lastReceiptData)}
+                        onClick={onDownloadReceipt}
+                        disabled={generatingReceipt}
                       >
-                        Download Receipt
+                        {generatingReceipt ? "Generating..." : "Download Receipt"}
                       </Button>
                       <Button
                         variant="default"
@@ -563,12 +623,6 @@ export default function FoCheckOutPage() {
                     >
                       {submitting ? "Processing..." : "Record Payment"}
                     </Button>
-
-                    {selectedBalance <= 0 ? (
-                      <p className="text-xs text-center text-success">
-                        Balance fully settled — ready to check out.
-                      </p>
-                    ) : null}
                   </div>
                 )}
 
@@ -599,14 +653,23 @@ export default function FoCheckOutPage() {
                         const ts = p.createdAt?.toDate
                           ? p.createdAt.toDate()
                           : null;
+                        const source = p.source || "fo_manual";
                         return (
                           <div
                             key={p.id}
                             className="flex items-center justify-between gap-3 rounded-lg border border-border bg-background/50 px-3 py-2 text-sm"
                           >
                             <div className="space-y-0.5 min-w-0">
-                              <div className="font-medium">
-                                PHP {Number(p.amount ?? 0).toLocaleString()}
+                              <div className="flex items-center gap-2">
+                                <div className="font-medium">
+                                  PHP {Number(p.amount ?? 0).toLocaleString()}
+                                </div>
+                                <Badge 
+                                  variant={source === "guest_proof" ? "success" : "outline"} 
+                                  className="text-[10px]"
+                                >
+                                  {source === "guest_proof" ? "Guest Upload" : "Front Desk"}
+                                </Badge>
                               </div>
                               <div className="text-xs text-foreground/50 truncate">
                                 {formatMethod(p)}

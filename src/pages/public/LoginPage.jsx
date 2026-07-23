@@ -1,11 +1,14 @@
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/contexts/AuthContext";
 import { Link, NavLink, useNavigate } from "react-router-dom";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, AlertTriangle } from "lucide-react";
 import { Select } from "radix-ui";
+
+const MAX_ATTEMPTS = 5;
+const LOCKOUT_SECONDS = 30;
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -17,6 +20,31 @@ export default function LoginPage() {
   const [localError, setLocalError] = useState(null);
   const [showTraining, setShowTraining] = useState(false);
 
+  // Brute-force protection
+  const [failedAttempts, setFailedAttempts] = useState(0);
+  const [lockoutEndTime, setLockoutEndTime] = useState(null);
+  const [remainingSeconds, setRemainingSeconds] = useState(0);
+  const timerRef = useRef(null);
+
+  const isLocked = lockoutEndTime && Date.now() < lockoutEndTime;
+
+  // Countdown timer
+  useEffect(() => {
+    if (!lockoutEndTime) return;
+    function tick() {
+      const remaining = Math.max(0, Math.ceil((lockoutEndTime - Date.now()) / 1000));
+      setRemainingSeconds(remaining);
+      if (remaining <= 0) {
+        setLockoutEndTime(null);
+        setFailedAttempts(0);
+        clearInterval(timerRef.current);
+      }
+    }
+    tick();
+    timerRef.current = setInterval(tick, 1000);
+    return () => clearInterval(timerRef.current);
+  }, [lockoutEndTime]);
+
   const [trainingCode, setTrainingCode] = useState("");
   const [trainingRole, setTrainingRole] = useState("guest");
   const [trainingSubmitting, setTrainingSubmitting] = useState(false);
@@ -25,14 +53,26 @@ export default function LoginPage() {
     e.preventDefault();
     setLocalError(null);
 
+    if (isLocked) {
+      setLocalError(`Too many failed attempts. Please wait ${remainingSeconds}s.`);
+      return;
+    }
+
     try {
       await login({ email, password });
-      // Role will be detected via onAuthStateChanged. We can route based on existing role as a best-effort.
+      setFailedAttempts(0);
       if (role === "fo") navigate("/fo");
       else if (role === "admin") navigate("/admin");
       else navigate("/my-bookings");
     } catch (err) {
-      setLocalError(err?.message || "Login failed.");
+      const next = failedAttempts + 1;
+      setFailedAttempts(next);
+      if (next >= MAX_ATTEMPTS) {
+        setLockoutEndTime(Date.now() + LOCKOUT_SECONDS * 1000);
+        setLocalError(`Too many failed attempts. Locked for ${LOCKOUT_SECONDS} seconds.`);
+      } else {
+        setLocalError(err?.message || "Login failed.");
+      }
     }
   }
 
@@ -51,7 +91,7 @@ export default function LoginPage() {
             type="email"
             required
             autoComplete="email"
-            placeholder="example@gmail.com"
+            placeholder="Enter your email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             className="h-11"
@@ -74,7 +114,7 @@ export default function LoginPage() {
               type={showPassword ? "text" : "password"}
               required
               autoComplete="current-password"
-              placeholder="••••••••"
+              placeholder="Enter your password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="h-11 pr-10"
@@ -92,13 +132,21 @@ export default function LoginPage() {
         </div>
 
         {(localError || authError) ? (
-          <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-foreground">
-            {localError || authError}
+          <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-foreground">
+            <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5 text-destructive" />
+            <span>{localError || authError}</span>
           </div>
         ) : null}
 
-        <Button type="submit" size="lg" className="w-full" disabled={loading}>
-          {loading ? "Signing in..." : "Login"}
+        {!isLocked && failedAttempts > 0 && failedAttempts < MAX_ATTEMPTS && (
+          <div className="flex items-center gap-2 rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm text-foreground">
+            <AlertTriangle className="h-4 w-4 shrink-0 text-warning" />
+            <span>{MAX_ATTEMPTS - failedAttempts} attempt{MAX_ATTEMPTS - failedAttempts !== 1 ? "s" : ""} remaining before lockout.</span>
+          </div>
+        )}
+
+        <Button type="submit" size="lg" className="w-full" disabled={loading || isLocked}>
+          {isLocked ? `Locked — ${remainingSeconds}s` : loading ? "Signing in..." : "Login"}
         </Button>
 
         <div className="text-center text-sm text-foreground/70">

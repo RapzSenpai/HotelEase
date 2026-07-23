@@ -1,17 +1,25 @@
 import { useEffect, useMemo, useState } from "react";
 import { Select } from "radix-ui";
 import { toast } from "sonner";
+import { History } from "lucide-react";
 import { subscribeToRooms } from "@/services/roomsService";
 import { listUsers } from "@/services/userService";
 import HousekeepingKanban from "@/components/housekeeping/HousekeepingKanban";
+import HousekeepingList from "@/components/housekeeping/HousekeepingList";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   updateRoomStatus,
   assignHousekeepingStaff,
   bulkUpdateRoomStatus,
   subscribeToHousekeepingLogsForRoom,
 } from "@/services/housekeepingService";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 
 const SELECT_TRIGGER_CLASS =
@@ -27,6 +35,7 @@ function getStaffLabel(user) {
 
 export default function FoHousekeepingPage() {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const roomIdParam = searchParams.get("roomId");
   const { trainingMode, user, profile } = useAuth();
 
@@ -40,6 +49,8 @@ export default function FoHousekeepingPage() {
 
   const [selectedRoomId, setSelectedRoomId] = useState(null);
   const [logs, setLogs] = useState([]);
+  const [viewMode, setViewMode] = useState("kanban");
+  const [logsDialogOpen, setLogsDialogOpen] = useState(false);
 
   const currentStaffName =
     profile?.fullName || user?.displayName || user?.email || "Staff";
@@ -252,13 +263,49 @@ export default function FoHousekeepingPage() {
 
   return (
     <div className="space-y-5">
-      <div className="space-y-1">
-        <h1 className="font-playfair text-3xl font-semibold">Housekeeping</h1>
-        <p className="text-foreground/80">
-          Drag rooms across columns or use bulk approve for pending rooms.
-          Upload photos before sending to review.
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-border/40 pb-4">
+        <div className="space-y-1">
+          <h1 className="font-playfair text-3xl font-semibold">Housekeeping</h1>
+          <p className="text-foreground/80">
+            Manage room cleaning status, assign staff, and approve completed cleanings.
+          </p>
+        </div>
+        <div className="flex items-center gap-1 bg-border/30 p-1 rounded-lg border border-border/50 shrink-0 self-start sm:self-auto">
+          <Button
+            variant={viewMode === "kanban" ? "default" : "ghost"}
+            size="sm"
+            onClick={() => setViewMode("kanban")}
+            className="h-8 text-xs font-semibold px-3"
+          >
+            Kanban Board
+          </Button>
+          <Button
+            variant={viewMode === "table" ? "default" : "ghost"}
+            size="sm"
+            onClick={() => setViewMode("table")}
+            className="h-8 text-xs font-semibold px-3"
+          >
+            Table List
+          </Button>
+        </div>
       </div>
+
+      {roomIdParam && (
+        <div className="flex items-center justify-between rounded-xl border border-primary/20 bg-primary/5 p-3.5 text-sm">
+          <div className="flex items-center gap-2">
+            <span className="h-2 w-2 rounded-full bg-primary animate-pulse" />
+            <span>Currently filtering by Room: <span className="font-semibold text-primary">{rooms.find((r) => r.id === roomIdParam)?.name || roomIdParam}</span></span>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate("/fo/housekeeping")}
+            className="h-8 text-xs"
+          >
+            Show All Rooms
+          </Button>
+        </div>
+      )}
 
       {error ? (
         <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-foreground">
@@ -271,13 +318,13 @@ export default function FoHousekeepingPage() {
           Loading rooms...
         </div>
       ) : (
-        <div className="grid gap-6 xl:grid-cols-7">
-          <div className="space-y-3 xl:col-span-5">
+        <div className="space-y-4">
+          <div className="space-y-3">
             {visibleRooms.length === 0 ? (
               <div className="rounded-xl border border-border bg-background p-4 text-sm text-foreground/70">
                 No rooms in housekeeping workflow right now.
               </div>
-            ) : (
+            ) : viewMode === "kanban" ? (
               <HousekeepingKanban
                 rooms={visibleRooms}
                 getAssignmentForRoom={getAssignmentForRoom}
@@ -290,118 +337,150 @@ export default function FoHousekeepingPage() {
                 onBulkApprove={handleBulkApprove}
                 onApproveRoom={(room) => moveRoom(room, "Available")}
               />
+            ) : (
+              <HousekeepingList
+                rooms={visibleRooms}
+                getAssignmentForRoom={getAssignmentForRoom}
+                staffUsers={staffUsers}
+                onReassign={onReassign}
+                verificationPhotosByRoom={verificationPhotosByRoom}
+                onVerificationPhotosChange={handleVerificationPhotosChange}
+                selectedRoomIds={selectedRoomIds}
+                onToggleSelect={toggleSelectRoom}
+                onSelectRoom={setSelectedRoomId}
+                onMoveRoom={moveRoom}
+                onBulkApprove={handleBulkApprove}
+                onApproveRoom={(room) => moveRoom(room, "Available")}
+                selectedRoomId={selectedRoomId}
+              />
             )}
           </div>
 
-          <div className="space-y-3 xl:col-span-2">
-            <div className="rounded-xl border border-border bg-background p-4">
-              <div className="font-semibold">Housekeeping Logs</div>
-              <div className="mt-1 text-sm text-foreground/70">
-                {selectedRoomId
-                  ? "Room status history"
-                  : "Select a room to view logs"}
+          {/* Staff assignment — Kanban only (table has inline Assigned Staff column) */}
+          {viewMode === "kanban" &&
+            selectedRoom &&
+            (selectedRoom.status === "Dirty / Needs Cleaning" ||
+              selectedRoom.status === "Being Cleaned") &&
+            staffUsers.length > 0 && (
+              <div className="space-y-1.5 rounded-xl border border-border bg-background p-4">
+                <label className="text-[10px] font-semibold uppercase tracking-wide text-foreground/45">
+                  Assign staff
+                </label>
+                <Select.Root
+                  value={selectedAssignment?.userId || undefined}
+                  onValueChange={(value) => onReassign(selectedRoom.id, value)}
+                >
+                  <Select.Trigger className={SELECT_TRIGGER_CLASS}>
+                    <Select.Value placeholder="Select staff" />
+                  </Select.Trigger>
+                  <Select.Portal>
+                    <Select.Content className={SELECT_CONTENT_CLASS}>
+                      <Select.Viewport>
+                        {staffUsers.map((staff) => (
+                          <Select.Item
+                            key={staff.id}
+                            value={staff.id}
+                            className={SELECT_ITEM_CLASS}
+                          >
+                            <Select.ItemText>
+                              {getStaffLabel(staff)}
+                            </Select.ItemText>
+                          </Select.Item>
+                        ))}
+                      </Select.Viewport>
+                    </Select.Content>
+                  </Select.Portal>
+                </Select.Root>
               </div>
-            </div>
+            )}
 
-            {selectedRoom &&
-              (selectedRoom.status === "Dirty / Needs Cleaning" ||
-                selectedRoom.status === "Being Cleaned") &&
-              staffUsers.length > 0 && (
-                <div className="space-y-1.5 rounded-xl border border-border bg-background p-4">
-                  <label className="text-[10px] font-semibold uppercase tracking-wide text-foreground/45">
-                    Assign staff
-                  </label>
-                  <Select.Root
-                    value={selectedAssignment?.userId || undefined}
-                    onValueChange={(value) => onReassign(selectedRoom.id, value)}
-                  >
-                    <Select.Trigger className={SELECT_TRIGGER_CLASS}>
-                      <Select.Value placeholder="Select staff" />
-                    </Select.Trigger>
-                    <Select.Portal>
-                      <Select.Content className={SELECT_CONTENT_CLASS}>
-                        <Select.Viewport>
-                          {staffUsers.map((staff) => (
-                            <Select.Item
-                              key={staff.id}
-                              value={staff.id}
-                              className={SELECT_ITEM_CLASS}
-                            >
-                              <Select.ItemText>
-                                {getStaffLabel(staff)}
-                              </Select.ItemText>
-                            </Select.Item>
-                          ))}
-                        </Select.Viewport>
-                      </Select.Content>
-                    </Select.Portal>
-                  </Select.Root>
-                </div>
-              )}
-
-            {selectedRoomId ? (
-              logs.length === 0 ? (
-                <div className="rounded-xl border border-border bg-background p-4 text-sm text-foreground/70">
-                  No logs yet for this room.
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {logs.slice(0, 10).map((l) => {
-                    const ts = l.createdAt?.toDate
-                      ? l.createdAt.toDate()
-                      : null;
-                    const timeStr = ts ? ts.toLocaleString() : "—";
-                    const performer =
-                      l.changedByName || l.changedByRole || "—";
-                    const photos = Array.isArray(l.photoUrls) ? l.photoUrls : [];
-
-                    return (
-                      <div
-                        key={l.id}
-                        className="space-y-1 rounded-xl border border-border bg-background p-3 text-sm"
-                      >
-                        <div className="font-semibold">
-                          {l.fromStatus} → {l.toStatus}
-                        </div>
-                        <div className="text-foreground/70">
-                          Performed by: {performer}
-                        </div>
-                        {photos.length > 0 && (
-                          <div className="flex flex-wrap gap-1.5 pt-1">
-                            {photos.map((url) => (
-                              <a
-                                key={url}
-                                href={url}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="block overflow-hidden rounded-md border border-border"
-                              >
-                                <img
-                                  src={url}
-                                  alt="Verification"
-                                  className="h-12 w-12 object-cover"
-                                />
-                              </a>
-                            ))}
-                          </div>
-                        )}
-                        {l.note ? (
-                          <div className="text-foreground/70">
-                            Note: {l.note}
-                          </div>
-                        ) : null}
-                        <div className="text-xs text-foreground/50">
-                          {timeStr}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )
-            ) : null}
-          </div>
+          {/* View Logs button */}
+          {selectedRoomId && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setLogsDialogOpen(true)}
+              className="gap-2"
+            >
+              <History className="h-4 w-4" />
+              View Housekeeping Logs
+            </Button>
+          )}
         </div>
       )}
+
+      {/* Housekeeping Logs Dialog */}
+      <Dialog open={logsDialogOpen} onOpenChange={setLogsDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Housekeeping Logs</DialogTitle>
+          </DialogHeader>
+          {selectedRoomId ? (
+            logs.length === 0 ? (
+              <div className="rounded-xl border border-border bg-background p-4 text-sm text-foreground/70">
+                No logs yet for this room.
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {logs.slice(0, 10).map((l) => {
+                  const ts = l.createdAt?.toDate
+                    ? l.createdAt.toDate()
+                    : null;
+                  const timeStr = ts ? ts.toLocaleString() : "—";
+                  const performer =
+                    l.changedByName || l.changedByRole || "—";
+                  const photos = Array.isArray(l.photoUrls) ? l.photoUrls : [];
+
+                  return (
+                    <div
+                      key={l.id}
+                      className="space-y-1 rounded-xl border border-border bg-background p-3 text-sm"
+                    >
+                      <div className="font-semibold">
+                        {l.fromStatus} → {l.toStatus}
+                      </div>
+                      <div className="text-foreground/70">
+                        Performed by: {performer}
+                      </div>
+                      {photos.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 pt-1">
+                          {photos.map((url) => (
+                            <a
+                              key={url}
+                              href={url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="block overflow-hidden rounded-md border border-border"
+                            >
+                              <img
+                                src={url}
+                                alt="Verification"
+                                className="h-12 w-12 object-cover"
+                              />
+                            </a>
+                          ))}
+                        </div>
+                      )}
+                      {l.note ? (
+                        <div className="text-foreground/70">
+                          Note: {l.note}
+                        </div>
+                      ) : null}
+                      <div className="text-xs text-foreground/50">
+                        {timeStr}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )
+          ) : (
+            <div className="rounded-xl border border-border bg-background p-4 text-sm text-foreground/70">
+              Select a room to view logs.
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

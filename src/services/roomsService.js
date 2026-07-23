@@ -40,10 +40,13 @@ export function isRoomActive(room) {
   return room?.isActive !== false;
 }
 
-/** A room must be active and have status "Available" to accept new bookings. */
+/**
+ * A room is bookable for future dates if it is active (not archived).
+ * Date availability is determined by booking conflict checks, not today's
+ * housekeeping/operational status (Occupied/Reserved/Dirty).
+ */
 export function isRoomBookable(room) {
-  if (!room || !isRoomActive(room)) return false;
-  return (room.status || "Available") === "Available";
+  return isRoomActive(room);
 }
 
 /**
@@ -71,6 +74,11 @@ export async function createRoom(payload) {
     description: payload.description ?? "",
     floor: payload.floor ?? "",
     amenities: Array.isArray(payload.amenities) ? payload.amenities : [],
+    // P0.2 — policy / facility fields
+    policies: payload.policies ?? "",
+    checkInTime: payload.checkInTime ?? "",
+    checkOutTime: payload.checkOutTime ?? "",
+    facilities: Array.isArray(payload.facilities) ? payload.facilities : [],
     photos: Array.isArray(payload.photos) ? payload.photos : [],
     isActive: payload.isActive ?? true,
     createdAt: serverTimestamp(),
@@ -97,6 +105,11 @@ export async function updateRoom(roomId, payload) {
     description: payload.description ?? "",
     floor: payload.floor ?? "",
     amenities: Array.isArray(payload.amenities) ? payload.amenities : [],
+    // P0.2 — policy / facility fields
+    policies: payload.policies ?? "",
+    checkInTime: payload.checkInTime ?? "",
+    checkOutTime: payload.checkOutTime ?? "",
+    facilities: Array.isArray(payload.facilities) ? payload.facilities : [],
     ...(Array.isArray(payload.photos) ? { photos: payload.photos } : {}),
     isActive: payload.isActive ?? true,
     updatedAt: serverTimestamp(),

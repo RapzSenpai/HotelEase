@@ -3,6 +3,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import { listUsers, setUserRole, deleteUser } from "@/services/userService";
 import { Mail, User, Shield, Trash2, Save, MoreVertical, Search } from "lucide-react";
 import {
@@ -190,9 +191,10 @@ export default function AdminUserManagementPage() {
               <p className="text-muted-foreground">No users found matching your criteria.</p>
             </div>
           ) : (
-            <div className="rounded-xl border border-border bg-card overflow-x-auto shadow-sm">
+            <Card>
+              <CardContent className="pt-6">
               <Table>
-                <TableHeader className="bg-muted/30">
+                <TableHeader>
                   <TableRow>
                     <TableHead>User Name & Email</TableHead>
                     <TableHead>System Role</TableHead>
@@ -298,7 +300,8 @@ export default function AdminUserManagementPage() {
                   })}
                 </TableBody>
               </Table>
-            </div>
+              </CardContent>
+            </Card>
           )}
         </div>
       )}

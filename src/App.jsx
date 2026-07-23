@@ -1,59 +1,70 @@
+import { lazy, Suspense } from "react";
 import { Navigate, Routes, Route } from "react-router-dom";
 
 import AppShell from "@/layouts/AppShell";
 import PrivateRoute from "@/components/routing/PrivateRoute";
 import GuestAuthRoute from "@/components/routing/GuestAuthRoute";
+import PageLoader from "@/components/common/PageLoader";
 
-import LandingPage from "@/pages/public/LandingPage";
-import RoomsPage from "@/pages/public/RoomsPage";
-import RoomDetailPage from "@/pages/public/RoomDetailPage";
-import LoginPage from "@/pages/public/LoginPage";
-import RegisterPage from "@/pages/public/RegisterPage";
-import ForgotPasswordPage from "@/pages/public/ForgotPasswordPage";
-import BookingPage from "@/pages/public/BookingPage";
-import MyBookingsPage from "@/pages/public/MyBookingsPage";
-import ProfilePage from "@/pages/public/ProfilePage";
-import FavoritesPage from "@/pages/public/FavoritesPage";
-import AboutPage from "@/pages/public/AboutPage";
-import ContactPage from "@/pages/public/ContactPage";
-import PrivacyPage from "@/pages/public/PrivacyPage";
-import NotificationsPage from "@/pages/shared/NotificationsPage";
+// Public pages
+const LandingPage = lazy(() => import("@/pages/public/LandingPage"));
+const RoomsPage = lazy(() => import("@/pages/public/RoomsPage"));
+const RoomDetailPage = lazy(() => import("@/pages/public/RoomDetailPage"));
+const LoginPage = lazy(() => import("@/pages/public/LoginPage"));
+const RegisterPage = lazy(() => import("@/pages/public/RegisterPage"));
+const ForgotPasswordPage = lazy(() => import("@/pages/public/ForgotPasswordPage"));
+const BookingPage = lazy(() => import("@/pages/public/BookingPage"));
+const MyBookingsPage = lazy(() => import("@/pages/public/MyBookingsPage"));
+const ProfilePage = lazy(() => import("@/pages/public/ProfilePage"));
+const FavoritesPage = lazy(() => import("@/pages/public/FavoritesPage"));
+const AboutPage = lazy(() => import("@/pages/public/AboutPage"));
+const ContactPage = lazy(() => import("@/pages/public/ContactPage"));
+const PrivacyPage = lazy(() => import("@/pages/public/PrivacyPage"));
+const NotificationsPage = lazy(() => import("@/pages/shared/NotificationsPage"));
 
-import FoDashboardPage from "@/pages/fo/FoDashboardPage";
-import FoCheckInPage from "@/pages/fo/FoCheckInPage";
-import FoCheckOutPage from "@/pages/fo/FoCheckOutPage";
-import FoHousekeepingPage from "@/pages/fo/FoHousekeepingPage";
-import FoPaymentsPage from "@/pages/fo/FoPaymentsPage";
-import FoAnnouncementsPage from "@/pages/fo/FoAnnouncementsPage";
-import FoRoomRatesPage from "@/pages/fo/FoRoomRatesPage";
-import FoBookingsPage from "@/pages/fo/FoBookingsPage";
-import MessagesPage from "@/pages/fo/MessagesPage";
-import FoTestimonialsPage from "@/pages/fo/FoTestimonialsPage";
-import FoCancellationsPage from "@/pages/fo/FoCancellationsPage";
+// FO pages
+const FoDashboardPage = lazy(() => import("@/pages/fo/FoDashboardPage"));
+const FoCheckInPage = lazy(() => import("@/pages/fo/FoCheckInPage"));
+const FoCheckOutPage = lazy(() => import("@/pages/fo/FoCheckOutPage"));
+const FoHousekeepingPage = lazy(() => import("@/pages/fo/FoHousekeepingPage"));
+const FoPaymentsPage = lazy(() => import("@/pages/fo/FoPaymentsPage"));
+const FoAnnouncementsPage = lazy(() => import("@/pages/fo/FoAnnouncementsPage"));
+const FoRoomRatesPage = lazy(() => import("@/pages/fo/FoRoomRatesPage"));
+const FoBookingsPage = lazy(() => import("@/pages/fo/FoBookingsPage"));
+const MessagesPage = lazy(() => import("@/pages/fo/MessagesPage"));
+const FoTestimonialsPage = lazy(() => import("@/pages/fo/FoTestimonialsPage"));
+const FoCancellationsPage = lazy(() => import("@/pages/fo/FoCancellationsPage"));
 
-import AdminAnalyticsPage from "@/pages/admin/AdminAnalyticsPage";
-import AdminUserManagementPage from "@/pages/admin/AdminUserManagementPage";
-import AdminRoomManagementPage from "@/pages/admin/AdminRoomManagementPage";
-import AdminSystemSettingsPage from "@/pages/admin/AdminSystemSettingsPage";
-import AdminTrainingDataResetPage from "@/pages/admin/AdminTrainingDataResetPage";
+// Admin pages
+const AdminAnalyticsPage = lazy(() => import("@/pages/admin/AdminAnalyticsPage"));
+const AdminOperationsPage = lazy(() => import("@/pages/admin/AdminOperationsPage"));
+const AdminUserManagementPage = lazy(() => import("@/pages/admin/AdminUserManagementPage"));
+const AdminRoomManagementPage = lazy(() => import("@/pages/admin/AdminRoomManagementPage"));
+const AdminSystemSettingsPage = lazy(() => import("@/pages/admin/AdminSystemSettingsPage"));
+const AdminTrainingDataResetPage = lazy(() => import("@/pages/admin/AdminTrainingDataResetPage"));
 
-import UnauthorizedPage from "@/pages/common/UnauthorizedPage";
-import NotFoundPage from "@/pages/common/NotFoundPage";
+// Common pages
+const UnauthorizedPage = lazy(() => import("@/pages/common/UnauthorizedPage"));
+const NotFoundPage = lazy(() => import("@/pages/common/NotFoundPage"));
+
+function SuspenseWrapper({ children }) {
+  return <Suspense fallback={<PageLoader />}>{children}</Suspense>;
+}
 
 export default function App() {
   return (
     <Routes>
       <Route element={<AppShell />}>
         {/* Public */}
-        <Route path="/" element={<LandingPage />} />
-        <Route path="/rooms" element={<RoomsPage />} />
-        <Route path="/rooms/:roomId" element={<RoomDetailPage />} />
+        <Route path="/" element={<SuspenseWrapper><LandingPage /></SuspenseWrapper>} />
+        <Route path="/rooms" element={<SuspenseWrapper><RoomsPage /></SuspenseWrapper>} />
+        <Route path="/rooms/:roomId" element={<SuspenseWrapper><RoomDetailPage /></SuspenseWrapper>} />
 
         <Route
           path="/login"
           element={
             <GuestAuthRoute>
-              <LoginPage />
+              <SuspenseWrapper><LoginPage /></SuspenseWrapper>
             </GuestAuthRoute>
           }
         />
@@ -61,7 +72,7 @@ export default function App() {
           path="/register"
           element={
             <GuestAuthRoute>
-              <RegisterPage />
+              <SuspenseWrapper><RegisterPage /></SuspenseWrapper>
             </GuestAuthRoute>
           }
         />
@@ -69,14 +80,14 @@ export default function App() {
           path="/forgot-password"
           element={
             <GuestAuthRoute>
-              <ForgotPasswordPage />
+              <SuspenseWrapper><ForgotPasswordPage /></SuspenseWrapper>
             </GuestAuthRoute>
           }
         />
-        <Route path="/about" element={<AboutPage />} />
-        <Route path="/contact" element={<ContactPage />} />
-        <Route path="/privacy" element={<PrivacyPage />} />
-        <Route path="/unauthorized" element={<UnauthorizedPage />} />
+        <Route path="/about" element={<SuspenseWrapper><AboutPage /></SuspenseWrapper>} />
+        <Route path="/contact" element={<SuspenseWrapper><ContactPage /></SuspenseWrapper>} />
+        <Route path="/privacy" element={<SuspenseWrapper><PrivacyPage /></SuspenseWrapper>} />
+        <Route path="/unauthorized" element={<SuspenseWrapper><UnauthorizedPage /></SuspenseWrapper>} />
 
         {/* Guest (Role: guest) */}
         <Route path="/booking" element={<Navigate to="/rooms" replace />} />
@@ -84,7 +95,7 @@ export default function App() {
           path="/booking/:roomId"
           element={
             <PrivateRoute allowedRoles={["guest"]}>
-              <BookingPage />
+              <SuspenseWrapper><BookingPage /></SuspenseWrapper>
             </PrivateRoute>
           }
         />
@@ -92,7 +103,7 @@ export default function App() {
           path="/my-bookings"
           element={
             <PrivateRoute allowedRoles={["guest"]}>
-              <MyBookingsPage />
+              <SuspenseWrapper><MyBookingsPage /></SuspenseWrapper>
             </PrivateRoute>
           }
         />
@@ -100,7 +111,7 @@ export default function App() {
           path="/profile"
           element={
             <PrivateRoute allowedRoles={["guest"]}>
-              <ProfilePage />
+              <SuspenseWrapper><ProfilePage /></SuspenseWrapper>
             </PrivateRoute>
           }
         />
@@ -108,17 +119,17 @@ export default function App() {
           path="/favorites"
           element={
             <PrivateRoute allowedRoles={["guest"]}>
-              <FavoritesPage />
+              <SuspenseWrapper><FavoritesPage /></SuspenseWrapper>
             </PrivateRoute>
           }
         />
-        
+
         {/* Shared Authenticated */}
         <Route
           path="/notifications"
           element={
             <PrivateRoute allowedRoles={["guest", "fo", "admin"]}>
-              <NotificationsPage />
+              <SuspenseWrapper><NotificationsPage /></SuspenseWrapper>
             </PrivateRoute>
           }
         />
@@ -128,7 +139,7 @@ export default function App() {
           path="/fo"
           element={
             <PrivateRoute allowedRoles={["fo"]}>
-              <FoDashboardPage />
+              <SuspenseWrapper><FoDashboardPage /></SuspenseWrapper>
             </PrivateRoute>
           }
         />
@@ -136,7 +147,7 @@ export default function App() {
           path="/fo/check-in"
           element={
             <PrivateRoute allowedRoles={["fo"]}>
-              <FoCheckInPage />
+              <SuspenseWrapper><FoCheckInPage /></SuspenseWrapper>
             </PrivateRoute>
           }
         />
@@ -144,7 +155,7 @@ export default function App() {
           path="/fo/check-out"
           element={
             <PrivateRoute allowedRoles={["fo"]}>
-              <FoCheckOutPage />
+              <SuspenseWrapper><FoCheckOutPage /></SuspenseWrapper>
             </PrivateRoute>
           }
         />
@@ -152,7 +163,7 @@ export default function App() {
           path="/fo/housekeeping"
           element={
             <PrivateRoute allowedRoles={["fo"]}>
-              <FoHousekeepingPage />
+              <SuspenseWrapper><FoHousekeepingPage /></SuspenseWrapper>
             </PrivateRoute>
           }
         />
@@ -160,7 +171,7 @@ export default function App() {
           path="/fo/payments"
           element={
             <PrivateRoute allowedRoles={["fo"]}>
-              <FoPaymentsPage />
+              <SuspenseWrapper><FoPaymentsPage /></SuspenseWrapper>
             </PrivateRoute>
           }
         />
@@ -168,7 +179,7 @@ export default function App() {
           path="/fo/announcements"
           element={
             <PrivateRoute allowedRoles={["fo"]}>
-              <FoAnnouncementsPage />
+              <SuspenseWrapper><FoAnnouncementsPage /></SuspenseWrapper>
             </PrivateRoute>
           }
         />
@@ -176,7 +187,7 @@ export default function App() {
           path="/fo/room-rates"
           element={
             <PrivateRoute allowedRoles={["fo"]}>
-              <FoRoomRatesPage />
+              <SuspenseWrapper><FoRoomRatesPage /></SuspenseWrapper>
             </PrivateRoute>
           }
         />
@@ -184,7 +195,7 @@ export default function App() {
           path="/fo/messages"
           element={
             <PrivateRoute allowedRoles={["fo"]}>
-              <MessagesPage />
+              <SuspenseWrapper><MessagesPage /></SuspenseWrapper>
             </PrivateRoute>
           }
         />
@@ -192,7 +203,7 @@ export default function App() {
           path="/fo/bookings"
           element={
             <PrivateRoute allowedRoles={["fo"]}>
-              <FoBookingsPage />
+              <SuspenseWrapper><FoBookingsPage /></SuspenseWrapper>
             </PrivateRoute>
           }
         />
@@ -200,7 +211,7 @@ export default function App() {
           path="/fo/testimonials"
           element={
             <PrivateRoute allowedRoles={["fo"]}>
-              <FoTestimonialsPage />
+              <SuspenseWrapper><FoTestimonialsPage /></SuspenseWrapper>
             </PrivateRoute>
           }
         />
@@ -208,7 +219,7 @@ export default function App() {
           path="/fo/cancellations"
           element={
             <PrivateRoute allowedRoles={["fo"]}>
-              <FoCancellationsPage />
+              <SuspenseWrapper><FoCancellationsPage /></SuspenseWrapper>
             </PrivateRoute>
           }
         />
@@ -218,7 +229,15 @@ export default function App() {
           path="/admin"
           element={
             <PrivateRoute allowedRoles={["admin"]}>
-              <AdminAnalyticsPage />
+              <SuspenseWrapper><AdminAnalyticsPage /></SuspenseWrapper>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/admin/operations"
+          element={
+            <PrivateRoute allowedRoles={["admin"]}>
+              <SuspenseWrapper><AdminOperationsPage /></SuspenseWrapper>
             </PrivateRoute>
           }
         />
@@ -226,7 +245,7 @@ export default function App() {
           path="/admin/users"
           element={
             <PrivateRoute allowedRoles={["admin"]}>
-              <AdminUserManagementPage />
+              <SuspenseWrapper><AdminUserManagementPage /></SuspenseWrapper>
             </PrivateRoute>
           }
         />
@@ -234,7 +253,7 @@ export default function App() {
           path="/admin/rooms"
           element={
             <PrivateRoute allowedRoles={["admin"]}>
-              <AdminRoomManagementPage />
+              <SuspenseWrapper><AdminRoomManagementPage /></SuspenseWrapper>
             </PrivateRoute>
           }
         />
@@ -242,7 +261,7 @@ export default function App() {
           path="/admin/settings"
           element={
             <PrivateRoute allowedRoles={["admin"]}>
-              <AdminSystemSettingsPage />
+              <SuspenseWrapper><AdminSystemSettingsPage /></SuspenseWrapper>
             </PrivateRoute>
           }
         />
@@ -250,13 +269,13 @@ export default function App() {
           path="/admin/training-reset"
           element={
             <PrivateRoute allowedRoles={["admin"]}>
-              <AdminTrainingDataResetPage />
+              <SuspenseWrapper><AdminTrainingDataResetPage /></SuspenseWrapper>
             </PrivateRoute>
           }
         />
 
         {/* Catch-all */}
-        <Route path="*" element={<NotFoundPage />} />
+        <Route path="*" element={<SuspenseWrapper><NotFoundPage /></SuspenseWrapper>} />
       </Route>
     </Routes>
   );
