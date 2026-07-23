@@ -339,7 +339,7 @@ function TagInput({ label, value, onChange, presets, placeholder }) {
 }
 
 // ---------------------------------------------------------------------------
-// Slide-Over Form
+// Centered Modal Form
 // ---------------------------------------------------------------------------
 
 function SlideOverForm({ open, onClose, editingId, form, setForm, submitError, submitting, onSubmit, existingTypes }) {
@@ -351,46 +351,45 @@ function SlideOverForm({ open, onClose, editingId, form, setForm, submitError, s
     <>
       {/* Backdrop */}
       <div
-        className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm"
+        className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm"
         onClick={onClose}
       />
 
-      {/* Panel */}
-      <div className="fixed right-0 top-0 bottom-0 z-50 w-full max-w-lg bg-background border-l border-border shadow-2xl overflow-y-auto">
-        {/* Header */}
-        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-background/95 backdrop-blur-sm px-6 py-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-primary/10">
-              {editingId ? (
-                <Edit className="h-4 w-4 text-primary" />
-              ) : (
-                <Plus className="h-4 w-4 text-primary" />
-              )}
+      {/* Centered Modal */}
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="relative w-full max-w-2xl max-h-[90vh] bg-background rounded-xl border border-border shadow-2xl overflow-hidden flex flex-col">
+          {/* Header */}
+          <div className="flex items-center justify-between border-b border-border px-5 py-3.5 shrink-0">
+            <div className="flex items-center gap-2.5">
+              <div className="p-1.5 rounded-md bg-primary/10">
+                {editingId ? (
+                  <Edit className="h-4 w-4 text-primary" />
+                ) : (
+                  <Plus className="h-4 w-4 text-primary" />
+                )}
+              </div>
+              <h2 className="text-sm font-semibold">
+                {editingId ? "Edit Room" : "Add New Room"}
+              </h2>
             </div>
-            <h2 className="font-playfair text-lg font-semibold">
-              {editingId ? "Edit Room" : "Add New Room"}
-            </h2>
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-md hover:bg-muted transition-colors"
+            >
+              <X className="h-4 w-4" />
+            </button>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 rounded-lg hover:bg-muted transition-colors"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
 
-        <form onSubmit={onSubmit} className="p-6 space-y-8">
+          {/* Scrollable Form */}
+          <form onSubmit={onSubmit} className="overflow-y-auto flex-1 p-5 space-y-6">
 
           {/* ── Section: Basic Info ── */}
-          <div className="space-y-4">
-            <div>
-              <h3 className="text-sm font-semibold text-foreground/80 uppercase tracking-wider">Basic Info</h3>
-              <div className="mt-2 h-px bg-border/50" />
-            </div>
+          <div className="space-y-3">
+            <h3 className="text-xs font-semibold text-foreground/50 uppercase tracking-wider">Basic Info</h3>
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="so-roomNumber">Room Number <RequiredIndicator /></Label>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="so-roomNumber" className="text-xs font-medium text-foreground/60">Room Number <RequiredIndicator /></Label>
                 <Input
                   id="so-roomNumber"
                   required
@@ -398,8 +397,8 @@ function SlideOverForm({ open, onClose, editingId, form, setForm, submitError, s
                   onChange={(e) => setForm((p) => ({ ...p, roomNumber: e.target.value }))}
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="so-floor">Floor</Label>
+              <div className="space-y-1.5">
+                <Label htmlFor="so-floor" className="text-xs font-medium text-foreground/60">Floor</Label>
                 <Input
                   id="so-floor"
                   value={form.floor}
@@ -408,8 +407,8 @@ function SlideOverForm({ open, onClose, editingId, form, setForm, submitError, s
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="so-name">Room Name <RequiredIndicator /></Label>
+            <div className="space-y-1.5">
+              <Label htmlFor="so-name" className="text-xs font-medium text-foreground/60">Room Name <RequiredIndicator /></Label>
               <Input
                 id="so-name"
                 required
@@ -418,8 +417,8 @@ function SlideOverForm({ open, onClose, editingId, form, setForm, submitError, s
               />
             </div>
 
-            <div className="space-y-2">
-              <Label>Room Type</Label>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-foreground/60">Room Type</Label>
               <select
                 value={existingTypes.includes(form.type) ? form.type : (form.type ? "Custom" : "")}
                 onChange={(e) => {
@@ -447,8 +446,8 @@ function SlideOverForm({ open, onClose, editingId, form, setForm, submitError, s
               )}
             </div>
 
-            <div className="space-y-2">
-              <Label>Room Status</Label>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-foreground/60">Room Status</Label>
               <select
                 value={form.status}
                 onChange={(e) => setForm((p) => ({ ...p, status: e.target.value }))}
@@ -464,8 +463,8 @@ function SlideOverForm({ open, onClose, editingId, form, setForm, submitError, s
               </select>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="so-desc">Description</Label>
+            <div className="space-y-1.5">
+              <Label htmlFor="so-desc" className="text-xs font-medium text-foreground/60">Description</Label>
               <textarea
                 id="so-desc"
                 className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-y"
@@ -477,14 +476,11 @@ function SlideOverForm({ open, onClose, editingId, form, setForm, submitError, s
           </div>
 
           {/* ── Section: Pricing ── */}
-          <div className="space-y-4">
-            <div>
-              <h3 className="text-sm font-semibold text-foreground/80 uppercase tracking-wider">Pricing & Schedule</h3>
-              <div className="mt-2 h-px bg-border/50" />
-            </div>
+          <div className="space-y-3">
+            <h3 className="text-xs font-semibold text-foreground/50 uppercase tracking-wider">Pricing & Schedule</h3>
 
-            <div className="space-y-2">
-              <Label htmlFor="so-rate">Rate per Night <RequiredIndicator /></Label>
+            <div className="space-y-1.5">
+              <Label htmlFor="so-rate" className="text-xs font-medium text-foreground/60">Rate per Night <RequiredIndicator /></Label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-foreground/40 font-medium">PHP</span>
                 <Input
@@ -499,9 +495,9 @@ function SlideOverForm({ open, onClose, editingId, form, setForm, submitError, s
               </div>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="so-checkin">Check-in Time</Label>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="so-checkin" className="text-xs font-medium text-foreground/60">Check-in Time</Label>
                 <Input
                   id="so-checkin"
                   placeholder="e.g. 2:00 PM"
@@ -509,8 +505,8 @@ function SlideOverForm({ open, onClose, editingId, form, setForm, submitError, s
                   onChange={(e) => setForm((p) => ({ ...p, checkInTime: e.target.value }))}
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="so-checkout">Check-out Time</Label>
+              <div className="space-y-1.5">
+                <Label htmlFor="so-checkout" className="text-xs font-medium text-foreground/60">Check-out Time</Label>
                 <Input
                   id="so-checkout"
                   placeholder="e.g. 12:00 PM"
@@ -522,11 +518,8 @@ function SlideOverForm({ open, onClose, editingId, form, setForm, submitError, s
           </div>
 
           {/* ── Section: Photos ── */}
-          <div className="space-y-4">
-            <div>
-              <h3 className="text-sm font-semibold text-foreground/80 uppercase tracking-wider">Photos</h3>
-              <div className="mt-2 h-px bg-border/50" />
-            </div>
+          <div className="space-y-3">
+            <h3 className="text-xs font-semibold text-foreground/50 uppercase tracking-wider">Photos</h3>
 
             <PhotoUploader
               photos={form.photos}
@@ -535,11 +528,8 @@ function SlideOverForm({ open, onClose, editingId, form, setForm, submitError, s
           </div>
 
           {/* ── Section: Amenities & Facilities ── */}
-          <div className="space-y-4">
-            <div>
-              <h3 className="text-sm font-semibold text-foreground/80 uppercase tracking-wider">Amenities & Facilities</h3>
-              <div className="mt-2 h-px bg-border/50" />
-            </div>
+          <div className="space-y-3">
+            <h3 className="text-xs font-semibold text-foreground/50 uppercase tracking-wider">Amenities & Facilities</h3>
 
             <TagInput
               label="Room Amenities"
@@ -559,20 +549,20 @@ function SlideOverForm({ open, onClose, editingId, form, setForm, submitError, s
           </div>
 
           {/* ── Section: Policies (Collapsible) ── */}
-          <div className="space-y-3">
+          <div className="space-y-2">
             <button
               type="button"
               onClick={() => setPoliciesOpen((v) => !v)}
               className="flex items-center gap-2 w-full text-left"
             >
-              <h3 className="text-sm font-semibold text-foreground/80 uppercase tracking-wider">Policies</h3>
+              <h3 className="text-xs font-semibold text-foreground/50 uppercase tracking-wider">Policies</h3>
               <div className="flex-1 h-px bg-border/50" />
-              <ChevronDown className={`h-4 w-4 text-foreground/40 transition-transform duration-200 ${policiesOpen ? "rotate-180" : ""}`} />
+              <ChevronDown className={`h-3.5 w-3.5 text-foreground/40 transition-transform duration-200 ${policiesOpen ? "rotate-180" : ""}`} />
             </button>
 
             {policiesOpen && (
-              <div className="space-y-2 animate-in fade-in slide-in-from-top-1 duration-200">
-                <Label htmlFor="so-policies">Cancellation Policy / House Rules</Label>
+              <div className="space-y-1.5 animate-in fade-in slide-in-from-top-1 duration-200">
+                <Label htmlFor="so-policies" className="text-xs font-medium text-foreground/60">Cancellation Policy / House Rules</Label>
                 <textarea
                   id="so-policies"
                   className="flex min-h-[100px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-y"
@@ -591,21 +581,21 @@ function SlideOverForm({ open, onClose, editingId, form, setForm, submitError, s
             </div>
           )}
 
-          <div className="flex flex-col gap-2 pt-2 pb-4">
-            <Button type="submit" disabled={submitting} size="lg" className="w-full">
+          <div className="flex gap-2 pt-2 pb-2">
+            <Button type="submit" disabled={submitting} className="flex-1 h-9">
               {submitting ? "Saving..." : editingId ? "Save Changes" : "Create Room"}
             </Button>
             <Button
               type="button"
               variant="ghost"
-              size="lg"
-              className="w-full"
+              className="h-9 px-4"
               onClick={onClose}
             >
               Cancel
             </Button>
           </div>
         </form>
+        </div>
       </div>
     </>
   );

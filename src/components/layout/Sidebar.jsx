@@ -99,7 +99,12 @@ const ADMIN_LINKS = [
     group: "Management",
     items: [
       { to: "/admin/users", label: "User Management", icon: Users },
-      { to: "/admin/rooms", label: "Room Management", icon: Building2 },
+      {
+        to: "/admin/rooms",
+        label: "Room Management",
+        icon: Building2,
+        notification: { type: "dot", key: "hasDirtyRooms" },
+      },
     ],
   },
   {
