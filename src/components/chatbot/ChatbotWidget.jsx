@@ -232,26 +232,48 @@ export default function ChatbotWidget() {
               : "scale-95 opacity-0 translate-y-2 pointer-events-none"
           }`}
         >
-          <Card className="flex h-[520px] w-[380px] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-2xl border-border/60 shadow-2xl">
-            {/* Header */}
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 border-b border-border/40 px-4 py-3 bg-primary/5">
+          <Card className="flex h-[540px] w-[380px] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-2xl border-0 shadow-2xl"
+            style={{ background: "#F4F4F2" }}
+          >
+            {/* Header — dark with yellow accent */}
+            <CardHeader
+              className="flex flex-row items-center justify-between space-y-0 px-4 py-3 shrink-0"
+              style={{
+                background: "linear-gradient(135deg, #1C1C1E 0%, #2a2a2d 100%)",
+                borderBottom: "2px solid #F5C518",
+              }}
+            >
               <div className="flex items-center gap-3">
-                <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10">
-                  <Sparkles className="h-5 w-5 text-primary" />
-                  <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-background bg-success" />
+                {/* Bot avatar */}
+                <div
+                  className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+                  style={{ background: "rgba(245,197,24,0.15)", border: "1px solid rgba(245,197,24,0.35)" }}
+                >
+                  <Sparkles className="h-5 w-5" style={{ color: "#F5C518" }} />
+                  <span
+                    className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2"
+                    style={{ borderColor: "#1C1C1E", background: "#22C55E" }}
+                  />
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-foreground">HotelEase Assistant</p>
-                  <p className="text-xs text-foreground/50">Virtual Concierge</p>
+                  <p className="text-sm font-semibold" style={{ color: "#FFFFFF" }}>
+                    HotelEase Assistant
+                  </p>
+                  <p className="text-xs" style={{ color: "rgba(245,197,24,0.75)" }}>
+                    Virtual Concierge · Online
+                  </p>
                 </div>
               </div>
               <Button
                 type="button"
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 shrink-0 rounded-lg text-foreground/50 hover:text-foreground hover:bg-foreground/5"
+                className="h-8 w-8 shrink-0 rounded-lg transition-all hover:scale-105"
+                style={{ color: "rgba(255,255,255,0.6)" }}
                 onClick={() => setOpen(false)}
                 aria-label="Close chat"
+                onMouseEnter={(e) => { e.currentTarget.style.color = "#F5C518"; e.currentTarget.style.background = "rgba(245,197,24,0.1)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.color = "rgba(255,255,255,0.6)"; e.currentTarget.style.background = "transparent"; }}
               >
                 <X className="h-4 w-4" />
               </Button>
@@ -261,7 +283,8 @@ export default function ChatbotWidget() {
               {/* Messages */}
               <div
                 ref={listRef}
-                className="min-h-0 flex-1 space-y-4 overflow-y-auto bg-background px-4 py-4"
+                className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4"
+                style={{ background: "#F4F4F2" }}
               >
                 {messages.map((m) => (
                   <div
@@ -270,31 +293,44 @@ export default function ChatbotWidget() {
                   >
                     {/* Avatar */}
                     <div
-                      className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${
+                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg"
+                      style={
                         m.role === "user"
-                          ? "bg-foreground/10"
-                          : "bg-primary/10"
-                      }`}
+                          ? { background: "#1C1C1E" }
+                          : { background: "rgba(245,197,24,0.18)", border: "1px solid rgba(245,197,24,0.3)" }
+                      }
                     >
                       {m.role === "user" ? (
-                        <User className="h-3.5 w-3.5 text-foreground/60" />
+                        <User className="h-3.5 w-3.5" style={{ color: "#F5C518" }} />
                       ) : (
-                        <Sparkles className="h-3.5 w-3.5 text-primary" />
+                        <Sparkles className="h-3.5 w-3.5" style={{ color: "#F5C518" }} />
                       )}
                     </div>
 
                     {/* Bubble */}
                     <div className={`flex flex-col ${m.role === "user" ? "items-end" : "items-start"} max-w-[80%]`}>
                       <div
-                        className={`rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed ${
+                        className="rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed"
+                        style={
                           m.role === "user"
-                            ? "bg-foreground text-background rounded-br-md"
-                            : "bg-muted/10 text-foreground rounded-bl-md border border-border/40"
-                        }`}
+                            ? {
+                                background: "#F5C518",
+                                color: "#1C1C1E",
+                                borderBottomRightRadius: "6px",
+                                fontWeight: 500,
+                              }
+                            : {
+                                background: "#FFFFFF",
+                                color: "#1C1C1E",
+                                borderBottomLeftRadius: "6px",
+                                border: "1px solid #E6E6E1",
+                                boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
+                              }
+                        }
                       >
                         {m.role === "assistant" ? renderFormattedText(m.content) : m.content}
                       </div>
-                      <span className="mt-1 px-1 text-[10px] text-foreground/35">
+                      <span className="mt-1 px-1 text-[10px]" style={{ color: "rgba(28,28,30,0.4)" }}>
                         {formatTime(m.at instanceof Date ? m.at : new Date(m.at))}
                       </span>
                     </div>
@@ -304,14 +340,24 @@ export default function ChatbotWidget() {
                 {/* Typing indicator */}
                 {loading && (
                   <div className="flex gap-2.5">
-                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/20">
-                      <Bot className="h-3.5 w-3.5 text-primary" />
+                    <div
+                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg"
+                      style={{ background: "rgba(245,197,24,0.18)", border: "1px solid rgba(245,197,24,0.3)" }}
+                    >
+                      <Bot className="h-3.5 w-3.5" style={{ color: "#F5C518" }} />
                     </div>
-                    <div className="rounded-2xl rounded-bl-md border border-border/40 bg-muted/10 px-4 py-3">
+                    <div
+                      className="rounded-2xl rounded-bl-md px-4 py-3"
+                      style={{
+                        background: "#FFFFFF",
+                        border: "1px solid #E6E6E1",
+                        boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
+                      }}
+                    >
                       <span className="inline-flex gap-1">
-                        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-foreground/25 [animation-delay:-0.3s]" />
-                        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-foreground/25 [animation-delay:-0.15s]" />
-                        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-foreground/25" />
+                        <span className="h-1.5 w-1.5 animate-bounce rounded-full [animation-delay:-0.3s]" style={{ background: "#F5C518" }} />
+                        <span className="h-1.5 w-1.5 animate-bounce rounded-full [animation-delay:-0.15s]" style={{ background: "#F5C518" }} />
+                        <span className="h-1.5 w-1.5 animate-bounce rounded-full" style={{ background: "#F5C518" }} />
                       </span>
                     </div>
                   </div>
@@ -326,10 +372,29 @@ export default function ChatbotWidget() {
                         type="button"
                         disabled={loading}
                         onClick={() => appendUserAndReply(q.followUp)}
-                        className="flex items-center gap-2 rounded-xl border border-border/60 bg-card px-3 py-2.5 text-left text-xs font-medium text-foreground/80 shadow-sm transition-all hover:border-primary/40 hover:bg-primary/5 hover:shadow-md disabled:opacity-50"
+                        className="group flex items-center gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-medium transition-all disabled:opacity-50"
+                        style={{
+                          background: "#FFFFFF",
+                          border: "1px solid #E6E6E1",
+                          color: "#1C1C1E",
+                          boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.borderColor = "#F5C518";
+                          e.currentTarget.style.background = "rgba(245,197,24,0.06)";
+                          e.currentTarget.style.boxShadow = "0 2px 8px rgba(245,197,24,0.2)";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.borderColor = "#E6E6E1";
+                          e.currentTarget.style.background = "#FFFFFF";
+                          e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.05)";
+                        }}
                       >
-                        <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-                          <q.icon className="h-3 w-3 text-primary" />
+                        <div
+                          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg"
+                          style={{ background: "rgba(245,197,24,0.15)" }}
+                        >
+                          <q.icon className="h-3 w-3" style={{ color: "#F5C518" }} />
                         </div>
                         <span>{q.label}</span>
                       </button>
@@ -345,10 +410,23 @@ export default function ChatbotWidget() {
                         key={s.label}
                         type="button"
                         onClick={() => appendUserAndReply(s.followUp)}
-                        className="flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/5 px-3 py-1.5 text-xs font-medium text-foreground/70 transition-all hover:border-primary/50 hover:bg-primary/10 hover:text-foreground"
+                        className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-all"
+                        style={{
+                          background: "rgba(245,197,24,0.1)",
+                          border: "1px solid rgba(245,197,24,0.4)",
+                          color: "#1C1C1E",
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = "rgba(245,197,24,0.2)";
+                          e.currentTarget.style.borderColor = "#F5C518";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = "rgba(245,197,24,0.1)";
+                          e.currentTarget.style.borderColor = "rgba(245,197,24,0.4)";
+                        }}
                       >
                         {s.label}
-                        <ChevronRight className="h-3 w-3" />
+                        <ChevronRight className="h-3 w-3" style={{ color: "#F5C518" }} />
                       </button>
                     ))}
                   </div>
@@ -358,28 +436,51 @@ export default function ChatbotWidget() {
               {/* Input area */}
               <form
                 onSubmit={onSubmit}
-                className="border-t border-border/40 bg-card p-3"
+                className="shrink-0 px-3 pb-3 pt-2.5"
+                style={{
+                  background: "#FFFFFF",
+                  borderTop: "1px solid #E6E6E1",
+                }}
               >
                 <div className="flex items-center gap-2">
                   <Input
                     ref={inputRef}
                     value={input}
                     onChange={(e) => setInput(e.target.value.slice(0, 300))}
-                    placeholder="Ask about rooms, booking, or policies..."
+                    placeholder="Ask about rooms, booking, or policies…"
                     disabled={loading}
                     maxLength={300}
-                    className="flex-1 h-10 rounded-xl border-border/60 bg-background text-sm placeholder:text-foreground/35 focus-visible:ring-primary/30"
+                    className="flex-1 h-10 rounded-xl text-sm transition-all"
+                    style={{
+                      background: "#F4F4F2",
+                      border: "1px solid #E6E6E1",
+                      color: "#1C1C1E",
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = "#F5C518";
+                      e.currentTarget.style.boxShadow = "0 0 0 3px rgba(245,197,24,0.15)";
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = "#E6E6E1";
+                      e.currentTarget.style.boxShadow = "none";
+                    }}
                   />
                   <Button
                     type="submit"
                     size="icon"
                     disabled={loading || !input.trim()}
-                    className="shrink-0 h-10 w-10 rounded-xl bg-primary text-foreground hover:bg-primary/90 disabled:opacity-30 disabled:hover:bg-primary transition-all"
+                    className="shrink-0 h-10 w-10 rounded-xl transition-all hover:scale-105 active:scale-95"
+                    style={{
+                      background: "#F5C518",
+                      color: "#1C1C1E",
+                    }}
+                    onMouseEnter={(e) => { if (!e.currentTarget.disabled) e.currentTarget.style.background = "#e8b800"; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = "#F5C518"; }}
                   >
                     <Send className="h-4 w-4" />
                   </Button>
                 </div>
-                <p className="mt-1.5 text-center text-[10px] text-foreground/30">
+                <p className="mt-1.5 text-center text-[10px]" style={{ color: "rgba(28,28,30,0.35)" }}>
                   HotelEase AI · For hotel inquiries only
                 </p>
               </form>
@@ -387,26 +488,36 @@ export default function ChatbotWidget() {
           </Card>
         </div>
 
-        {/* FAB */}
+        {/* FAB — always yellow */}
         <div className="pointer-events-auto relative" title="Chat with us">
           <button
             type="button"
             onClick={() => setOpen((o) => !o)}
-            className={`group flex items-center justify-center rounded-2xl shadow-lg transition-all duration-300 hover:shadow-xl hover:scale-105 active:scale-95 ${
-              open ? "bg-foreground h-12 w-12 rounded-xl" : "bg-primary h-14 w-14"
-            }`}
+            className="group flex items-center justify-center rounded-2xl shadow-lg transition-all duration-300 hover:shadow-xl hover:scale-105 active:scale-95"
+            style={{
+              background: "#F5C518",
+              height: open ? "48px" : "56px",
+              width: open ? "48px" : "56px",
+              borderRadius: open ? "14px" : "18px",
+            }}
             aria-label={open ? "Close chat" : "Open chat"}
           >
             {open ? (
-              <X className="h-5 w-5 text-background transition-transform duration-200" />
+              <X className="h-5 w-5 transition-transform duration-200" style={{ color: "#1C1C1E" }} />
             ) : (
-              <MessageCircle className="h-6 w-6 text-foreground transition-transform duration-200 group-hover:scale-110" />
+              <MessageCircle className="h-6 w-6 transition-transform duration-200 group-hover:scale-110" style={{ color: "#1C1C1E" }} />
             )}
           </button>
           {!open && (
             <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary/60" />
-              <span className="relative inline-flex h-3.5 w-3.5 rounded-full bg-primary" />
+              <span
+                className="absolute inline-flex h-full w-full animate-ping rounded-full"
+                style={{ background: "rgba(245,197,24,0.6)" }}
+              />
+              <span
+                className="relative inline-flex h-3.5 w-3.5 rounded-full"
+                style={{ background: "#F5C518" }}
+              />
             </span>
           )}
         </div>
