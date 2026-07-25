@@ -21,6 +21,7 @@ import {
 } from "@/services/reviewsService";
 import { listBookingsForUser, getAvailableRooms } from "@/services/bookingsService";
 import { useAuth } from "@/contexts/AuthContext";
+import { optimizeCloudinaryUrl } from "@/lib/cloudinaryTransform";
 import {
   Wifi,
   Wind,
@@ -166,7 +167,7 @@ function PhotoCarousel({ photos, roomName, isFavorite, onToggleFavorite, user, r
     return (
       <div className="relative rounded-2xl overflow-hidden border border-border/40 shadow-[0_4px_24px_rgba(28,28,30,0.06)]">
         <img
-          src={photos[0]}
+          src={optimizeCloudinaryUrl(photos[0], { width: 1200 })}
           alt={`${roomName || "Room"} photo`}
           className="h-80 w-full object-cover"
           loading="lazy"
@@ -190,7 +191,7 @@ function PhotoCarousel({ photos, roomName, isFavorite, onToggleFavorite, user, r
       {/* Main image */}
       <div className="relative h-80 md:h-[420px] select-none">
         <img
-          src={photos[current]}
+          src={optimizeCloudinaryUrl(photos[current], { width: 1200 })}
           alt={`${roomName || "Room"} photo ${current + 1} of ${photos.length}`}
           className="h-full w-full object-cover"
           loading="lazy"
@@ -244,7 +245,7 @@ function PhotoCarousel({ photos, roomName, isFavorite, onToggleFavorite, user, r
             }`}
           >
             <img
-              src={url}
+              src={optimizeCloudinaryUrl(url, { width: 200 })}
               alt={`Thumbnail ${idx + 1}`}
               className="h-14 w-20 object-cover"
               loading="lazy"

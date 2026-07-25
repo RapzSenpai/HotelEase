@@ -3,6 +3,8 @@
  * Uses unsigned upload with a configured upload preset — no API secret required on the client.
  */
 
+import { compressImage } from "@/lib/imageCompression";
+
 const CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
 const UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
 
@@ -12,7 +14,8 @@ const UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
  * @param {{ folder?: string, onProgress?: (pct: number) => void }} options
  * @returns {Promise<{ url: string, publicId: string }>}
  */
-export async function uploadImageToCloudinary(file, { folder = "rooms", onProgress } = {}) {
+export async function uploadImageToCloudinary(file, { folder = "rooms", onProgress, compressionPreset = "roomPhotos" } = {}) {
+  file = await compressImage(file, compressionPreset);
   if (!CLOUD_NAME || !UPLOAD_PRESET) {
     throw new Error(
       "Cloudinary is not configured. Ensure VITE_CLOUDINARY_CLOUD_NAME and VITE_CLOUDINARY_UPLOAD_PRESET are set in .env"

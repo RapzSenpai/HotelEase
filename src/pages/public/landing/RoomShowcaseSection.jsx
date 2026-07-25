@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { NavLink } from "react-router-dom";
 import { Star } from "lucide-react";
+import { optimizeCloudinaryUrl } from "@/lib/cloudinaryTransform";
 import {
   SectionEyebrow,
   AmbientGlow,
@@ -35,7 +36,7 @@ const RoomTile = memo(function RoomTile({ room, rating, onView, onBook, size = "
     <div className={`group relative overflow-hidden rounded-2xl border border-border/40 bg-white shadow-[0_4px_24px_rgba(28,28,30,0.06)] transition-all duration-300 hover:shadow-[0_8px_32px_rgba(28,28,30,0.1)] ${sizeClasses[size]} ${heightClasses[size]}`}>
       <button onClick={onView} className="absolute inset-0 w-full h-full cursor-pointer" aria-label={`View details for ${room.name || room.type}`}>
         {firstPhoto ? (
-          <img src={firstPhoto} alt={room.name || room.type} className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105" />
+          <img src={optimizeCloudinaryUrl(firstPhoto, { width: 800 })} alt={room.name || room.type} className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105" loading="lazy" />
         ) : (
           <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-muted/25 to-background text-sm text-foreground/30">No photo available</div>
         )}

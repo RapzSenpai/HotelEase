@@ -2,6 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Image } from "lucide-react";
 import { SectionEyebrow, AmbientGlow, cleanPanel, formatDate } from "./helpers";
+import { optimizeCloudinaryUrl } from "@/lib/cloudinaryTransform";
 
 export default function AnnouncementsSection({ announcements, announcementsLoading, announcementsError }) {
   return (
@@ -45,7 +46,7 @@ export default function AnnouncementsSection({ announcements, announcementsLoadi
                 >
                   {a.imageUrl ? (
                     <div className={`overflow-hidden ${isFeatured ? "h-64 md:h-72" : "h-56"}`}>
-                      <img src={a.imageUrl} alt={a.title} className="h-full w-full object-cover group-hover:scale-[1.04] transition-transform duration-700 ease-[cubic-bezier(0.32,0.72,0,1)]" />
+                      <img src={optimizeCloudinaryUrl(a.imageUrl, { width: 800 })} alt={a.title} className="h-full w-full object-cover group-hover:scale-[1.04] transition-transform duration-700 ease-[cubic-bezier(0.32,0.72,0,1)]" loading="lazy" />
                     </div>
                   ) : (
                     <div className={`overflow-hidden ${isFeatured ? "h-64 md:h-72" : "h-56"} flex items-center justify-center bg-primary/5 rounded-2xl`}>

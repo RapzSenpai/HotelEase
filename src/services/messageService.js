@@ -10,36 +10,30 @@ import {
   updateDoc,
   setDoc,
 } from "firebase/firestore";
-import { getFunctions, httpsCallable } from "firebase/functions";
+import emailjs from "@emailjs/browser";
 import { db } from "@/firebase/firebase.config";
 import { listUsers } from "@/services/userService";
 import { createNotification } from "@/services/notificationService";
 
 const MESSAGES_COL = "messages";
-const ENABLE_SUPPORT_REPLY_EMAIL =
-  String(import.meta.env.VITE_ENABLE_SUPPORT_REPLY_EMAIL || "").toLowerCase() === "true";
 
 async function sendReplyEmail({ toEmail, name, subject, replyMessage }) {
-  const functions = getFunctions();
-  const callableNames = ["sendSupportReplyEmail", "sendEmailReply", "sendEmail"];
-  let lastError = null;
+  const serviceId = import.meta.env.VITE_EMAILJS_SERVICE_ID;
+  const templateId = import.meta.env.VITE_EMAILJS_TEMPLATE_ID;
+  const publicKey = import.meta.env.VITE_EMAILJS_PUBLIC_KEY;
 
-  for (const fnName of callableNames) {
-    try {
-      const call = httpsCallable(functions, fnName);
-      await call({
-        to: toEmail,
-        subject: `Re: ${subject}`,
-        guestName: name,
-        replyMessage,
-      });
-      return;
-    } catch (err) {
-      lastError = err;
-    }
+  if (!serviceId || !templateId || !publicKey) {
+    throw new Error("EmailJS is not configured.");
   }
 
-  throw new Error(lastError?.message || "Failed to send email reply.");
+  const templateParams = {
+    to_email: toEmail,
+    to_name: name,
+    subject: `Re: ${subject}`,
+    reply_message: replyMessage,
+  };
+
+  await emailjs.send(serviceId, templateId, templateParams, publicKey);
 }
 
 export async function submitMessage({ name, email, subject, message, guestId = null }) {
@@ -128,10 +122,6 @@ export async function replyToMessage(messageId, replyMessage) {
     replyMessage: cleanReply,
     repliedAt: serverTimestamp(),
   });
-
-  if (!ENABLE_SUPPORT_REPLY_EMAIL) {
-    return { ok: true, emailSent: false, reason: "Support reply email is disabled in this environment." };
-  }
 
   try {
     await sendReplyEmail({

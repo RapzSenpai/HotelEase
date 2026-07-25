@@ -128,7 +128,7 @@ export function AuthProvider({ children }) {
     async function register({ email, password, fullName = "" }) {
       setAuthError(null);
       setLoading(true);
-      assignedRoleRef.current = "guest"; 
+      assignedRoleRef.current = "guest";
       try {
         const cred = await createUserWithEmailAndPassword(auth, email, password);
         const effectiveTrainingMode = (() => {
@@ -146,6 +146,9 @@ export function AuthProvider({ children }) {
           fullName,
           trainingMode: effectiveTrainingMode,
         });
+
+        // Sign out so user must log in with their new account
+        await signOut(auth);
       } catch (e) {
         setAuthError(e?.message || "Register failed.");
         setLoading(false);

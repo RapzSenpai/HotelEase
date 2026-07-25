@@ -915,7 +915,7 @@ export async function uploadPaymentProof(bookingId, file, paymentType, paymentMe
     throw new Error("Payment proof can only be uploaded for bookings in 'Awaiting Payment' status");
   }
 
-  const { url } = await uploadImageToCloudinary(file);
+  const { url } = await uploadImageToCloudinary(file, { compressionPreset: "paymentProofs" });
 
   await updateDoc(bookingRef, {
     paymentProofUrl: url,

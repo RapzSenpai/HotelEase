@@ -27,6 +27,7 @@ import {
   updateRoom,
 } from "@/services/roomsService";
 import { uploadImageToCloudinary } from "@/services/cloudinaryService";
+import { optimizeCloudinaryUrl } from "@/lib/cloudinaryTransform";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -1137,7 +1138,7 @@ export default function AdminRoomManagementPage() {
                 {/* Photo */}
                 <div className="h-36 bg-muted/20">
                   {firstPhoto ? (
-                    <img src={firstPhoto} alt={r.name} className="h-full w-full object-cover" />
+                    <img src={optimizeCloudinaryUrl(firstPhoto, { width: 400 })} alt={r.name} className="h-full w-full object-cover" loading="lazy" />
                   ) : (
                     <div className="h-full flex items-center justify-center">
                       <BedDouble className="h-8 w-8 text-foreground/10" />

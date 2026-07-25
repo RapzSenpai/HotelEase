@@ -18,6 +18,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/firebase/firebase.config";
 import { cloudinaryConfig } from "@/cloudinary/cloudinary.config";
+import { compressImage } from "@/lib/imageCompression";
 import { listUsers } from "./userService";
 import { createNotification } from "./notificationService";
 
@@ -65,7 +66,7 @@ export async function createAnnouncement(payload) {
 
   let imageUrl = payload?.imageUrl || null;
   if (!imageUrl && payload?.imageFile) {
-    const file = payload.imageFile;
+    const file = await compressImage(payload.imageFile, "announcementImages");
     if (!cloudinaryConfig?.cloudName || !cloudinaryConfig?.uploadPreset) {
       throw new Error("Cloudinary is not configured. Please set VITE_CLOUDINARY_CLOUD_NAME and VITE_CLOUDINARY_UPLOAD_PRESET.");
     }

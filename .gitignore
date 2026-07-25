@@ -16,6 +16,8 @@ dist-ssr
 .env.*
 !.env.example
 
+# Firebase admin SDK credentials (NEVER commit these)
+*-firebase-adminsdk-*.json
 
 # IDEs and local agent configs
 .vscode/*
