@@ -19,17 +19,17 @@ const MESSAGES_COL = "messages";
 
 async function sendReplyEmail({ toEmail, name, subject, replyMessage }) {
   const serviceId = import.meta.env.VITE_EMAILJS_SERVICE_ID;
-  const templateId = import.meta.env.VITE_EMAILJS_TEMPLATE_ID;
+  const templateId = import.meta.env.VITE_EMAILJS_REPLY_TEMPLATE_ID;
   const publicKey = import.meta.env.VITE_EMAILJS_PUBLIC_KEY;
 
   if (!serviceId || !templateId || !publicKey) {
-    throw new Error("EmailJS is not configured.");
+    throw new Error("EmailJS is not configured. Make sure VITE_EMAILJS_REPLY_TEMPLATE_ID is set in .env");
   }
 
   const templateParams = {
     to_email: toEmail,
     to_name: name,
-    subject: `Re: ${subject}`,
+    subject: subject,
     reply_message: replyMessage,
   };
 
