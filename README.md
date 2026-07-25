@@ -6,7 +6,7 @@ A web-based Hotel Property Management System (PMS) built for the BSHM department
 
 - **Frontend:** React 19, Vite 8, Tailwind CSS 3, shadcn/ui (Radix UI)
 - **Backend:** Firebase (Firestore, Authentication)
-- **Image Hosting:** Cloudinary (unsigned uploads)
+- **Image Hosting:** Cloudinary (unsigned uploads, client-side compression, on-the-fly optimization)
 - **AI Chatbot:** Groq API (LLaMA 3.1 8B)
 - **Email:** EmailJS (client-side)
 - **PDF:** jsPDF + jsPDF-AutoTable
@@ -63,7 +63,8 @@ npm run dev
 | `VITE_CLOUDINARY_UPLOAD_PRESET` | Cloudinary unsigned upload preset |
 | `VITE_GROQ_API_KEY` | Groq API key for AI chatbot |
 | `VITE_EMAILJS_SERVICE_ID` | EmailJS service ID |
-| `VITE_EMAILJS_TEMPLATE_ID` | EmailJS template ID |
+| `VITE_EMAILJS_TEMPLATE_ID` | EmailJS template ID (booking confirmation) |
+| `VITE_EMAILJS_REPLY_TEMPLATE_ID` | EmailJS template ID (message reply) |
 | `VITE_EMAILJS_PUBLIC_KEY` | EmailJS public key |
 
 ### Build & Deploy
@@ -86,6 +87,8 @@ firebase deploy
 - **Real-time Updates:** Firestore onSnapshot subscriptions for live data
 - **Keyboard Shortcuts:** FO hotkeys (C, O, H) for quick operations
 - **Analytics Dashboard:** Occupancy rates, revenue tracking, booking trends
+- **Image Optimization:** Client-side compression before upload, lazy loading, Cloudinary URL transformations
+- **Email Notifications:** Booking confirmations and support reply emails via EmailJS
 
 ## Project Structure
 
@@ -95,7 +98,7 @@ src/
   contexts/         # React context providers (Auth)
   hooks/            # Custom React hooks
   layouts/          # App shell, navigation
-  lib/              # Utilities, routing helpers
+  lib/              # Utilities, routing helpers, image compression, Cloudinary transforms
   pages/            # Page components (public/, fo/, admin/)
   services/         # Firebase/Firestore service layer
   firebase/         # Firebase configuration

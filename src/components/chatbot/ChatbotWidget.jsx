@@ -61,7 +61,8 @@ function renderFormattedText(text) {
   const lines = text.split("\n");
   return lines.map((line, i) => {
     const parts = [];
-    const regex = /(\*\*(.+?)\*\*|`(.+?)`|((?:https?:\/\/)[^\s]+))/g;
+    // Match bold, code, URLs, and image URLs
+    const regex = /(\*\*(.+?)\*\*|`(.+?)`|(https?:\/\/[^\s]+\.(?:jpg|jpeg|png|webp|gif)(?:\?[^\s]*)?))|((?:https?:\/\/)[^\s]+)/g;
     let lastIndex = 0;
     let match;
 
@@ -70,23 +71,44 @@ function renderFormattedText(text) {
         parts.push(line.slice(lastIndex, match.index));
       }
       if (match[2]) {
+        // Bold text
         parts.push(<strong key={`${i}-${match.index}`} className="font-semibold">{match[2]}</strong>);
       } else if (match[3]) {
+        // Code
         parts.push(
           <code key={`${i}-${match.index}`} className="rounded bg-foreground/10 px-1.5 py-0.5 text-xs font-mono">
             {match[3]}
           </code>
         );
       } else if (match[4]) {
+        // Image URL - render as image
         parts.push(
           <a
-            key={`${i}-${match.index}`}
+            key={`img-${i}-${match.index}`}
             href={match[4]}
             target="_blank"
             rel="noopener noreferrer"
-            className="underline underline-offset-2 decoration-foreground/30 hover:decoration-foreground/60 transition-colors"
+            className="block my-2"
           >
-            {match[4]}
+            <img
+              src={match[4]}
+              alt="Room photo"
+              className="rounded-lg max-w-full h-auto max-h-40 object-cover border border-border/40 shadow-sm hover:shadow-md transition-shadow"
+              loading="lazy"
+            />
+          </a>
+        );
+      } else if (match[5]) {
+        // Regular URL
+        parts.push(
+          <a
+            key={`${i}-${match.index}`}
+            href={match[5]}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline underline-offset-2 decoration-primary/40 hover:decoration-primary transition-colors"
+          >
+            {match[5]}
           </a>
         );
       }
@@ -232,24 +254,24 @@ export default function ChatbotWidget() {
               : "scale-95 opacity-0 translate-y-2 pointer-events-none"
           }`}
         >
-          <Card className="flex h-[520px] w-[380px] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-2xl border-border/60 shadow-2xl">
+          <Card className="flex h-[520px] w-[380px] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-2xl border-border/60 shadow-2xl bg-background">
             {/* Header */}
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 border-b border-border/40 px-4 py-3 bg-primary/10 backdrop-blur-sm">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 border-b border-border/40 px-4 py-3 bg-gradient-to-r from-[#1a1a2e] to-[#16213e]">
               <div className="flex items-center gap-3">
                 <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/20">
                   <Sparkles className="h-5 w-5 text-primary" />
-                  <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-background bg-success" />
+                  <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-[#1a1a2e] bg-success" />
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-foreground">HotelEase Assistant</p>
-                  <p className="text-xs text-foreground/50">Virtual Concierge</p>
+                  <p className="text-sm font-semibold text-white">HotelEase Assistant</p>
+                  <p className="text-xs text-white/60">Virtual Concierge</p>
                 </div>
               </div>
               <Button
                 type="button"
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 shrink-0 rounded-lg text-foreground/50 hover:text-foreground hover:bg-foreground/5"
+                className="h-8 w-8 shrink-0 rounded-lg text-white/60 hover:text-white hover:bg-white/10"
                 onClick={() => setOpen(false)}
                 aria-label="Close chat"
               >
@@ -273,13 +295,13 @@ export default function ChatbotWidget() {
                       className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${
                         m.role === "user"
                           ? "bg-foreground/10"
-                          : "bg-primary/20"
+                          : "bg-gradient-to-br from-[#1a1a2e] to-[#16213e]"
                       }`}
                     >
                       {m.role === "user" ? (
                         <User className="h-3.5 w-3.5 text-foreground/60" />
                       ) : (
-                        <Bot className="h-3.5 w-3.5 text-primary" />
+                        <Sparkles className="h-3.5 w-3.5 text-primary" />
                       )}
                     </div>
 
@@ -288,8 +310,8 @@ export default function ChatbotWidget() {
                       <div
                         className={`rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed ${
                           m.role === "user"
-                            ? "bg-foreground text-background rounded-br-md"
-                            : "bg-muted/10 text-foreground rounded-bl-md border border-border/40"
+                            ? "bg-gradient-to-br from-[#1a1a2e] to-[#16213e] text-white rounded-br-md"
+                            : "bg-muted/30 text-foreground rounded-bl-md border border-border/40"
                         }`}
                       >
                         {m.role === "assistant" ? renderFormattedText(m.content) : m.content}
@@ -328,7 +350,9 @@ export default function ChatbotWidget() {
                         onClick={() => appendUserAndReply(q.followUp)}
                         className="flex items-center gap-2 rounded-xl border border-border/60 bg-card px-3 py-2.5 text-left text-xs font-medium text-foreground/80 shadow-sm transition-all hover:border-primary/40 hover:bg-primary/5 hover:shadow-md disabled:opacity-50"
                       >
-                        <q.icon className="h-3.5 w-3.5 shrink-0 text-primary" />
+                        <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                          <q.icon className="h-3 w-3 text-primary" />
+                        </div>
                         <span>{q.label}</span>
                       </button>
                     ))}
@@ -372,7 +396,7 @@ export default function ChatbotWidget() {
                     type="submit"
                     size="icon"
                     disabled={loading || !input.trim()}
-                    className="shrink-0 h-10 w-10 rounded-xl bg-primary text-foreground hover:bg-primary/90 disabled:opacity-30 disabled:hover:bg-primary transition-all"
+                    className="shrink-0 h-10 w-10 rounded-xl bg-gradient-to-br from-[#1a1a2e] to-[#16213e] text-primary hover:opacity-90 disabled:opacity-30 disabled:hover:opacity-100 transition-all"
                   >
                     <Send className="h-4 w-4" />
                   </Button>
@@ -391,14 +415,16 @@ export default function ChatbotWidget() {
             type="button"
             onClick={() => setOpen((o) => !o)}
             className={`group flex items-center justify-center rounded-2xl shadow-lg transition-all duration-300 hover:shadow-xl hover:scale-105 active:scale-95 ${
-              open ? "bg-foreground h-12 w-12 rounded-xl" : "bg-primary h-14 w-14"
+              open
+                ? "bg-gradient-to-br from-[#1a1a2e] to-[#16213e] h-12 w-12 rounded-xl"
+                : "bg-gradient-to-br from-[#1a1a2e] to-[#16213e] h-14 w-14"
             }`}
             aria-label={open ? "Close chat" : "Open chat"}
           >
             {open ? (
-              <X className="h-5 w-5 text-background transition-transform duration-200" />
+              <X className="h-5 w-5 text-white transition-transform duration-200" />
             ) : (
-              <MessageCircle className="h-6 w-6 text-foreground transition-transform duration-200 group-hover:scale-110" />
+              <MessageCircle className="h-6 w-6 text-primary transition-transform duration-200 group-hover:scale-110" />
             )}
           </button>
           {!open && (
