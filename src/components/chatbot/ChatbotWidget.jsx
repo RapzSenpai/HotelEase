@@ -232,34 +232,34 @@ export default function ChatbotWidget() {
               : "scale-95 opacity-0 translate-y-2 pointer-events-none"
           }`}
         >
-          <Card className="flex h-[540px] w-[380px] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-2xl border-0 shadow-2xl"
+          <Card className="flex h-[540px] w-[380px] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-3xl border-0 shadow-2xl"
             style={{ background: "#F4F4F2" }}
           >
-            {/* Header — dark with yellow accent */}
+            {/* Header — yellow, clean, iOS/Material You style */}
             <CardHeader
               className="flex flex-row items-center justify-between space-y-0 px-4 py-3 shrink-0"
               style={{
-                background: "linear-gradient(135deg, #1C1C1E 0%, #2a2a2d 100%)",
-                borderBottom: "2px solid #F5C518",
+                background: "#F5C518",
+                borderBottom: "1px solid rgba(0,0,0,0.07)",
               }}
             >
               <div className="flex items-center gap-3">
-                {/* Bot avatar */}
+                {/* Bot avatar — circle */}
                 <div
-                  className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
-                  style={{ background: "rgba(245,197,24,0.15)", border: "1px solid rgba(245,197,24,0.35)" }}
+                  className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full"
+                  style={{ background: "rgba(28,28,30,0.10)" }}
                 >
-                  <Sparkles className="h-5 w-5" style={{ color: "#F5C518" }} />
+                  <Sparkles className="h-5 w-5" style={{ color: "#1C1C1E" }} />
                   <span
-                    className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2"
-                    style={{ borderColor: "#1C1C1E", background: "#22C55E" }}
+                    className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2"
+                    style={{ borderColor: "#F5C518", background: "#22C55E" }}
                   />
                 </div>
                 <div>
-                  <p className="text-sm font-semibold" style={{ color: "#FFFFFF" }}>
+                  <p className="text-sm font-semibold" style={{ color: "#1C1C1E" }}>
                     HotelEase Assistant
                   </p>
-                  <p className="text-xs" style={{ color: "rgba(245,197,24,0.75)" }}>
+                  <p className="text-xs" style={{ color: "rgba(28,28,30,0.55)" }}>
                     Virtual Concierge · Online
                   </p>
                 </div>
@@ -268,12 +268,12 @@ export default function ChatbotWidget() {
                 type="button"
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 shrink-0 rounded-lg transition-all hover:scale-105"
-                style={{ color: "rgba(255,255,255,0.6)" }}
+                className="h-8 w-8 shrink-0 rounded-full transition-all hover:scale-105"
+                style={{ color: "rgba(28,28,30,0.6)" }}
                 onClick={() => setOpen(false)}
                 aria-label="Close chat"
-                onMouseEnter={(e) => { e.currentTarget.style.color = "#F5C518"; e.currentTarget.style.background = "rgba(245,197,24,0.1)"; }}
-                onMouseLeave={(e) => { e.currentTarget.style.color = "rgba(255,255,255,0.6)"; e.currentTarget.style.background = "transparent"; }}
+                onMouseEnter={(e) => { e.currentTarget.style.color = "#1C1C1E"; e.currentTarget.style.background = "rgba(28,28,30,0.1)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.color = "rgba(28,28,30,0.6)"; e.currentTarget.style.background = "transparent"; }}
               >
                 <X className="h-4 w-4" />
               </Button>
@@ -291,19 +291,19 @@ export default function ChatbotWidget() {
                     key={m.id}
                     className={`flex gap-2.5 ${m.role === "user" ? "flex-row-reverse" : "flex-row"}`}
                   >
-                    {/* Avatar */}
+                    {/* Avatar — circle */}
                     <div
-                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg"
+                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full"
                       style={
                         m.role === "user"
                           ? { background: "#1C1C1E" }
-                          : { background: "rgba(245,197,24,0.18)", border: "1px solid rgba(245,197,24,0.3)" }
+                          : { background: "#F5C518" }
                       }
                     >
                       {m.role === "user" ? (
                         <User className="h-3.5 w-3.5" style={{ color: "#F5C518" }} />
                       ) : (
-                        <Sparkles className="h-3.5 w-3.5" style={{ color: "#F5C518" }} />
+                        <Sparkles className="h-3.5 w-3.5" style={{ color: "#1C1C1E" }} />
                       )}
                     </div>
 
@@ -341,10 +341,10 @@ export default function ChatbotWidget() {
                 {loading && (
                   <div className="flex gap-2.5">
                     <div
-                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg"
-                      style={{ background: "rgba(245,197,24,0.18)", border: "1px solid rgba(245,197,24,0.3)" }}
+                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full"
+                      style={{ background: "#F5C518" }}
                     >
-                      <Bot className="h-3.5 w-3.5" style={{ color: "#F5C518" }} />
+                      <Bot className="h-3.5 w-3.5" style={{ color: "#1C1C1E" }} />
                     </div>
                     <div
                       className="rounded-2xl rounded-bl-md px-4 py-3"
@@ -391,10 +391,10 @@ export default function ChatbotWidget() {
                         }}
                       >
                         <div
-                          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg"
-                          style={{ background: "rgba(245,197,24,0.15)" }}
+                          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full"
+                          style={{ background: "rgba(28,28,30,0.08)" }}
                         >
-                          <q.icon className="h-3 w-3" style={{ color: "#F5C518" }} />
+                          <q.icon className="h-3 w-3" style={{ color: "#1C1C1E" }} />
                         </div>
                         <span>{q.label}</span>
                       </button>
@@ -488,18 +488,13 @@ export default function ChatbotWidget() {
           </Card>
         </div>
 
-        {/* FAB — always yellow */}
-        <div className="pointer-events-auto relative" title="Chat with us">
+        {/* FAB — always yellow circle */}
+        <div className="pointer-events-auto" title="Chat with us">
           <button
             type="button"
             onClick={() => setOpen((o) => !o)}
-            className="group flex items-center justify-center rounded-2xl shadow-lg transition-all duration-300 hover:shadow-xl hover:scale-105 active:scale-95"
-            style={{
-              background: "#F5C518",
-              height: open ? "48px" : "56px",
-              width: open ? "48px" : "56px",
-              borderRadius: open ? "14px" : "18px",
-            }}
+            className="group flex h-14 w-14 items-center justify-center rounded-full shadow-lg transition-all duration-300 hover:shadow-xl hover:scale-105 active:scale-95"
+            style={{ background: "#F5C518" }}
             aria-label={open ? "Close chat" : "Open chat"}
           >
             {open ? (
@@ -508,18 +503,6 @@ export default function ChatbotWidget() {
               <MessageCircle className="h-6 w-6 transition-transform duration-200 group-hover:scale-110" style={{ color: "#1C1C1E" }} />
             )}
           </button>
-          {!open && (
-            <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5">
-              <span
-                className="absolute inline-flex h-full w-full animate-ping rounded-full"
-                style={{ background: "rgba(245,197,24,0.6)" }}
-              />
-              <span
-                className="relative inline-flex h-3.5 w-3.5 rounded-full"
-                style={{ background: "#F5C518" }}
-              />
-            </span>
-          )}
         </div>
       </div>
     </>
