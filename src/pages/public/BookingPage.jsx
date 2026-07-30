@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import RequiredIndicator from "@/components/common/RequiredIndicator";
 import { createBooking, getAvailableRooms, uploadPaymentProof } from "@/services/bookingsService";
+import { mapFirebaseError } from "@/lib/errors";
 import { getRoom, isRoomActive, isRoomBookable } from "@/services/roomsService";
 import RoomBookingsCalendar from "@/components/calendar/RoomBookingsCalendar";
 import { Calendar as CalendarIcon, Upload, CheckCircle2, ChevronLeft, ChevronRight, Clock } from "lucide-react";
@@ -136,7 +137,7 @@ export default function BookingPage() {
         setRoom(data);
       } catch (e) {
         if (!isMounted) return;
-        setError(e?.message || "Failed to load room.");
+        setError(mapFirebaseError(e) || "Failed to load room.");
       } finally {
         if (isMounted) setLoadingRoom(false);
       }
@@ -226,7 +227,7 @@ export default function BookingPage() {
       });
       setStep(3); // Phase 13: advance to inline confirmation+upload, no Dialog
     } catch (e) {
-      setSubmitError(e?.message || "Booking failed. Please try again.");
+      setSubmitError(mapFirebaseError(e) || "Booking failed. Please try again.");
     } finally {
       setSubmitting(false);
     }
@@ -241,7 +242,7 @@ export default function BookingPage() {
       toast.success("Payment proof uploaded successfully!");
       navigate("/my-bookings");
     } catch (err) {
-      toast.error(err?.message || "Failed to upload payment proof.");
+      toast.error(mapFirebaseError(err) || "Failed to upload payment proof.");
     } finally {
       setUploadingProof(false);
     }

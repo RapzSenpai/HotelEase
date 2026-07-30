@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { NavLink, useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { getRoom, isRoomActive } from "@/services/roomsService";
+import { mapFirebaseError } from "@/lib/errors";
 import { toggleFavorite, subscribeToFavorites } from "@/services/favoritesService";
 import {
   listReviewsForRoom,
@@ -338,7 +339,7 @@ export default function RoomDetailPage() {
         setCurrentPhotoIndex(0);
       } catch (e) {
         if (!isMounted) return;
-        setError(e?.message || "Failed to load room.");
+        setError(mapFirebaseError(e) || "Failed to load room.");
       } finally {
         if (isMounted) setLoading(false);
       }
@@ -357,7 +358,7 @@ export default function RoomDetailPage() {
       const data = await listReviewsForRoom(roomId, { trainingMode });
       setReviews(data);
     } catch (e) {
-      setReviewsError(e?.message || "Failed to load reviews.");
+      setReviewsError(mapFirebaseError(e) || "Failed to load reviews.");
     } finally {
       setReviewsLoading(false);
     }
@@ -477,7 +478,7 @@ export default function RoomDetailPage() {
       await loadReviews();
     } catch (e) {
       setSubmitError(
-        e?.message || "Failed to submit review. Please try again.",
+        mapFirebaseError(e) || "Failed to submit review. Please try again.",
       );
     } finally {
       setSubmitting(false);
@@ -501,7 +502,7 @@ export default function RoomDetailPage() {
       const dateParams = `?checkIn=${checkIn}&checkOut=${checkOut}`;
       navigate(`/booking/${roomId}${dateParams}`);
     } catch (e) {
-      setBookNowError(e?.message || "Could not verify availability. Please try again.");
+      setBookNowError(mapFirebaseError(e) || "Could not verify availability. Please try again.");
     } finally {
       setBookNowLoading(false);
     }

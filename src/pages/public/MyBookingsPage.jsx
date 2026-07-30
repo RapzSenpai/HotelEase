@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/AuthContext";
 import { listBookingsForUser, cancelBooking, requestCancellation, checkAndExpireStaleBookings, uploadPaymentProof } from "@/services/bookingsService";
+import { mapFirebaseError } from "@/lib/errors";
 import { listRooms, isRoomActive } from "@/services/roomsService";
 import { listPaymentsForBooking } from "@/services/paymentsService";
 import { generateReceipt } from "@/services/receiptService";
@@ -209,7 +210,7 @@ function BookingCard({ booking, room, trainingMode, userProfile, onCancelled }) 
       setIsCancelDialogOpen(false);
       onCancelled?.();
     } catch (e) {
-      toast.error(e?.message || "Failed to cancel booking.");
+      toast.error(mapFirebaseError(e) || "Failed to cancel booking.");
     } finally {
       setCancelling(false);
     }
@@ -230,7 +231,7 @@ function BookingCard({ booking, room, trainingMode, userProfile, onCancelled }) 
       setPaymentFile(null);
       onCancelled?.();
     } catch (err) {
-      toast.error(err?.message || "Failed to upload payment proof.");
+      toast.error(mapFirebaseError(err) || "Failed to upload payment proof.");
     } finally {
       setUploadingProof(false);
     }
@@ -714,7 +715,7 @@ export default function MyBookingsPage() {
       const bookingData = await listBookingsForUser(user.uid, { trainingMode });
       setBookings(sortBookings(bookingData));
     } catch (e) {
-      setError(e?.message || "Failed to refresh bookings.");
+      setError(mapFirebaseError(e) || "Failed to refresh bookings.");
     }
   }
 
@@ -755,7 +756,7 @@ export default function MyBookingsPage() {
         setRoomsMap(map);
       } catch (e) {
         if (!isMounted) return;
-        setError(e?.message || "Failed to load your bookings.");
+        setError(mapFirebaseError(e) || "Failed to load your bookings.");
       } finally {
         if (isMounted) setLoading(false);
       }

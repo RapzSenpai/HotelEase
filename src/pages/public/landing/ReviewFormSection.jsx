@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { NavLink } from "react-router-dom";
 import { Star, Quote } from "lucide-react";
 import { createTestimonial } from "@/services/testimonialsService";
+import { mapFirebaseError } from "@/lib/errors";
 import { AmbientGlow, cleanPanel } from "./helpers";
 
 function StarSelector({ value, onChange, disabled }) {
@@ -44,7 +45,7 @@ export default function ReviewFormSection({ isGuest, user, profile }) {
       setFormMessage("");
       setSubmitSuccess(true);
     } catch (err) {
-      setSubmitError(err?.message || "Failed to submit your review.");
+      setSubmitError(mapFirebaseError(err) || "Failed to submit your review.");
     } finally {
       setSubmitting(false);
     }

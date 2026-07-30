@@ -7,6 +7,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { NavLink, useNavigate } from "react-router-dom";
 import { Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
+import { mapAuthError } from "@/lib/authErrors";
 
 export default function RegisterPage() {
   const navigate = useNavigate();
@@ -53,10 +54,10 @@ export default function RegisterPage() {
       await register({ email, password, fullName });
       setCooldown(true);
       setTimeout(() => setCooldown(false), 60000);
-      toast.success("Account created! Please log in.");
       navigate("/login");
+      toast.success("Account created! You can now log in.");
     } catch (err) {
-      setLocalError(err?.message || "Registration failed.");
+      setLocalError(mapAuthError(err) || "Registration failed.");
     }
   }
 

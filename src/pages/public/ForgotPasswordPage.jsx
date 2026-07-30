@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import RequiredIndicator from "@/components/common/RequiredIndicator";
 import { useAuth } from "@/contexts/AuthContext";
+import { mapAuthError } from "@/lib/authErrors";
 
 const SUCCESS_MESSAGE =
   "If an account exists for that email address, a password reset link has been sent. Please check your inbox.";
@@ -13,11 +14,7 @@ const SUCCESS_MESSAGE =
 const COOLDOWN_SECONDS = 60;
 
 function getErrorMessage(err) {
-  const code = err?.code || "";
-  if (code === "auth/user-not-found" || code === "auth/invalid-email") {
-    return "Please enter a valid email address.";
-  }
-  return "Something went wrong. Please try again.";
+  return mapAuthError(err) || "Something went wrong. Please try again.";
 }
 
 export default function ForgotPasswordPage() {

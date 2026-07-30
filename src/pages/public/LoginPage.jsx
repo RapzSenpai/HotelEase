@@ -7,6 +7,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import { Eye, EyeOff, AlertTriangle } from "lucide-react";
 import { Select } from "radix-ui";
+import { mapAuthError } from "@/lib/authErrors";
 
 const MAX_ATTEMPTS = 5;
 const LOCKOUT_SECONDS = 30;
@@ -72,7 +73,7 @@ export default function LoginPage() {
         setLockoutEndTime(Date.now() + LOCKOUT_SECONDS * 1000);
         setLocalError(`Too many failed attempts. Locked for ${LOCKOUT_SECONDS} seconds.`);
       } else {
-        setLocalError(err?.message || "Login failed.");
+        setLocalError(mapAuthError(err) || "Login failed.");
       }
     }
   }
@@ -257,7 +258,7 @@ export default function LoginPage() {
                     else if (trainingRole === "admin") navigate("/admin");
                     else navigate("/my-bookings");
                   } catch (err) {
-                    setLocalError(err?.message || "Training login failed.");
+                    setLocalError(mapAuthError(err) || "Training login failed.");
                   } finally {
                     setTrainingSubmitting(false);
                   }

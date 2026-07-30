@@ -4,6 +4,7 @@ import { MapPin, Mail, Phone, Clock3, Send } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { submitMessage } from "@/services/messageService";
+import { mapFirebaseError } from "@/lib/errors";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -69,7 +70,7 @@ export default function ContactPage() {
         });
       }, 1000);
     } catch (e) {
-      toast.error(e?.message || "Failed to send message.");
+      toast.error(mapFirebaseError(e) || "Failed to send message.");
     } finally {
       setIsSubmitting(false);
     }

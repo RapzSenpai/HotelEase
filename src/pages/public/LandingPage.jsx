@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { useNavigate, Navigate } from "react-router-dom";
 import { listAnnouncements } from "@/services/announcementsService";
+import { mapFirebaseError } from "@/lib/errors";
 import { subscribeToRooms } from "@/services/roomsService";
 import { listReviewsForRoom } from "@/services/reviewsService";
 import { subscribeToApprovedTestimonials } from "@/services/testimonialsService";
@@ -61,7 +62,7 @@ export default function LandingPage() {
     setAnnouncementsLoading(true);
     listAnnouncements({ limitCount: 6 })
       .then((data) => { if (isMounted) { setAnnouncements(data); setAnnouncementsLoading(false); } })
-      .catch((e) => { if (isMounted) { setAnnouncementsError(e?.message || "Failed to load announcements."); setAnnouncementsLoading(false); } });
+      .catch((e) => { if (isMounted) { setAnnouncementsError(mapFirebaseError(e) || "Failed to load announcements."); setAnnouncementsLoading(false); } });
     return () => { isMounted = false; };
   }, []);
 

@@ -12,6 +12,7 @@ import {
   listAnnouncements,
 } from "@/services/announcementsService";
 import { uploadImageToCloudinary } from "@/services/cloudinaryService";
+import { mapFirebaseError } from "@/lib/errors";
 
 function formatDate(dateLike) {
   try {
@@ -43,7 +44,7 @@ function AnnouncementPhotoUploader({ imageUrl, onChange }) {
       });
       onChange(url);
     } catch (err) {
-      setError(err?.message || "Upload failed");
+      setError(mapFirebaseError(err) || "Upload failed");
     } finally {
       setTimeout(() => setUploadProgress(null), 2000);
     }
@@ -126,7 +127,7 @@ export default function FoAnnouncementsPage() {
       const data = await listAnnouncements({ limitCount: 20 });
       setAnnouncements(data);
     } catch (e) {
-      setError(e?.message || "Failed to load announcements.");
+      setError(mapFirebaseError(e) || "Failed to load announcements.");
     } finally {
       setLoading(false);
     }
@@ -149,7 +150,7 @@ export default function FoAnnouncementsPage() {
       resetForm();
       await refresh();
     } catch (e) {
-      setError(e?.message || "Failed to save announcement.");
+      setError(mapFirebaseError(e) || "Failed to save announcement.");
     } finally {
       setSubmitting(false);
     }

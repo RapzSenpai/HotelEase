@@ -17,6 +17,7 @@ import {
   getTrainingSystemState,
   validateTrainingSessionCode,
 } from "@/services/trainingService";
+import { mapAuthError } from "@/lib/authErrors";
 
 const AuthContext = createContext(null);
 
@@ -93,7 +94,7 @@ export function AuthProvider({ children }) {
           } else {
             setRole("guest");
           }
-          setAuthError(e?.message || "Failed to detect user role.");
+          setAuthError(mapAuthError(e) || "Failed to detect user role.");
           setLoading(false);
         }
       });
@@ -119,7 +120,7 @@ export function AuthProvider({ children }) {
       try {
         await signInWithEmailAndPassword(auth, email, password);
       } catch (e) {
-        setAuthError(e?.message || "Login failed.");
+        setAuthError(mapAuthError(e) || "Login failed.");
         setLoading(false);
         throw e;
       }
@@ -150,7 +151,7 @@ export function AuthProvider({ children }) {
         // Sign out so user must log in with their new account
         await signOut(auth);
       } catch (e) {
-        setAuthError(e?.message || "Register failed.");
+        setAuthError(mapAuthError(e) || "Register failed.");
         setLoading(false);
         throw e;
       }
@@ -201,7 +202,7 @@ export function AuthProvider({ children }) {
           // ignore
         }
       } catch (e) {
-        setAuthError(e?.message || "Logout failed.");
+        setAuthError(mapAuthError(e) || "Logout failed.");
         setLoading(false);
         throw e;
       }
