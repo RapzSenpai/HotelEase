@@ -228,8 +228,8 @@ export default function ChatbotWidget() {
         <div
           className={`pointer-events-auto mb-3 origin-bottom-right transition-all duration-300 ease-out ${
             open
-              ? "scale-100 opacity-100 translate-y-0"
-              : "scale-95 opacity-0 translate-y-2 pointer-events-none"
+              ? "scale-100 opacity-100 translate-y-0 visible"
+              : "scale-95 opacity-0 translate-y-2 pointer-events-none invisible"
           }`}
         >
           <Card className="flex h-[540px] w-[380px] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-3xl border-0 shadow-2xl"

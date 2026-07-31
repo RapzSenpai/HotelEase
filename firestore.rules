@@ -68,8 +68,8 @@ service cloud.firestore {
       // Needed so guests can query FO staff when sending cancellation notifications.
       // User docs only contain: uid, email, fullName, role — no sensitive data.
       allow read: if isAuthenticated() && !isAnonymous();
-      allow create: if isOwner(uid) && !isAnonymous();
-      allow update: if (isOwner(uid) || isProdFOOrAdmin()) && !isAnonymous();
+      allow create: if isOwner(uid) && !isAnonymous() && request.resource.data.role == 'guest';
+      allow update: if (isOwner(uid) && !isAnonymous() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['fullName', 'email'])) || isProdAdmin();
       allow delete: if isProdAdmin() && !isAnonymous();
 
       // Favorites subcollection - users can manage their own favorites
@@ -79,7 +79,7 @@ service cloud.firestore {
     }
 
     match /rooms/{roomId} {
-      allow read: if true;
+      allow read: if isAuthenticated() && !isAnonymous();
       allow create, delete: if isProdFOOrAdmin() && !isAnonymous();
       allow update: if (isProdFOOrAdmin() && !isAnonymous()) ||
                        (isAuthenticated() && !isAnonymous() &&
@@ -160,12 +160,12 @@ service cloud.firestore {
     }
 
     match /training_rooms/{id} {
-      allow read: if true;
+      allow read: if isAuthenticated() && !isAnonymous();
       allow write: if isAuthenticated();
     }
 
     match /training_reviews/{id} {
-      allow read: if true;
+      allow read: if isAuthenticated() && !isAnonymous();
       allow create: if isAuthenticated();
       allow update, delete: if isAuthenticated();
     }
