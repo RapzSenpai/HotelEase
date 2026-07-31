@@ -5,6 +5,7 @@ import Navbar from "@/components/layout/Navbar";
 import Sidebar from "@/components/layout/Sidebar";
 import Footer from "@/components/layout/Footer";
 import ErrorBoundary from "@/components/common/ErrorBoundary";
+import ScrollToTop from "@/components/common/ScrollToTop";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import "@/components/ui/toast-custom.css";
@@ -77,6 +78,7 @@ export default function AppShell() {
       )}
 
       <Footer />
+      <ScrollToTop />
     </div>
   );
 }
