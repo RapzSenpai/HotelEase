@@ -9,7 +9,6 @@ import {
 } from "firebase/firestore";
 import { db } from "@/firebase/firebase.config";
 import { getCol } from "@/lib/db-utils";
-import { generateReceipt } from "./receiptService";
 
 function paymentsCollection(trainingMode) {
   return getCol("payments", trainingMode);

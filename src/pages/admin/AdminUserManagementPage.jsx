@@ -4,8 +4,11 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { listUsers, setUserRole, deleteUser } from "@/services/userService";
-import { Mail, User, Shield, Trash2, Save, MoreVertical, Search } from "lucide-react";
+import { setUserRole, deleteUser, subscribeToUsers } from "@/services/userService";
+import { forceLogoutUser } from "@/services/sessionService";
+import { isOnlineNow } from "@/services/presenceService";
+import { auditAction, AUDIT_ACTIONS } from "@/services/auditService";
+import { Mail, User, Shield, Trash2, Save, MoreVertical, Search, LogOut, Monitor, Clock, Circle } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -33,6 +36,11 @@ const FILTER_TABS = [
   { id: "training", label: "Training Session Users" },
 ];
 
+function toDate(value) {
+  if (!value) return null;
+  return typeof value?.toDate === "function" ? value.toDate() : new Date(value);
+}
+
 export default function AdminUserManagementPage() {
   const { user: currentUser } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -48,25 +56,35 @@ export default function AdminUserManagementPage() {
   const [deletingUser, setDeletingUser] = useState(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
-  async function refresh() {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await listUsers({ trainingMode: isTrainingSource });
-      setUsers(data);
-      const nextEdits = {};
-      for (const u of data) nextEdits[u.id] = u.role || "guest";
-      setRoleEdits(nextEdits);
-    } catch (e) {
-      setError(e?.message || "Failed to load users.");
-      toast.error("Failed to load users");
-    } finally {
-      setLoading(false);
-    }
+  function applyUserData(data) {
+    setUsers(data);
+    setRoleEdits((prev) => {
+      const next = { ...prev };
+      for (const u of data) {
+        if (next[u.id] === undefined) next[u.id] = u.role || "guest";
+      }
+      return next;
+    });
   }
 
   useEffect(() => {
-    refresh();
+    setLoading(true);
+    setError(null);
+
+    const unsub = subscribeToUsers({
+      trainingMode: isTrainingSource,
+      onData: (data) => {
+        applyUserData(data);
+        setLoading(false);
+      },
+      onError: (e) => {
+        setError(e?.message || "Failed to load users.");
+        toast.error("Failed to load users");
+        setLoading(false);
+      },
+    });
+
+    return () => unsub();
   }, [isTrainingSource]);
 
   const filteredUsers = useMemo(() => {
@@ -90,7 +108,8 @@ export default function AdminUserManagementPage() {
 
   async function onSaveRole(uid) {
     const nextRole = roleEdits[uid];
-    if (nextRole === users.find((u) => u.id === uid)?.role) {
+    const currentRole = users.find((u) => u.id === uid)?.role;
+    if (nextRole === currentRole) {
       toast.info("No changes made to role");
       return;
     }
@@ -98,8 +117,14 @@ export default function AdminUserManagementPage() {
     setSavingRoleFor(uid);
     try {
       await setUserRole(uid, nextRole, { trainingMode: isTrainingSource });
+      auditAction(AUDIT_ACTIONS.USER_ROLE_CHANGE, {
+        targetId: uid,
+        targetType: "user",
+        changes: { role: { from: currentRole, to: nextRole } },
+        description: `Role changed from ${currentRole} to ${nextRole}`,
+        trainingMode: isTrainingSource,
+      });
       toast.success("User role updated successfully");
-      await refresh();
     } catch (e) {
       toast.error(e?.message || "Failed to update role");
     } finally {
@@ -113,12 +138,34 @@ export default function AdminUserManagementPage() {
     const uid = deletingUser.id;
     try {
       await deleteUser(uid, { trainingMode: isTrainingSource });
+      auditAction(AUDIT_ACTIONS.USER_DELETE, {
+        targetId: uid,
+        targetType: "user",
+        changes: { email: deletingUser.email, fullName: deletingUser.fullName },
+        description: `Deleted user ${deletingUser.email || deletingUser.fullName || uid}`,
+        trainingMode: isTrainingSource,
+      });
       toast.success("User deleted successfully");
       setUsers((prev) => prev.filter((u) => u.id !== uid));
       setIsDeleteDialogOpen(false);
       setDeletingUser(null);
     } catch (e) {
       toast.error(e?.message || "Failed to delete user");
+    }
+  }
+
+  async function handleForceLogout(uid) {
+    try {
+      await forceLogoutUser(uid, { trainingMode: isTrainingSource });
+      auditAction(AUDIT_ACTIONS.USER_FORCE_LOGOUT, {
+        targetId: uid,
+        targetType: "user",
+        description: "Force logged out user",
+        trainingMode: isTrainingSource,
+      });
+      toast.success("User will be logged out on next activity");
+    } catch (e) {
+      toast.error(e?.message || "Failed to force logout user");
     }
   }
 
@@ -135,11 +182,11 @@ export default function AdminUserManagementPage() {
         </div>
         <div className="flex items-center gap-3">
           <div className="relative group">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-gold transition-colors" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
             <input
               type="text"
               placeholder="Search users..."
-              className="pl-10 pr-4 py-2 bg-background border border-border rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-gold/50 w-full md:w-64 transition-all"
+              className="pl-10 pr-4 py-2 bg-background border border-border rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 w-full md:w-64 transition-all"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
@@ -192,14 +239,16 @@ export default function AdminUserManagementPage() {
             </div>
           ) : (
             <Card>
-              <CardContent className="pt-6">
+              <CardContent className="pt-6 overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>User Name & Email</TableHead>
-                    <TableHead>System Role</TableHead>
+                    <TableHead>Role</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Last Login</TableHead>
+                    <TableHead>Device</TableHead>
                     <TableHead className="text-center">Cancellations</TableHead>
-                    <TableHead>User ID</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -214,11 +263,11 @@ export default function AdminUserManagementPage() {
                       <TableRow key={u.id}>
                         <TableCell>
                           <div className="flex flex-col">
-                            <span className="font-semibold text-foreground">
-                              {u.fullName || "Unnamed User"} {isSelf && <span className="text-xs text-gold font-normal ml-1.5">(You)</span>}
+                            <span className="font-medium text-sm text-foreground flex items-center">
+                              {u.fullName || "Unnamed User"} {isSelf && <span className="text-[10px] bg-gold/10 text-gold px-1.5 py-0.5 rounded font-medium ml-2">You</span>}
                             </span>
-                            <span className="text-xs text-muted-foreground flex items-center gap-1.5">
-                              <Mail className="w-3 h-3" />
+                            <span className="text-xs text-muted-foreground flex items-center gap-1.5 mt-0.5">
+                              <Mail className="w-3 h-3 opacity-70" />
                               {u.email || "No email"}
                             </span>
                           </div>
@@ -235,12 +284,12 @@ export default function AdminUserManagementPage() {
                           >
                             <Select.Trigger
                               disabled={isSelf}
-                              className="flex h-8 w-32 items-center justify-between rounded-md border border-border bg-background px-3 py-1 text-xs text-foreground shadow-sm focus:outline-none focus:ring-2 focus:ring-gold/30 disabled:opacity-50"
+                              className="flex h-8 w-28 items-center justify-between rounded-md border border-border bg-background px-2.5 py-1 text-xs text-foreground shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-50"
                             >
                               <Select.Value />
                             </Select.Trigger>
                             <Select.Portal>
-                              <Select.Content className="z-50 max-h-64 min-w-[8rem] overflow-hidden rounded-md border border-border bg-background p-1 text-foreground shadow-md">
+                              <Select.Content className="z-50 max-h-64 min-w-[7rem] overflow-hidden rounded-md border border-border bg-background p-1 text-foreground shadow-md">
                                 <Select.Viewport>
                                   {ROLE_OPTIONS.map((opt) => (
                                     <Select.Item
@@ -258,6 +307,55 @@ export default function AdminUserManagementPage() {
                             </Select.Portal>
                           </Select.Root>
                         </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1.5">
+                            <Circle 
+                              className={`h-2.5 w-2.5 ${
+                                isOnlineNow(u) 
+                                  ? "fill-emerald-500 text-emerald-500" 
+                                  : "fill-muted text-muted"
+                              }`} 
+                            />
+                            <span className="text-xs font-medium text-foreground/80">
+                              {isOnlineNow(u) ? "Online" : "Offline"}
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {u.lastLoginAt ? (
+                            (() => {
+                              const loginAt = toDate(u.lastLoginAt);
+                              return loginAt && !isNaN(loginAt) ? (
+                                <div className="flex items-center gap-1.5 text-xs text-foreground/70 whitespace-nowrap">
+                                  <Clock className="h-3 w-3 text-muted-foreground" />
+                                  {loginAt.toLocaleDateString('en-PH', { 
+                                    month: 'short', 
+                                    day: 'numeric',
+                                    year: 'numeric',
+                                    hour: '2-digit',
+                                    minute: '2-digit'
+                                  })}
+                                </div>
+                              ) : (
+                                <span className="text-muted-foreground text-xs">Never</span>
+                              );
+                            })()
+                          ) : (
+                            <span className="text-muted-foreground text-xs">Never</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {u.lastLoginDevice ? (
+                            <div className="flex items-center gap-1.5 text-xs text-foreground/70 whitespace-nowrap">
+                              <Monitor className="h-3 w-3 text-muted-foreground" />
+                              <span>
+                                {u.lastLoginDevice.deviceType || "Unknown"} · {u.lastLoginDevice.browser || "Unknown"}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground text-xs">—</span>
+                          )}
+                        </TableCell>
                         <TableCell className="text-center">
                           {u.cancellationCount ? (
                             <Badge variant="destructive" className="font-mono text-[10px]">
@@ -266,9 +364,6 @@ export default function AdminUserManagementPage() {
                           ) : (
                             <span className="text-muted-foreground text-xs">—</span>
                           )}
-                        </TableCell>
-                        <TableCell>
-                          <span className="font-mono text-[10px] text-muted-foreground/70">{u.id}</span>
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-2">
@@ -280,6 +375,16 @@ export default function AdminUserManagementPage() {
                               className="h-8 text-xs shadow-sm"
                             >
                               {savingRoleFor === u.id ? "Saving..." : "Save"}
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="outline"
+                              className="h-8 w-8 text-foreground/70 hover:text-foreground disabled:opacity-30"
+                              onClick={() => handleForceLogout(u.id)}
+                              disabled={isSelf}
+                              title="Force logout user"
+                            >
+                              <LogOut className="w-4 h-4" />
                             </Button>
                             <Button
                               size="icon"

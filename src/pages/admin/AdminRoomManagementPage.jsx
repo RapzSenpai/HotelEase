@@ -19,6 +19,7 @@ import {
   ChevronDown, Image,
 } from "lucide-react";
 import RoomStatusBadge from "@/components/rooms/RoomStatusBadge";
+import { SkeletonCard } from "@/components/ui/skeleton";
 import {
   deactivateRoom,
   activateRoom,
@@ -1063,8 +1064,10 @@ export default function AdminRoomManagementPage() {
 
       {/* ── Room List ── */}
       {loading ? (
-        <div className="rounded-xl border border-border bg-background p-6 text-sm text-foreground/70">
-          Loading rooms...
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {[...Array(6)].map((_, i) => (
+            <SkeletonCard key={i} />
+          ))}
         </div>
       ) : filteredRooms.length === 0 ? (
         <div className="rounded-xl border border-border bg-background p-12 text-center">

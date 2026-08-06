@@ -25,12 +25,18 @@ const COMPRESSION_OPTIONS = {
     useWebWorker: true,
     initialQuality: 0.75,
   },
+  housekeepingImages: {
+    maxSizeMB: 0.4,
+    maxWidthOrHeight: 1200,
+    useWebWorker: true,
+    initialQuality: 0.78,
+  },
 };
 
 /**
  * Compress an image file before upload.
  * @param {File} file
- * @param {"avatar" | "roomPhotos" | "announcementImages" | "paymentProofs"} preset
+ * @param {"avatar" | "roomPhotos" | "announcementImages" | "paymentProofs" | "housekeepingImages"} preset
  * @returns {Promise<File>} compressed file (or original if already small enough)
  */
 export async function compressImage(file, preset = "roomPhotos") {

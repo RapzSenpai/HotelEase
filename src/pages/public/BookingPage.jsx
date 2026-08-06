@@ -6,10 +6,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import RequiredIndicator from "@/components/common/RequiredIndicator";
 import { createBooking, getAvailableRooms, uploadPaymentProof } from "@/services/bookingsService";
+import { trackEvent, GA_EVENTS } from "@/services/gaService";
 import { mapFirebaseError } from "@/lib/errors";
 import { getRoom, isRoomActive, isRoomBookable } from "@/services/roomsService";
 import { getRoomCapacity, calculateBookingPricing } from "@/lib/roomCapacity";
 import RoomBookingsCalendar from "@/components/calendar/RoomBookingsCalendar";
+import { SkeletonCard } from "@/components/ui/skeleton";
 import { Calendar as CalendarIcon, Upload, CheckCircle2, ChevronLeft, ChevronRight, Clock } from "lucide-react";
 import {
   HOTEL_GCASH_NUMBER,
@@ -233,6 +235,13 @@ export default function BookingPage() {
       };
       const res = await createBooking(payload);
       setBookingId(res.id);
+      trackEvent(GA_EVENTS.BOOKING_CREATED, {
+        currency: "PHP",
+        value: totalCost,
+        items: [{ item_id: resolvedRoomId, price: totalCost }],
+        payment_method: paymentMethod,
+        payment_type: paymentType,
+      });
       setCreatedBookingData({
         id: res.id,
         totalCost,
@@ -301,7 +310,7 @@ export default function BookingPage() {
     return (
       <div className="space-y-6">
         <div className="space-y-1"><h1 className="font-playfair text-3xl font-semibold">Booking</h1></div>
-        <div className="rounded-xl border border-border bg-background p-6 text-sm text-foreground/70">Loading booking data&#8230;</div>
+        <SkeletonCard />
       </div>
     );
   }

@@ -19,6 +19,7 @@ import { CheckCircle } from "lucide-react";
 import { listRooms } from "@/services/roomsService";
 import { listUsers } from "@/services/userService";
 import { useAuth } from "@/contexts/AuthContext";
+import { trackEvent, GA_EVENTS } from "@/services/gaService";
 
 function formatDate(tsLike) {
   try {
@@ -338,6 +339,7 @@ export default function FoCheckOutPage() {
       setError(null);
       setSubmitting(true);
       await checkOutBooking(selectedBookingId, { trainingMode });
+      trackEvent(GA_EVENTS.CHECK_OUT, { booking_id: selectedBookingId });
       const finishedId = selectedBookingId;
       setSelectedBookingId(null);
       setPayments([]);

@@ -152,13 +152,6 @@ export default function Navbar({ onToggleSidebar }) {
                 </Button>
               )}
 
-              {/* Role badge — FO/Admin only */}
-              {isFoOrAdmin && (
-                <span className="hidden rounded-full border border-border bg-muted/20 px-2.5 py-1 text-xs font-medium text-foreground/60 sm:inline">
-                  {role === "fo" ? "Front Office" : "Admin"}
-                </span>
-              )}
-
               {/* Notification Bell */}
               <NotificationBell />
 

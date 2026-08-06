@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Card,
   CardContent,
@@ -423,7 +424,14 @@ export default function ProfilePage() {
           </CardHeader>
           <CardContent>
             {summaryLoading ? (
-              <p className="text-sm text-foreground/50">Loading your booking summary…</p>
+              <div className="grid grid-cols-3 gap-4">
+                {[...Array(3)].map((_, i) => (
+                  <div key={i} className="rounded-lg bg-muted/10 p-4">
+                    <Skeleton className="mx-auto mb-2 h-6 w-10" />
+                    <Skeleton className="mx-auto h-3 w-20" />
+                  </div>
+                ))}
+              </div>
             ) : summary.count === 0 ? (
               <p className="text-sm text-foreground/50">No bookings yet. Browse rooms to get started.</p>
             ) : (

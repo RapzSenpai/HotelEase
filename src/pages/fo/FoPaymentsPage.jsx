@@ -13,6 +13,7 @@ import {
 import { listRooms } from "@/services/roomsService";
 import RoomStatusBadge from "@/components/rooms/RoomStatusBadge";
 import { useAuth } from "@/contexts/AuthContext";
+import { trackEvent, GA_EVENTS } from "@/services/gaService";
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -198,6 +199,12 @@ export default function FoPaymentsPage() {
       });
 
       console.log("[FoPaymentsPage] recordPayment succeeded:", result);
+      trackEvent(GA_EVENTS.PAYMENT_SUCCESS, {
+        booking_id: selectedBookingId,
+        currency: "PHP",
+        value: amt,
+        payment_method: method.trim(),
+      });
 
       // 1. Reload bookings so the folio totals update
       await refreshBookings();

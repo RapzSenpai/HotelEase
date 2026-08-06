@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useFOIndicators } from "@/hooks/useFOIndicators";
+import { subscribeToUnresolvedCount } from "@/services/alertService";
 import { X } from "lucide-react";
 import {
   LayoutDashboard,
@@ -21,11 +22,15 @@ import {
   MessageSquareQuote,
   XCircle,
   ClipboardList,
+  Activity,
+  Shield,
+  Bell,
+  Gauge,
 } from "lucide-react";
 
 const FO_LINKS = [
   {
-    group: "Operations",
+    group: "Daily Operations",
     items: [
       { to: "/fo", label: "Dashboard", icon: LayoutDashboard, end: true },
       {
@@ -46,13 +51,18 @@ const FO_LINKS = [
         icon: Sparkles,
         notification: { type: "dot", key: "hasDirtyRooms" },
       },
+      {
+        to: "/fo/cancellations",
+        label: "Cancellations",
+        icon: XCircle,
+        notification: { type: "dot", key: "hasPendingCancellations" },
+      },
     ],
   },
   {
-    group: "Management",
+    group: "Revenue Management",
     items: [
       { to: "/fo/payments", label: "Payments", icon: CreditCard },
-      { to: "/fo/announcements", label: "Announcements", icon: Megaphone },
       { to: "/fo/room-rates", label: "Room Rates", icon: DollarSign },
       {
         to: "/fo/bookings",
@@ -65,31 +75,14 @@ const FO_LINKS = [
   {
     group: "Communication",
     items: [
-      {
-        to: "/fo/messages",
-        label: "Messages",
-        icon: Mail,
-        notification: { type: "count", key: "unreadMessagesCount" },
-      },
-      {
-        to: "/fo/cancellations",
-        label: "Cancellations",
-        icon: XCircle,
-        notification: { type: "dot", key: "hasPendingCancellations" },
-      },
-      {
-        to: "/fo/testimonials",
-        label: "Testimonials",
-        icon: MessageSquareQuote,
-        notification: { type: "count", key: "pendingTestimonialsCount" },
-      },
+      { to: "/fo/announcements", label: "Announcements", icon: Megaphone },
     ],
   },
 ];
 
 const ADMIN_LINKS = [
   {
-    group: "Overview",
+    group: "Analytics & Operations",
     items: [
       { to: "/admin", label: "Analytics", icon: BarChart3, end: true },
       { to: "/admin/operations", label: "Operations", icon: ClipboardList },
@@ -108,8 +101,34 @@ const ADMIN_LINKS = [
     ],
   },
   {
+    group: "Communication",
+    items: [
+      {
+        to: "/admin/messages",
+        label: "Messages",
+        icon: Mail,
+        notification: { type: "count", key: "unreadMessagesCount" },
+      },
+      {
+        to: "/admin/testimonials",
+        label: "Testimonials",
+        icon: MessageSquareQuote,
+        notification: { type: "count", key: "pendingTestimonialsCount" },
+      },
+    ],
+  },
+  {
     group: "System",
     items: [
+      {
+        to: "/admin/alerts",
+        label: "Alerts",
+        icon: Bell,
+        notification: { type: "count", key: "unresolvedAlertsCount" },
+      },
+      { to: "/admin/health", label: "System Health", icon: Activity },
+      { to: "/admin/performance", label: "Performance", icon: Gauge },
+      { to: "/admin/audit-logs", label: "Audit Logs", icon: Shield },
       { to: "/admin/settings", label: "System Settings", icon: Settings },
       { to: "/admin/training-reset", label: "Training Reset", icon: RotateCcw },
     ],
@@ -165,6 +184,7 @@ export default function Sidebar({ open, onClose }) {
   const { role, user, trainingMode } = useAuth();
   const location = useLocation();
   const [visitedSections, setVisitedSections] = useState(new Set());
+  const [unresolvedAlertsCount, setUnresolvedAlertsCount] = useState(0);
 
   const {
     pendingBookingsCount,
@@ -176,6 +196,12 @@ export default function Sidebar({ open, onClose }) {
     hasPendingCancellations,
   } = useFOIndicators({ trainingMode });
 
+  useEffect(() => {
+    if (role !== "admin") return;
+    const unsub = subscribeToUnresolvedCount(setUnresolvedAlertsCount, { trainingMode });
+    return () => unsub();
+  }, [role, trainingMode]);
+
   const indicators = {
     pendingBookingsCount,
     unreadMessagesCount,
@@ -184,6 +210,15 @@ export default function Sidebar({ open, onClose }) {
     hasDirtyRooms,
     pendingTestimonialsCount,
     hasPendingCancellations,
+    unresolvedAlertsCount,
+  };
+
+  // Only show Messages and Testimonials indicators for Admin role
+  const filteredIndicators = role === "admin" ? indicators : {
+    ...indicators,
+    unreadMessagesCount: 0,
+    pendingTestimonialsCount: 0,
+    unresolvedAlertsCount: 0,
   };
 
   // Close mobile sidebar on navigation
@@ -249,7 +284,7 @@ export default function Sidebar({ open, onClose }) {
                 {group.items.map((l) => {
                   const Icon = l.icon;
                   const notificationVal = l.notification
-                    ? indicators[l.notification.key]
+                    ? filteredIndicators[l.notification.key]
                     : null;
                   const showNotification = l.notification
                     ? shouldShowIndicator(l.to, notificationVal)

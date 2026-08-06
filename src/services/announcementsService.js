@@ -17,8 +17,7 @@ import {
   deleteDoc,
 } from "firebase/firestore";
 import { db } from "@/firebase/firebase.config";
-import { cloudinaryConfig } from "@/cloudinary/cloudinary.config";
-import { compressImage } from "@/lib/imageCompression";
+import { uploadImageToCloudinary } from "./cloudinaryService";
 import { listUsers } from "./userService";
 import { createNotification } from "./notificationService";
 
@@ -66,36 +65,10 @@ export async function createAnnouncement(payload) {
 
   let imageUrl = payload?.imageUrl || null;
   if (!imageUrl && payload?.imageFile) {
-    const file = await compressImage(payload.imageFile, "announcementImages");
-    if (!cloudinaryConfig?.cloudName || !cloudinaryConfig?.uploadPreset) {
-      throw new Error("Cloudinary is not configured. Please set VITE_CLOUDINARY_CLOUD_NAME and VITE_CLOUDINARY_UPLOAD_PRESET.");
-    }
-
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("upload_preset", cloudinaryConfig.uploadPreset);
-    // Keep a stable folder per Firestore doc to mirror the previous Storage layout.
-    formData.append("folder", `announcements/${docRef.id}`);
-
-    const uploadRes = await fetch(
-      `https://api.cloudinary.com/v1_1/${cloudinaryConfig.cloudName}/upload`,
-      {
-        method: "POST",
-        body: formData,
-      }
-    );
-
-    if (!uploadRes.ok) {
-      const text = await uploadRes.text().catch(() => "");
-      throw new Error(`Cloudinary upload failed: ${text || uploadRes.status}`);
-    }
-
-    const data = await uploadRes.json();
-    imageUrl = data?.secure_url || data?.url || null;
-
-    if (!imageUrl) {
-      throw new Error("Cloudinary upload succeeded but no URL was returned.");
-    }
+    const { url } = await uploadImageToCloudinary(payload.imageFile, {
+      compressionPreset: "announcementImages",
+    });
+    imageUrl = url;
   }
 
   await setDoc(docRef, {

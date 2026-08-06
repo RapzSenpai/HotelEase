@@ -1,4 +1,4 @@
-import { collection, deleteDoc, doc, getDoc, getDocs, serverTimestamp, setDoc, updateDoc } from "firebase/firestore";
+import { collection, deleteDoc, doc, getDoc, getDocs, serverTimestamp, setDoc, updateDoc, onSnapshot } from "firebase/firestore";
 import { db } from "@/firebase/firebase.config";
 import { getCol } from "@/lib/db-utils";
 
@@ -58,6 +58,26 @@ export async function listUsers({ trainingMode = false } = {}) {
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
 
+/**
+ * Subscribe to live changes in the users collection.
+ * @param {Object} options
+ * @param {boolean} options.trainingMode - Whether to watch training_guests instead
+ * @param {(users: Array) => void} options.onData - Callback receiving the full list
+ * @param {(error: Error) => void} [options.onError] - Optional error callback
+ * @returns {() => void} Unsubscribe function
+ */
+export function subscribeToUsers({ trainingMode = false, onData, onError }) {
+  const col = usersCollection(trainingMode);
+  const unsub = onSnapshot(
+    collection(db, col),
+    (snap) => {
+      onData(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    },
+    (error) => onError?.(error)
+  );
+  return unsub;
+}
+
 export async function updateUserProfile(uid, patch, { trainingMode = false } = {}) {
   if (!uid || typeof uid !== "string") throw new Error("Invalid uid passed to updateUserProfile");
   if (!patch || typeof patch !== "object" || Array.isArray(patch)) {
@@ -95,5 +115,29 @@ export async function deleteUser(uid, { trainingMode = false } = {}) {
   const col = usersCollection(trainingMode);
   const ref = doc(db, col, uid);
   await deleteDoc(ref);
+  return { ok: true };
+}
+
+export async function updateLastLogin(uid, { trainingMode = false } = {}) {
+  if (!uid || typeof uid !== "string") throw new Error("Invalid uid passed to updateLastLogin");
+
+  const col = usersCollection(trainingMode);
+  const ref = doc(db, col, uid);
+  await updateDoc(ref, { 
+    lastLoginAt: serverTimestamp(),
+    lastLoginIp: null, // Can be enhanced later with IP detection
+  });
+  return { ok: true };
+}
+
+export async function setOnlineStatus(uid, isOnline, { trainingMode = false } = {}) {
+  if (!uid || typeof uid !== "string") throw new Error("Invalid uid passed to setOnlineStatus");
+
+  const col = usersCollection(trainingMode);
+  const ref = doc(db, col, uid);
+  await updateDoc(ref, { 
+    isOnline,
+    lastSeenAt: serverTimestamp(),
+  });
   return { ok: true };
 }

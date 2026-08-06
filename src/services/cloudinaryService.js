@@ -1,6 +1,16 @@
 /**
  * Cloudinary image upload service.
  * Uses unsigned upload with a configured upload preset — no API secret required on the client.
+ *
+ * IMPORTANT (unsigned presets are public): lock down the upload preset in the
+ * Cloudinary dashboard (Settings → Upload → your preset):
+ *   - Signing Mode: unsigned (unchanged)
+ *   - File type restriction: Image only
+ *   - Max file size: ~5 MB
+ *   - Allowed formats: jpg, png, webp
+ *   - Optional: enable moderation to block inappropriate uploads
+ * These restrictions prevent strangers who extract the preset from your JS
+ * bundle from uploading arbitrary files to this Cloudinary account.
  */
 
 import { compressImage } from "@/lib/imageCompression";

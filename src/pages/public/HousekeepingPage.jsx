@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { NavLink } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { useAuth } from "@/contexts/AuthContext";
 import { listBookingsForUser } from "@/services/bookingsService";
 import { listRooms } from "@/services/roomsService";
 import { mapFirebaseError } from "@/lib/errors";
 import GuestHousekeepingCard from "@/components/housekeeping/GuestHousekeepingCard";
-import { BedDouble, CalendarDays, Sparkles } from "lucide-react";
+import { SkeletonCard } from "@/components/ui/skeleton";
+import { BedDouble, CalendarDays, SprayCan } from "lucide-react";
 
 function formatDate(tsLike) {
   try {
@@ -66,8 +66,8 @@ export default function HousekeepingPage() {
     };
   }, [user?.uid, trainingMode]);
 
-  const activeStay = useMemo(() => {
-    return bookings.find((b) => b.status === "Checked In") || null;
+  const activeStays = useMemo(() => {
+    return bookings.filter((b) => b.status === "Checked In");
   }, [bookings]);
 
   if (loading) {
@@ -79,9 +79,7 @@ export default function HousekeepingPage() {
             Request room cleaning and housekeeping services during your stay.
           </p>
         </div>
-        <Card className="p-8 text-center text-sm text-foreground/50 animate-pulse">
-          Loading your stay…
-        </Card>
+        <SkeletonCard className="p-8" />
       </div>
     );
   }
@@ -102,7 +100,7 @@ export default function HousekeepingPage() {
     );
   }
 
-  if (!activeStay) {
+  if (activeStays.length === 0) {
     return (
       <div className="space-y-6">
         <div className="space-y-1">
@@ -114,7 +112,7 @@ export default function HousekeepingPage() {
 
         <Card className="p-10 flex flex-col items-center gap-4 text-center">
           <span className="flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 text-primary">
-            <Sparkles className="h-6 w-6" />
+            <SprayCan className="h-6 w-6" />
           </span>
           <p className="text-foreground/60 text-sm">
             You don&apos;t have an active stay right now.
@@ -130,52 +128,65 @@ export default function HousekeepingPage() {
     );
   }
 
-  const room = roomsMap[activeStay.roomId] || { id: activeStay.roomId };
-
   return (
     <div className="space-y-6">
-      <div className="space-y-1">
-        <h1 className="font-playfair text-3xl font-semibold">Housekeeping</h1>
-        <p className="text-foreground/80">
-          Request room cleaning and housekeeping services during your stay.
-        </p>
+      <div className="flex flex-wrap items-center justify-between gap-2 space-y-1">
+        <div>
+          <h1 className="font-playfair text-3xl font-semibold">Housekeeping</h1>
+          <p className="text-foreground/80 text-sm">
+            Request room cleaning and housekeeping services during your stay.
+          </p>
+        </div>
+        {activeStays.length > 1 && (
+          <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
+            {activeStays.length} Active Rooms
+          </span>
+        )}
       </div>
 
-      {/* Current stay summary */}
-      <Card>
-        <CardHeader className="flex-row items-center justify-between space-y-0 gap-4">
-          <div>
-            <CardTitle className="text-base">Your Current Stay</CardTitle>
-            <CardDescription>
-              {room.name || room.type || `Room ${room.roomNumber || ""}`}
-            </CardDescription>
-          </div>
-          <Badge variant="success" className="shrink-0">
-            <BedDouble className="mr-1 h-3.5 w-3.5" /> Checked In
-          </Badge>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
-            <span className="flex items-center gap-1.5 text-foreground/70">
-              <CalendarDays className="h-4 w-4 text-primary" />
-              {formatDate(activeStay.checkInDate)} → {formatDate(activeStay.checkOutDate)}
-            </span>
-            {activeStay.nights ? (
-              <span className="text-foreground/50">{activeStay.nights} night{activeStay.nights !== 1 ? "s" : ""}</span>
-            ) : null}
-            <NavLink to="/my-bookings" className="ml-auto text-sm font-medium text-primary hover:underline underline-offset-4">
-              View booking details
-            </NavLink>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="space-y-8">
+        {activeStays.map((stay) => {
+          const room = roomsMap[stay.roomId] || { id: stay.roomId };
+          return (
+            <div key={stay.id} className="space-y-3">
+              {/* Stay summary */}
+              <Card className="py-0">
+                <CardContent className="flex flex-wrap items-center gap-x-4 gap-y-1.5 px-4 py-2.5 text-sm">
+                  <span className="flex items-center gap-2">
+                    <BedDouble className="h-4 w-4 text-primary" />
+                    <span className="font-medium text-foreground">
+                      {room.name || room.type || `Room ${room.roomNumber || ""}`}
+                    </span>
+                  </span>
+                  <span className="hidden h-4 w-px bg-border sm:block" />
+                  <span className="flex items-center gap-1.5 text-foreground/70">
+                    <CalendarDays className="h-4 w-4 text-primary" />
+                    {formatDate(stay.checkInDate)} → {formatDate(stay.checkOutDate)}
+                  </span>
+                  {stay.nights ? (
+                    <span className="text-foreground/50">
+                      {stay.nights} night{stay.nights !== 1 ? "s" : ""}
+                    </span>
+                  ) : null}
+                  <NavLink
+                    to="/my-bookings"
+                    className="ml-auto text-xs font-medium text-primary hover:underline underline-offset-4"
+                  >
+                    View booking details
+                  </NavLink>
+                </CardContent>
+              </Card>
 
-      <GuestHousekeepingCard
-        booking={activeStay}
-        room={room}
-        trainingMode={trainingMode}
-        userProfile={profile}
-      />
+              <GuestHousekeepingCard
+                booking={stay}
+                room={room}
+                trainingMode={trainingMode}
+                userProfile={profile}
+              />
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

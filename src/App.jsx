@@ -1,10 +1,12 @@
-import { lazy, Suspense } from "react";
-import { Navigate, Routes, Route } from "react-router-dom";
+import { lazy, Suspense, useEffect } from "react";
+import { Navigate, Routes, Route, useLocation } from "react-router-dom";
 
 import AppShell from "@/layouts/AppShell";
 import PrivateRoute from "@/components/routing/PrivateRoute";
 import GuestAuthRoute from "@/components/routing/GuestAuthRoute";
+import MaintenanceRoute from "@/components/routing/MaintenanceRoute";
 import PageLoader from "@/components/common/PageLoader";
+import { trackPageView } from "@/services/gaService";
 
 // Public pages
 const LandingPage = lazy(() => import("@/pages/public/LandingPage"));
@@ -42,94 +44,131 @@ const AdminOperationsPage = lazy(() => import("@/pages/admin/AdminOperationsPage
 const AdminUserManagementPage = lazy(() => import("@/pages/admin/AdminUserManagementPage"));
 const AdminRoomManagementPage = lazy(() => import("@/pages/admin/AdminRoomManagementPage"));
 const AdminSystemSettingsPage = lazy(() => import("@/pages/admin/AdminSystemSettingsPage"));
+const AdminSystemHealthPage = lazy(() => import("@/pages/admin/AdminSystemHealthPage"));
+const AdminPerformancePage = lazy(() => import("@/pages/admin/AdminPerformancePage"));
+const AdminAuditLogsPage = lazy(() => import("@/pages/admin/AdminAuditLogsPage"));
+const AdminAlertsPage = lazy(() => import("@/pages/admin/AdminAlertsPage"));
 const AdminTrainingDataResetPage = lazy(() => import("@/pages/admin/AdminTrainingDataResetPage"));
 
 // Common pages
 const UnauthorizedPage = lazy(() => import("@/pages/common/UnauthorizedPage"));
 const NotFoundPage = lazy(() => import("@/pages/common/NotFoundPage"));
+const MaintenancePage = lazy(() => import("@/pages/common/MaintenancePage"));
 
 function SuspenseWrapper({ children }) {
   return <Suspense fallback={<PageLoader />}>{children}</Suspense>;
 }
 
+/**
+ * Sends a GA4 page_view on every route change.
+ */
+function GoogleAnalyticsPageTracker() {
+  const location = useLocation();
+  useEffect(() => {
+    trackPageView(location.pathname + location.search);
+  }, [location.pathname, location.search]);
+  return null;
+}
+
 export default function App() {
   return (
-    <Routes>
+    <>
+      <GoogleAnalyticsPageTracker />
+      <Routes>
       <Route element={<AppShell />}>
+        {/* Maintenance Page */}
+        <Route path="/maintenance" element={<SuspenseWrapper><MaintenancePage /></SuspenseWrapper>} />
+
         {/* Public */}
-        <Route path="/" element={<SuspenseWrapper><LandingPage /></SuspenseWrapper>} />
-        <Route path="/rooms" element={<SuspenseWrapper><RoomsPage /></SuspenseWrapper>} />
-        <Route path="/rooms/:roomId" element={<SuspenseWrapper><RoomDetailPage /></SuspenseWrapper>} />
+        <Route path="/" element={<MaintenanceRoute><SuspenseWrapper><LandingPage /></SuspenseWrapper></MaintenanceRoute>} />
+        <Route path="/rooms" element={<MaintenanceRoute><SuspenseWrapper><RoomsPage /></SuspenseWrapper></MaintenanceRoute>} />
+        <Route path="/rooms/:roomId" element={<MaintenanceRoute><SuspenseWrapper><RoomDetailPage /></SuspenseWrapper></MaintenanceRoute>} />
 
         <Route
           path="/login"
           element={
-            <GuestAuthRoute>
-              <SuspenseWrapper><LoginPage /></SuspenseWrapper>
-            </GuestAuthRoute>
+            <MaintenanceRoute>
+              <GuestAuthRoute>
+                <SuspenseWrapper><LoginPage /></SuspenseWrapper>
+              </GuestAuthRoute>
+            </MaintenanceRoute>
           }
         />
         <Route
           path="/register"
           element={
-            <GuestAuthRoute>
-              <SuspenseWrapper><RegisterPage /></SuspenseWrapper>
-            </GuestAuthRoute>
+            <MaintenanceRoute>
+              <GuestAuthRoute>
+                <SuspenseWrapper><RegisterPage /></SuspenseWrapper>
+              </GuestAuthRoute>
+            </MaintenanceRoute>
           }
         />
         <Route
           path="/forgot-password"
           element={
-            <GuestAuthRoute>
-              <SuspenseWrapper><ForgotPasswordPage /></SuspenseWrapper>
-            </GuestAuthRoute>
+            <MaintenanceRoute>
+              <GuestAuthRoute>
+                <SuspenseWrapper><ForgotPasswordPage /></SuspenseWrapper>
+              </GuestAuthRoute>
+            </MaintenanceRoute>
           }
         />
-        <Route path="/about" element={<SuspenseWrapper><AboutPage /></SuspenseWrapper>} />
-        <Route path="/contact" element={<SuspenseWrapper><ContactPage /></SuspenseWrapper>} />
-        <Route path="/privacy" element={<SuspenseWrapper><PrivacyPage /></SuspenseWrapper>} />
-        <Route path="/unauthorized" element={<SuspenseWrapper><UnauthorizedPage /></SuspenseWrapper>} />
+        <Route path="/about" element={<MaintenanceRoute><SuspenseWrapper><AboutPage /></SuspenseWrapper></MaintenanceRoute>} />
+        <Route path="/contact" element={<MaintenanceRoute><SuspenseWrapper><ContactPage /></SuspenseWrapper></MaintenanceRoute>} />
+        <Route path="/privacy" element={<MaintenanceRoute><SuspenseWrapper><PrivacyPage /></SuspenseWrapper></MaintenanceRoute>} />
+        <Route path="/unauthorized" element={<MaintenanceRoute><SuspenseWrapper><UnauthorizedPage /></SuspenseWrapper></MaintenanceRoute>} />
 
         {/* Guest (Role: guest) */}
         <Route path="/booking" element={<Navigate to="/rooms" replace />} />
         <Route
           path="/booking/:roomId"
           element={
-            <PrivateRoute allowedRoles={["guest"]}>
-              <SuspenseWrapper><BookingPage /></SuspenseWrapper>
-            </PrivateRoute>
+            <MaintenanceRoute>
+              <PrivateRoute allowedRoles={["guest"]}>
+                <SuspenseWrapper><BookingPage /></SuspenseWrapper>
+              </PrivateRoute>
+            </MaintenanceRoute>
           }
         />
         <Route
           path="/my-bookings"
           element={
-            <PrivateRoute allowedRoles={["guest"]}>
-              <SuspenseWrapper><MyBookingsPage /></SuspenseWrapper>
-            </PrivateRoute>
+            <MaintenanceRoute>
+              <PrivateRoute allowedRoles={["guest"]}>
+                <SuspenseWrapper><MyBookingsPage /></SuspenseWrapper>
+              </PrivateRoute>
+            </MaintenanceRoute>
           }
         />
         <Route
           path="/profile"
           element={
-            <PrivateRoute allowedRoles={["guest"]}>
-              <SuspenseWrapper><ProfilePage /></SuspenseWrapper>
-            </PrivateRoute>
+            <MaintenanceRoute>
+              <PrivateRoute allowedRoles={["guest"]}>
+                <SuspenseWrapper><ProfilePage /></SuspenseWrapper>
+              </PrivateRoute>
+            </MaintenanceRoute>
           }
         />
         <Route
           path="/favorites"
           element={
-            <PrivateRoute allowedRoles={["guest"]}>
-              <SuspenseWrapper><FavoritesPage /></SuspenseWrapper>
-            </PrivateRoute>
+            <MaintenanceRoute>
+              <PrivateRoute allowedRoles={["guest"]}>
+                <SuspenseWrapper><FavoritesPage /></SuspenseWrapper>
+              </PrivateRoute>
+            </MaintenanceRoute>
           }
         />
         <Route
           path="/housekeeping"
           element={
-            <PrivateRoute allowedRoles={["guest"]}>
-              <SuspenseWrapper><HousekeepingPage /></SuspenseWrapper>
-            </PrivateRoute>
+            <MaintenanceRoute>
+              <PrivateRoute allowedRoles={["guest"]}>
+                <SuspenseWrapper><HousekeepingPage /></SuspenseWrapper>
+              </PrivateRoute>
+            </MaintenanceRoute>
           }
         />
 
@@ -137,9 +176,11 @@ export default function App() {
         <Route
           path="/notifications"
           element={
-            <PrivateRoute allowedRoles={["guest", "fo", "admin"]}>
-              <SuspenseWrapper><NotificationsPage /></SuspenseWrapper>
-            </PrivateRoute>
+            <MaintenanceRoute>
+              <PrivateRoute allowedRoles={["guest", "fo", "admin"]}>
+                <SuspenseWrapper><NotificationsPage /></SuspenseWrapper>
+              </PrivateRoute>
+            </MaintenanceRoute>
           }
         />
 
@@ -147,89 +188,91 @@ export default function App() {
         <Route
           path="/fo"
           element={
-            <PrivateRoute allowedRoles={["fo"]}>
-              <SuspenseWrapper><FoDashboardPage /></SuspenseWrapper>
-            </PrivateRoute>
+            <MaintenanceRoute>
+              <PrivateRoute allowedRoles={["fo"]}>
+                <SuspenseWrapper><FoDashboardPage /></SuspenseWrapper>
+              </PrivateRoute>
+            </MaintenanceRoute>
           }
         />
         <Route
           path="/fo/check-in"
           element={
-            <PrivateRoute allowedRoles={["fo"]}>
-              <SuspenseWrapper><FoCheckInPage /></SuspenseWrapper>
-            </PrivateRoute>
+            <MaintenanceRoute>
+              <PrivateRoute allowedRoles={["fo"]}>
+                <SuspenseWrapper><FoCheckInPage /></SuspenseWrapper>
+              </PrivateRoute>
+            </MaintenanceRoute>
           }
         />
         <Route
           path="/fo/check-out"
           element={
-            <PrivateRoute allowedRoles={["fo"]}>
-              <SuspenseWrapper><FoCheckOutPage /></SuspenseWrapper>
-            </PrivateRoute>
+            <MaintenanceRoute>
+              <PrivateRoute allowedRoles={["fo"]}>
+                <SuspenseWrapper><FoCheckOutPage /></SuspenseWrapper>
+              </PrivateRoute>
+            </MaintenanceRoute>
           }
         />
         <Route
           path="/fo/housekeeping"
           element={
-            <PrivateRoute allowedRoles={["fo"]}>
-              <SuspenseWrapper><FoHousekeepingPage /></SuspenseWrapper>
-            </PrivateRoute>
+            <MaintenanceRoute>
+              <PrivateRoute allowedRoles={["fo"]}>
+                <SuspenseWrapper><FoHousekeepingPage /></SuspenseWrapper>
+              </PrivateRoute>
+            </MaintenanceRoute>
           }
         />
         <Route
           path="/fo/payments"
           element={
-            <PrivateRoute allowedRoles={["fo"]}>
-              <SuspenseWrapper><FoPaymentsPage /></SuspenseWrapper>
-            </PrivateRoute>
+            <MaintenanceRoute>
+              <PrivateRoute allowedRoles={["fo"]}>
+                <SuspenseWrapper><FoPaymentsPage /></SuspenseWrapper>
+              </PrivateRoute>
+            </MaintenanceRoute>
           }
         />
         <Route
           path="/fo/announcements"
           element={
-            <PrivateRoute allowedRoles={["fo"]}>
-              <SuspenseWrapper><FoAnnouncementsPage /></SuspenseWrapper>
-            </PrivateRoute>
+            <MaintenanceRoute>
+              <PrivateRoute allowedRoles={["fo"]}>
+                <SuspenseWrapper><FoAnnouncementsPage /></SuspenseWrapper>
+              </PrivateRoute>
+            </MaintenanceRoute>
           }
         />
         <Route
           path="/fo/room-rates"
           element={
-            <PrivateRoute allowedRoles={["fo"]}>
-              <SuspenseWrapper><FoRoomRatesPage /></SuspenseWrapper>
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="/fo/messages"
-          element={
-            <PrivateRoute allowedRoles={["fo"]}>
-              <SuspenseWrapper><MessagesPage /></SuspenseWrapper>
-            </PrivateRoute>
+            <MaintenanceRoute>
+              <PrivateRoute allowedRoles={["fo"]}>
+                <SuspenseWrapper><FoRoomRatesPage /></SuspenseWrapper>
+              </PrivateRoute>
+            </MaintenanceRoute>
           }
         />
         <Route
           path="/fo/bookings"
           element={
-            <PrivateRoute allowedRoles={["fo"]}>
-              <SuspenseWrapper><FoBookingsPage /></SuspenseWrapper>
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="/fo/testimonials"
-          element={
-            <PrivateRoute allowedRoles={["fo"]}>
-              <SuspenseWrapper><FoTestimonialsPage /></SuspenseWrapper>
-            </PrivateRoute>
+            <MaintenanceRoute>
+              <PrivateRoute allowedRoles={["fo"]}>
+                <SuspenseWrapper><FoBookingsPage /></SuspenseWrapper>
+              </PrivateRoute>
+            </MaintenanceRoute>
           }
         />
         <Route
           path="/fo/cancellations"
           element={
-            <PrivateRoute allowedRoles={["fo"]}>
-              <SuspenseWrapper><FoCancellationsPage /></SuspenseWrapper>
-            </PrivateRoute>
+            <MaintenanceRoute>
+              <PrivateRoute allowedRoles={["fo"]}>
+                <SuspenseWrapper><FoCancellationsPage /></SuspenseWrapper>
+              </PrivateRoute>
+            </MaintenanceRoute>
           }
         />
 
@@ -275,6 +318,38 @@ export default function App() {
           }
         />
         <Route
+          path="/admin/health"
+          element={
+            <PrivateRoute allowedRoles={["admin"]}>
+              <SuspenseWrapper><AdminSystemHealthPage /></SuspenseWrapper>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/admin/performance"
+          element={
+            <PrivateRoute allowedRoles={["admin"]}>
+              <SuspenseWrapper><AdminPerformancePage /></SuspenseWrapper>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/admin/audit-logs"
+          element={
+            <PrivateRoute allowedRoles={["admin"]}>
+              <SuspenseWrapper><AdminAuditLogsPage /></SuspenseWrapper>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/admin/alerts"
+          element={
+            <PrivateRoute allowedRoles={["admin"]}>
+              <SuspenseWrapper><AdminAlertsPage /></SuspenseWrapper>
+            </PrivateRoute>
+          }
+        />
+        <Route
           path="/admin/training-reset"
           element={
             <PrivateRoute allowedRoles={["admin"]}>
@@ -282,10 +357,27 @@ export default function App() {
             </PrivateRoute>
           }
         />
+        <Route
+          path="/admin/messages"
+          element={
+            <PrivateRoute allowedRoles={["admin"]}>
+              <SuspenseWrapper><MessagesPage /></SuspenseWrapper>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/admin/testimonials"
+          element={
+            <PrivateRoute allowedRoles={["admin"]}>
+              <SuspenseWrapper><FoTestimonialsPage /></SuspenseWrapper>
+            </PrivateRoute>
+          }
+        />
 
         {/* Catch-all */}
-        <Route path="*" element={<SuspenseWrapper><NotFoundPage /></SuspenseWrapper>} />
+        <Route path="*" element={<MaintenanceRoute><SuspenseWrapper><NotFoundPage /></SuspenseWrapper></MaintenanceRoute>} />
       </Route>
     </Routes>
+    </>
   );
 }

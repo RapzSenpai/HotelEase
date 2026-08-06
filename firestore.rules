@@ -69,7 +69,7 @@ service cloud.firestore {
       // User docs only contain: uid, email, fullName, role — no sensitive data.
       allow read: if isAuthenticated() && !isAnonymous();
       allow create: if isOwner(uid) && !isAnonymous() && request.resource.data.role == 'guest';
-      allow update: if (isOwner(uid) && !isAnonymous() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['fullName', 'email', 'phone', 'photoUrl'])) || isProdAdmin();
+      allow update: if (isOwner(uid) && !isAnonymous() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['fullName', 'email', 'phone', 'photoUrl', 'updatedAt', 'lastLoginAt', 'lastLoginIp', 'isOnline', 'lastSeenAt', 'sessions', 'lastLoginDevice', 'revokedSessions', 'currentSessionId', 'lastSessionActiveAt', 'activeSessionId', 'sessionRevokeTimestamp'])) || isProdAdmin();
       allow delete: if isProdAdmin() && !isAnonymous();
 
       // Favorites subcollection - users can manage their own favorites
@@ -81,8 +81,18 @@ service cloud.firestore {
     match /rooms/{roomId} {
       allow read: if isAuthenticated();
       allow create, delete: if isProdFOOrAdmin() && !isAnonymous();
+      // FO/Admin: full updates. Guests: may ONLY trigger a mid-stay housekeeping
+      // request by flipping a room to "Dirty / Needs Cleaning", and may only
+      // change the mid-stay fields — not price, name, capacity, or any other data.
       allow update: if (isProdFOOrAdmin() && !isAnonymous()) ||
-                       (isAuthenticated() && request.resource.data.status == "Dirty / Needs Cleaning");
+                       (isAuthenticated() && !isAnonymous() &&
+                        request.resource.data.status == "Dirty / Needs Cleaning" &&
+                        request.resource.data.isMidStayRequest == true &&
+                        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                          'status', 'isMidStayRequest', 'midStayNote', 'midStayGuestId',
+                          'midStayGuestName', 'midStayBookingId', 'midStayRequestedAt',
+                          'updatedAt', 'statusChangedAt'
+                        ]));
     }
 
     match /bookings/{id} {
@@ -173,6 +183,35 @@ service cloud.firestore {
       allow read: if true;
       allow write: if isProdFOOrAdmin() && !isAnonymous();
     }
+
+    // System settings (e.g. maintenance mode)
+    match /system_settings/{docId} {
+      allow read: if true;
+      allow write: if isProdAdmin() && !isAnonymous();
+    }
+
+    // System health metrics & error logs
+    match /system_health/{docId} {
+      allow read: if isProdAdmin() || isProdFOOrAdmin();
+      allow write: if isProdAdmin() && !isAnonymous();
+    }
+
+    match /error_logs/{docId} {
+      allow read: if isProdAdmin() || isProdFOOrAdmin();
+      allow write: if isProdAdmin() && !isAnonymous();
+    }
+
+    // Audit log trail for admin actions
+    match /audit_logs/{logId} {
+      allow read: if isProdAdmin() && !isAnonymous();
+      allow create: if isProdAdmin() && !isAnonymous();
+    }
+
+    // System alerts for operational issues
+    match /system_alerts/{alertId} {
+      allow read: if isProdAdmin() && !isAnonymous();
+      allow write: if isProdAdmin() && !isAnonymous();
+    }
     
     // Additional Production Collections
     match /housekeeping_logs/{id} {
@@ -201,16 +240,15 @@ service cloud.firestore {
 
     match /messages/{messageId} {
       allow create: if request.resource.data.get('honeypot', '') == '';
-      allow read, update: if isFOorAdmin();
-      allow delete: if isAdmin();
+      allow read, update, delete: if isAdmin();
     }
 
     match /testimonials/{id} {
-      allow read: if resource.data.status == "Approved" || isFOorAdmin();
+      allow read: if resource.data.status == "Approved" || isAdmin();
       allow create: if isAuthenticated() && !isAnonymous() &&
                        request.resource.data.guestId == request.auth.uid &&
                        request.resource.data.status == "Pending";
-      allow update, delete: if isFOorAdmin() && !isAnonymous();
+      allow update, delete: if isAdmin() && !isAnonymous();
     }
   }
 }

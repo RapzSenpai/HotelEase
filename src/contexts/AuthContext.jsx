@@ -11,8 +11,12 @@ import {
   browserLocalPersistence,
 } from "firebase/auth";
 
-import { auth } from "@/firebase/firebase.config";
-import { createUserProfile, getUserDoc } from "@/services/userService";
+import { auth, db } from "@/firebase/firebase.config";
+import { doc, onSnapshot } from "firebase/firestore";
+import { getCol } from "@/lib/db-utils";
+import { createUserProfile, getUserDoc, updateLastLogin, setOnlineStatus } from "@/services/userService";
+import { startPresence, stopPresence } from "@/services/presenceService";
+import { createSession } from "@/services/sessionService";
 import {
   getTrainingSystemState,
   validateTrainingSessionCode,
@@ -31,6 +35,8 @@ export function AuthProvider({ children }) {
 
   // Transient role to bypass Firestore latency during demo/training setup.
   const assignedRoleRef = useRef(null);
+  const currentUidRef = useRef(null);
+  const currentSessionIdRef = useRef(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -48,6 +54,11 @@ export function AuthProvider({ children }) {
           setUser(firebaseUser);
 
           if (!firebaseUser) {
+            if (currentUidRef.current) {
+              setOnlineStatus(currentUidRef.current, false).catch(() => {});
+            }
+            stopPresence(currentUidRef.current);
+            currentUidRef.current = null;
             setRole(null);
             setProfile(null);
             setTrainingMode(false);
@@ -79,8 +90,40 @@ export function AuthProvider({ children }) {
           });
 
           if (userDoc) {
+            // Force logout enforcement: if this session was created before the
+            // admin's force-logout timestamp, sign the user out. A fresh login
+            // after the kick is allowed (its lastSignInTime is newer).
+            if (userDoc.forceLogout) {
+              const kickedAt = new Date(userDoc.forceLogoutTimestamp || 0).getTime();
+              const signedInAt = new Date(firebaseUser.metadata?.lastSignInTime || 0).getTime();
+              if (signedInAt < kickedAt) {
+                await signOut(auth);
+                return;
+              }
+            }
+
             setProfile(userDoc);
             setRole(userDoc.role || "guest");
+            
+            // Update last login timestamp, set online status, and create session
+            try {
+              await updateLastLogin(firebaseUser.uid, { trainingMode: effectiveTrainingMode });
+              await setOnlineStatus(firebaseUser.uid, true, { trainingMode: effectiveTrainingMode });
+              currentUidRef.current = firebaseUser.uid;
+              startPresence(firebaseUser.uid, { trainingMode: effectiveTrainingMode });
+            } catch (e) {
+              console.error("Failed to update last login/online status:", e);
+              // Don't block login if this fails
+            }
+
+            // Create session for tracking (non-blocking)
+            createSession(firebaseUser.uid, { trainingMode: effectiveTrainingMode })
+              .then((session) => {
+                currentSessionIdRef.current = session.id;
+              })
+              .catch((e) => {
+                console.error("Failed to create session:", e);
+              });
           } else if (assignedRoleRef.current) {
             setRole(assignedRoleRef.current);
           } else {
@@ -112,6 +155,29 @@ export function AuthProvider({ children }) {
       if (cleanup) cleanup();
     };
   }, []);
+
+  // Real-time force-logout enforcement while the user is active.
+  // Fires immediately when an admin force-logs this user out mid-session.
+  useEffect(() => {
+    if (!user?.uid) return;
+    const ref = doc(db, getCol("users", trainingMode), user.uid);
+    const unsub = onSnapshot(
+      ref,
+      (snap) => {
+        if (!snap.exists()) return;
+        const data = snap.data();
+        if (data.forceLogout) {
+          const kickedAt = new Date(data.forceLogoutTimestamp || 0).getTime();
+          const signedInAt = new Date(user.metadata?.lastSignInTime || 0).getTime();
+          if (signedInAt < kickedAt) {
+            signOut(auth).catch(() => {});
+          }
+        }
+      },
+      () => {}
+    );
+    return unsub;
+  }, [user?.uid, user?.metadata?.lastSignInTime, trainingMode]);
 
   const api = useMemo(() => {
     async function login({ email, password }) {
@@ -191,6 +257,18 @@ export function AuthProvider({ children }) {
       assignedRoleRef.current = null;
       try {
         const currentUser = auth.currentUser;
+        if (currentUser?.uid) {
+          // Set offline status before logout
+          try {
+            stopPresence(currentUser.uid, { trainingMode });
+            await setOnlineStatus(currentUser.uid, false, { trainingMode });
+            if (currentUidRef.current === currentUser.uid) currentUidRef.current = null;
+          } catch (e) {
+            console.error("Failed to set offline status:", e);
+            // Don't block logout if this fails
+          }
+        }
+        
         if (currentUser?.isAnonymous) {
           // This also signs the user out automatically.
           await currentUser.delete();

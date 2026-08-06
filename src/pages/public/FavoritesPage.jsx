@@ -5,6 +5,7 @@ import { NavLink } from "react-router-dom";
 import { subscribeToFavorites, removeFavorite } from "@/services/favoritesService";
 import { getRoom } from "@/services/roomsService";
 import { useAuth } from "@/contexts/AuthContext";
+import { SkeletonCard } from "@/components/ui/skeleton";
 import { Heart, Trash2, X, Clock, CheckCircle2, XCircle } from "lucide-react";
 
 function formatRate(rate) {
@@ -241,17 +242,24 @@ export default function FavoritesPage() {
 
       {/* Loading */}
       {loading && (
-        <div className="rounded-xl border border-border bg-background p-6 text-sm text-foreground/70">
-          Loading favorites…
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {[...Array(6)].map((_, i) => (
+            <SkeletonCard key={i} />
+          ))}
         </div>
       )}
 
       {/* Empty state */}
       {!loading && rooms.length === 0 && (
         <div className="flex flex-col items-center gap-4 rounded-xl border border-border bg-background p-10 text-center">
-          <Heart className="h-12 w-12 text-foreground/20" />
-          <p className="text-sm text-foreground/60">No favorites yet.</p>
-          <Button asChild variant="outline">
+          <span className="flex h-14 w-14 items-center justify-center rounded-full bg-red-500/10 text-red-500">
+            <Heart className="h-6 w-6 fill-red-500/20" />
+          </span>
+          <p className="text-foreground/60 text-sm">No favorites yet.</p>
+          <p className="text-xs text-foreground/45">
+            Tap the heart on any room to save it here for quick access.
+          </p>
+          <Button asChild variant="default" size="sm">
             <NavLink to="/rooms">Browse Rooms</NavLink>
           </Button>
         </div>

@@ -1,0 +1,312 @@
+================================================================================
+                    HOTEL EASE - ADMIN DASHBOARD ENHANCEMENT PLAN
+================================================================================
+
+STATUS: IN PROGRESS
+LAST UPDATED: August 6, 2026
+
+================================================================================
+COMPLETED FEATURES
+================================================================================
+
+✅ MAINTENANCE MODE SYSTEM
+   - Toggle maintenance mode on/off from System Settings
+   - Custom maintenance message
+   - Optional scheduled start/end times
+   - Maintenance page for non-admin users
+   - Route guard to block access during maintenance
+   - Admins bypass maintenance mode
+   - Firestore collection: system_settings (auto-created)
+
+   Files Created/Modified:
+   - src/services/maintenanceService.js (NEW)
+   - src/pages/common/MaintenancePage.jsx (NEW)
+   - src/components/routing/MaintenanceRoute.jsx (NEW)
+   - src/pages/admin/AdminSystemSettingsPage.jsx (MODIFIED)
+   - src/App.jsx (MODIFIED)
+
+================================================================================
+PENDING FEATURES
+================================================================================
+
+--------------------------------------------------------------------------------
+PHASE 1: REAL-TIME MONITORING (HIGH PRIORITY)
+--------------------------------------------------------------------------------
+
+1. USER ACTIVITY MONITORING
+   Status: PENDING
+   External Setup: NONE
+   
+   Features:
+   - Add lastLogin timestamp to user profiles
+   - Track current session status (online/offline)
+   - Display last login in User Management page
+   - Show active/inactive status indicators
+   
+   Implementation:
+   - Modify AuthContext to update lastLogin on sign-in
+   - Add lastLogin field to user documents
+   - Update AdminUserManagementPage to display last login
+   - Use Firestore onSnapshot for real-time online status
+   
+   Files to Modify:
+   - src/contexts/AuthContext.jsx
+   - src/services/userService.js
+   - src/pages/admin/AdminUserManagementPage.jsx
+
+2. REAL-TIME ACTIVE USERS COUNTER
+   Status: PENDING
+   External Setup: NONE
+   
+   Features:
+   - Live counter of currently active users
+   - Display on Admin Analytics dashboard
+   - Breakdown by role (guest, fo, admin)
+   - Real-time updates using Firestore listeners
+   
+   Implementation:
+   - Add activeUsers collection or field
+   - Use onSnapshot for real-time updates
+   - Create ActiveUsersCard component
+   - Add to AdminAnalyticsPage
+   
+   Files to Create/Modify:
+   - src/services/activityService.js (NEW)
+   - src/components/admin/ActiveUsersCard.jsx (NEW)
+   - src/pages/admin/AdminAnalyticsPage.jsx (MODIFIED)
+
+3. SYSTEM HEALTH DASHBOARD
+   Status: PENDING
+   External Setup: NONE
+   
+   Features:
+   - Database connection status
+   - Firebase quota usage (reads/writes/storage)
+   - API response times
+   - Active sessions count
+   - Recent error logs
+   - System uptime indicator
+   
+   Implementation:
+   - Create new AdminSystemHealthPage
+   - Use Firebase SDK metrics
+   - Track API response times
+   - Simple error logging to Firestore
+   - Add to sidebar navigation
+   
+   Files to Create/Modify:
+   - src/pages/admin/AdminSystemHealthPage.jsx (NEW)
+   - src/services/healthService.js (NEW)
+   - src/components/layout/Sidebar.jsx (MODIFIED - add route)
+
+--------------------------------------------------------------------------------
+PHASE 2: SECURITY & ACCESS CONTROL (HIGH PRIORITY)
+--------------------------------------------------------------------------------
+
+4. AUDIT LOG SYSTEM
+   Status: PENDING
+   External Setup: FIRESTORE RULES & INDEXES REQUIRED
+   
+   Features:
+   - Track all admin actions (user role changes, room updates, etc.)
+   - Track sensitive user actions (cancellations, payments)
+   - Filterable by user, action type, date range
+   - Export functionality
+   - Audit log retention policy
+   
+   Implementation:
+   - Create audit_logs collection
+   - Add logging functions throughout app
+   - Create AdminAuditLogsPage with filtering
+   - Add export to CSV functionality
+   
+   Firestore Setup Required:
+   - Create composite indexes for audit_logs queries
+   - Add security rules for audit_logs collection
+   
+   Files to Create/Modify:
+   - src/services/auditService.js (NEW)
+   - src/pages/admin/AdminAuditLogsPage.jsx (NEW)
+   - src/components/layout/Sidebar.jsx (MODIFIED - add route)
+   - Multiple files throughout app (add audit logging)
+
+   FIRESTORE INDEXES (to be added in Firebase Console):
+   - audit_logs: [actionType, timestamp]
+   - audit_logs: [userId, timestamp]
+   - audit_logs: [timestamp]
+
+   FIRESTORE RULES (to be added):
+   rules_version = '2';
+   service cloud.firestore {
+     match /databases/{database}/documents {
+       match /audit_logs/{logId} {
+         allow read: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+         allow write: if request.auth != null;
+       }
+     }
+   }
+
+5. SESSION MANAGEMENT
+   Status: PENDING
+   External Setup: NONE
+   
+   Features:
+   - Track last login IP/device
+   - Option to force logout specific users
+   - View active sessions per user
+   - Revoke specific sessions
+   
+   Implementation:
+   - Add session tracking to AuthContext
+   - Store device info in user profile
+   - Create session management UI in User Management
+   - Add force logout function
+   
+   Files to Create/Modify:
+   - src/services/sessionService.js (NEW)
+   - src/contexts/AuthContext.jsx (MODIFIED)
+   - src/pages/admin/AdminUserManagementPage.jsx (MODIFIED)
+
+--------------------------------------------------------------------------------
+PHASE 3: ADMIN-SPECIFIC OPERATIONS (MEDIUM PRIORITY)
+--------------------------------------------------------------------------------
+
+6. DEDICATED ADMIN OPERATIONS PAGE
+   Status: PENDING
+   External Setup: NONE
+   
+   Features:
+   - Replace current tabbed FO page with admin-specific features
+   - Bulk operations (mass room status changes)
+   - System-wide announcements
+   - Emergency overrides (force room available)
+   - Data export tools
+   
+   Implementation:
+   - Create new AdminOperationsPage (replace existing)
+   - Add bulk room status update
+   - Add system announcement creator
+   - Add emergency room status override
+   - Add data export functionality
+   
+   Files to Create/Modify:
+   - src/pages/admin/AdminOperationsPage.jsx (REPLACE)
+   - src/services/bulkOperationsService.js (NEW)
+
+--------------------------------------------------------------------------------
+PHASE 4: ENHANCED ANALYTICS (MEDIUM PRIORITY)
+--------------------------------------------------------------------------------
+
+7. ADVANCED ANALYTICS
+   Status: PENDING
+   External Setup: OPTIONAL (Google Analytics)
+   
+   Features:
+   - User behavior tracking (page visits, time spent)
+   - Conversion funnel (browse → book → check-in)
+   - Revenue forecasting
+   - Peak usage times analysis
+   
+   Implementation:
+   - Add analytics tracking throughout app
+   - Create enhanced analytics dashboard
+   - Add conversion funnel visualization
+   - Add revenue forecasting charts
+   
+   Optional External Setup:
+   - Set up Google Analytics 4
+   - Add GA4 measurement ID to code
+   
+   Files to Create/Modify:
+   - src/services/analyticsService.js (ENHANCE)
+   - src/pages/admin/AdminAnalyticsPage.jsx (ENHANCE)
+   - Multiple pages (add page view tracking)
+
+8. PERFORMANCE MONITORING
+   Status: PENDING
+   External Setup: NONE
+   
+   Features:
+   - Page load times
+   - API latency tracking
+   - Error rates by endpoint
+   - Performance score dashboard
+   
+   Implementation:
+   - Use browser Performance API
+   - Track API response times
+   - Create performance dashboard
+   - Add performance logging
+   
+   Files to Create/Modify:
+   - src/services/performanceService.js (NEW)
+   - src/pages/admin/AdminPerformancePage.jsx (NEW)
+   - src/components/layout/Sidebar.jsx (MODIFIED - add route)
+
+--------------------------------------------------------------------------------
+PHASE 5: NOTIFICATION SYSTEM (LOW PRIORITY)
+--------------------------------------------------------------------------------
+
+9. ADMIN ALERT SYSTEM
+   Status: PENDING
+   External Setup: NONE
+   
+   Features:
+   - Real-time alerts for system errors
+   - Unusual activity pattern detection
+   - Quota limits approaching warnings
+   - Failed payment notifications
+   - Alert history and management
+   
+   Implementation:
+   - Create alert system service
+   - Add real-time alert listeners
+   - Create AdminAlertsPage
+   - Add alert notification badge in sidebar
+   
+   Files to Create/Modify:
+   - src/services/alertService.js (NEW)
+   - src/pages/admin/AdminAlertsPage.jsx (NEW)
+   - src/components/layout/Sidebar.jsx (MODIFIED - add alerts badge)
+
+================================================================================
+IMPLEMENTATION ORDER
+================================================================================
+
+1. ✅ MAINTENANCE MODE (COMPLETED)
+2. USER ACTIVITY MONITORING (Next)
+3. REAL-TIME ACTIVE USERS COUNTER
+4. SYSTEM HEALTH DASHBOARD
+5. AUDIT LOG SYSTEM (requires Firestore rules update)
+6. SESSION MANAGEMENT
+7. DEDICATED ADMIN OPERATIONS PAGE
+8. ADVANCED ANALYTICS (optional GA4 setup)
+9. PERFORMANCE MONITORING
+10. ADMIN ALERT SYSTEM
+
+================================================================================
+EXTERNAL ACTIONS REQUIRED
+================================================================================
+
+WHEN IMPLEMENTING AUDIT LOG SYSTEM:
+1. Go to Firebase Console → Firestore → Indexes
+2. Add composite indexes (see Phase 2, item 4 for details)
+3. Go to Firebase Console → Firestore → Rules
+4. Add audit_logs security rules (see Phase 2, item 4 for details)
+
+OPTIONAL FOR ADVANCED ANALYTICS:
+1. Set up Google Analytics 4 account
+2. Create property and get measurement ID
+3. Provide measurement ID to add to code
+
+================================================================================
+NOTES
+================================================================================
+
+- All features except Audit Logging require zero external setup
+- Audit Logging requires Firestore rules and indexes (will provide exact specs)
+- Admin routes are NOT wrapped with MaintenanceRoute so admins can always access settings
+- System uses existing Firebase project, no new services needed
+- All new Firestore collections will be auto-created on first use
+
+================================================================================

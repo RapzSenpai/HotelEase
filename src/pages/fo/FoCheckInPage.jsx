@@ -10,6 +10,7 @@ import {
 import { listRooms } from "@/services/roomsService";
 import { listUsers } from "@/services/userService";
 import { useAuth } from "@/contexts/AuthContext";
+import { trackEvent, GA_EVENTS } from "@/services/gaService";
 import { CalendarDays, Users, BedDouble, CheckCircle2, CreditCard, Filter, Clock, Moon } from "lucide-react";
 
 // ── Check-In Page: Arrival-focused view ───────────────────────────────────────
@@ -209,6 +210,7 @@ export default function FoCheckInPage() {
       setSubmitting(true);
       setError(null);
       await checkInBooking(bookingId, { trainingMode });
+      trackEvent(GA_EVENTS.CHECK_IN, { booking_id: bookingId });
       navigate(`/fo/check-out?roomId=${roomIdParam || ""}`);
     } catch (e) {
       setError(e?.message || "Check-in failed.");

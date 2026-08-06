@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import RequiredIndicator from "@/components/common/RequiredIndicator";
 import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog,
   DialogContent,
@@ -23,6 +24,7 @@ import {
 } from "@/services/reviewsService";
 import { listBookingsForUser, getAvailableRooms } from "@/services/bookingsService";
 import { useAuth } from "@/contexts/AuthContext";
+import { trackEvent, GA_EVENTS } from "@/services/gaService";
 import { optimizeCloudinaryUrl } from "@/lib/cloudinaryTransform";
 import {
   Wifi,
@@ -339,6 +341,12 @@ export default function RoomDetailPage() {
         if (!isMounted) return;
         setRoom(data);
         setCurrentPhotoIndex(0);
+        trackEvent(GA_EVENTS.ROOM_VIEW, {
+          item_id: roomId,
+          item_name: data?.name || data?.roomNumber || "",
+          item_category: data?.type || "",
+          price: data?.ratePerNight ?? 0,
+        });
       } catch (e) {
         if (!isMounted) return;
         setError(mapFirebaseError(e) || "Failed to load room.");
@@ -762,7 +770,11 @@ export default function RoomDetailPage() {
                   </div>
 
                   {reviewsLoading && (
-                    <p className="text-sm text-foreground/50">Loading reviews…</p>
+                    <div className="space-y-3">
+                      <Skeleton className="h-4 w-1/2" />
+                      <Skeleton className="h-4 w-2/3" />
+                      <Skeleton className="h-4 w-1/3" />
+                    </div>
                   )}
                   {reviewsError && !reviewsLoading && (
                     <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-foreground">

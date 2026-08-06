@@ -11,6 +11,7 @@ import {
 import { db } from "@/firebase/firebase.config";
 import { markAsRead, markAllAsRead } from "@/services/notificationService";
 import { Button } from "@/components/ui/button";
+import { SkeletonList } from "@/components/ui/skeleton";
 import { Bell, CalendarCheck, CalendarX, CheckCircle, Info, BellRing, Sparkles, Check, Trash2, MessageSquareMore } from "lucide-react";
 
 function getNotifIcon(type) {
@@ -167,9 +168,7 @@ export default function NotificationsPage() {
       </div>
 
       {loading ? (
-        <div className="rounded-xl border border-border bg-background p-8 text-center text-sm text-foreground/50 animate-pulse mt-8">
-          Loading notifications…
-        </div>
+        <SkeletonList rows={4} className="mt-8" />
       ) : notifications.length === 0 ? (
         <div className="rounded-xl border border-border bg-background p-12 flex flex-col items-center justify-center text-center">
           <div className="h-16 w-16 rounded-full bg-muted/20 flex items-center justify-center mb-4">

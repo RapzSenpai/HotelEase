@@ -32,6 +32,7 @@ export default function HousekeepingPhotoUpload({
         setProgress(0);
         const { url } = await uploadImageToCloudinary(file, {
           folder: "housekeeping",
+          compressionPreset: "housekeepingImages",
           onProgress: setProgress,
         });
         nextPhotos.push(url);

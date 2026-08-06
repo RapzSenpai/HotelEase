@@ -3,6 +3,7 @@ import { NavLink } from "react-router-dom";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton, SkeletonList } from "@/components/ui/skeleton";
 import { useAuth } from "@/contexts/AuthContext";
 import { listBookingsForUser, cancelBooking, requestCancellation, checkAndExpireStaleBookings, uploadPaymentProof } from "@/services/bookingsService";
 import { mapFirebaseError } from "@/lib/errors";
@@ -398,9 +399,11 @@ function BookingCard({ booking, room, trainingMode, userProfile, onCancelled }) 
 
             {/* Individual payment records */}
             {paymentsLoading ? (
-              <p className="text-xs text-foreground/50 text-center py-1">
-                Loading payment records…
-              </p>
+              <div className="space-y-2 py-1">
+                <Skeleton className="h-4 w-1/3" />
+                <Skeleton className="h-4 w-2/3" />
+                <Skeleton className="h-4 w-1/2" />
+              </div>
             ) : payments.length > 0 ? (
               <div className="space-y-1 pt-1">
                 <p className="text-xs text-foreground/50 uppercase tracking-wide">
@@ -831,9 +834,7 @@ export default function MyBookingsPage() {
 
       {/* Loading */}
       {loading ? (
-        <div className="rounded-xl border border-border bg-background p-8 text-center text-sm text-foreground/50 animate-pulse">
-          Loading your bookings…
-        </div>
+        <SkeletonList rows={4} />
       ) : bookings.length === 0 ? (
         /* Empty state */
         <div className="rounded-xl border border-border bg-background p-10 flex flex-col items-center gap-4 text-center">

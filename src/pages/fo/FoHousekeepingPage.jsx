@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import { Select } from "radix-ui";
 import { toast } from "sonner";
 import { History } from "lucide-react";
 import { subscribeToRooms } from "@/services/roomsService";
@@ -21,13 +20,6 @@ import {
 } from "@/services/housekeepingService";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-
-const SELECT_TRIGGER_CLASS =
-  "flex h-9 w-full items-center justify-between rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs text-foreground shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-primary/30";
-const SELECT_CONTENT_CLASS =
-  "z-50 max-h-64 min-w-[8rem] overflow-hidden rounded-md border border-border bg-background p-1 text-foreground shadow-md";
-const SELECT_ITEM_CLASS =
-  "relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-xs outline-none data-[highlighted]:bg-muted data-[highlighted]:text-foreground";
 
 function getStaffLabel(user) {
   return user.fullName || user.email || user.id;
@@ -257,9 +249,6 @@ export default function FoHousekeepingPage() {
   }
 
   const selectedRoom = visibleRooms.find((r) => r.id === selectedRoomId);
-  const selectedAssignment = selectedRoom
-    ? getAssignmentForRoom(selectedRoom)
-    : null;
 
   return (
     <div className="space-y-5">
@@ -336,6 +325,8 @@ export default function FoHousekeepingPage() {
                 onMoveRoom={moveRoom}
                 onBulkApprove={handleBulkApprove}
                 onApproveRoom={(room) => moveRoom(room, "Available")}
+                staffUsers={staffUsers}
+                onReassign={onReassign}
               />
             ) : (
               <HousekeepingList
@@ -355,44 +346,6 @@ export default function FoHousekeepingPage() {
               />
             )}
           </div>
-
-          {/* Staff assignment — Kanban only (table has inline Assigned Staff column) */}
-          {viewMode === "kanban" &&
-            selectedRoom &&
-            (selectedRoom.status === "Dirty / Needs Cleaning" ||
-              selectedRoom.status === "Being Cleaned") &&
-            staffUsers.length > 0 && (
-              <div className="space-y-1.5 rounded-xl border border-border bg-background p-4">
-                <label className="text-[10px] font-semibold uppercase tracking-wide text-foreground/45">
-                  Assign staff
-                </label>
-                <Select.Root
-                  value={selectedAssignment?.userId || undefined}
-                  onValueChange={(value) => onReassign(selectedRoom.id, value)}
-                >
-                  <Select.Trigger className={SELECT_TRIGGER_CLASS}>
-                    <Select.Value placeholder="Select staff" />
-                  </Select.Trigger>
-                  <Select.Portal>
-                    <Select.Content className={SELECT_CONTENT_CLASS}>
-                      <Select.Viewport>
-                        {staffUsers.map((staff) => (
-                          <Select.Item
-                            key={staff.id}
-                            value={staff.id}
-                            className={SELECT_ITEM_CLASS}
-                          >
-                            <Select.ItemText>
-                              {getStaffLabel(staff)}
-                            </Select.ItemText>
-                          </Select.Item>
-                        ))}
-                      </Select.Viewport>
-                    </Select.Content>
-                  </Select.Portal>
-                </Select.Root>
-              </div>
-            )}
 
           {/* View Logs button */}
           {selectedRoomId && (

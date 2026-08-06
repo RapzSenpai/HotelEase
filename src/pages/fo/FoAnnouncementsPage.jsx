@@ -40,6 +40,7 @@ function AnnouncementPhotoUploader({ imageUrl, onChange }) {
     try {
       const { url } = await uploadImageToCloudinary(file, {
         folder: "announcements",
+        compressionPreset: "announcementImages",
         onProgress: (pct) => setUploadProgress(pct),
       });
       onChange(url);

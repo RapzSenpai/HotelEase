@@ -82,12 +82,15 @@ export async function updateRoomStatus({
       }
     }
 
+    const midStayBookingId = roomData.midStayBookingId || null;
+
     transaction.update(roomRef, roomUpdate);
 
     const logsCol = housekeepingLogsCollection(trainingMode);
     const logRef = doc(collection(db, logsCol));
     transaction.set(logRef, {
       roomId,
+      bookingId: midStayBookingId || null,
       fromStatus,
       toStatus: newStatus,
       changedByRole,
@@ -165,6 +168,12 @@ export async function requestMidStayHousekeeping({
     const roomData = roomSnap.data();
     const fromStatus = roomData?.status || "Occupied / Checked In";
 
+    if (roomData?.isMidStayRequest) {
+      throw new Error(
+        "There is already a housekeeping request in progress for this room. Please wait for it to be completed.",
+      );
+    }
+
     transaction.update(roomRef, {
       status: "Dirty / Needs Cleaning",
       isMidStayRequest: true,
@@ -181,6 +190,7 @@ export async function requestMidStayHousekeeping({
     const logRef = doc(collection(db, logsCol));
     transaction.set(logRef, {
       roomId,
+      bookingId: bookingId || null,
       fromStatus,
       toStatus: "Dirty / Needs Cleaning",
       changedByRole: "guest",

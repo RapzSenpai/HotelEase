@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { Popover } from "radix-ui";
 import {
   DndContext,
   DragOverlay,
@@ -10,7 +11,7 @@ import {
   closestCorners,
 } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, Check } from "lucide-react";
+import { GripVertical, Check, User, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -58,6 +59,8 @@ function KanbanCardContent({
   showCheckbox,
   onSelectRoom,
   onApproveRoom,
+  staffUsers,
+  onReassign,
   isOverlay = false,
 }) {
   return (
@@ -108,7 +111,43 @@ function KanbanCardContent({
           <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-foreground/45">
             {room.floor && <span>Floor {room.floor}</span>}
             {room.floor && (assignment?.name || room.assignedToName) && <span>·</span>}
-            {(assignment?.name || room.assignedToName) && (
+            {staffUsers && staffUsers.length > 0 && !isOverlay && (
+              <Popover.Root>
+                <Popover.Trigger asChild>
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-1 hover:text-foreground/70 transition-colors"
+                  >
+                    <User className="h-3 w-3" />
+                    <span className="truncate max-w-[110px]">
+                      {assignment?.name || room.assignedToName || "Assign"}
+                    </span>
+                    <ChevronDown className="h-3 w-3" />
+                  </button>
+                </Popover.Trigger>
+                <Popover.Portal>
+                  <Popover.Content
+                    className="z-50 w-40 rounded-md border border-border bg-background p-1 shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2"
+                    side="bottom"
+                    align="start"
+                  >
+                    <div className="space-y-1">
+                      {staffUsers.map((staff) => (
+                        <button
+                          key={staff.id}
+                          type="button"
+                          onClick={() => onReassign?.(room.id, staff.id)}
+                          className="w-full rounded-sm px-2 py-1.5 text-xs text-left hover:bg-muted data-[highlighted]:bg-muted"
+                        >
+                          {staff.fullName || staff.email || staff.id}
+                        </button>
+                      ))}
+                    </div>
+                  </Popover.Content>
+                </Popover.Portal>
+              </Popover.Root>
+            )}
+            {(!staffUsers || staffUsers.length === 0 || isOverlay) && (assignment?.name || room.assignedToName) && (
               <span className="truncate max-w-[110px]" title={assignment?.name || room.assignedToName}>
                 Assigned: {assignment?.name || room.assignedToName}
               </span>
@@ -159,6 +198,8 @@ function DraggableKanbanCard({
   showCheckbox,
   onSelectRoom,
   onApproveRoom,
+  staffUsers,
+  onReassign,
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } =
     useDraggable({
@@ -194,6 +235,8 @@ function DraggableKanbanCard({
           showCheckbox={showCheckbox}
           onSelectRoom={onSelectRoom}
           onApproveRoom={onApproveRoom}
+          staffUsers={staffUsers}
+          onReassign={onReassign}
         />
       </div>
     </div>
@@ -211,6 +254,8 @@ export default function HousekeepingKanban({
   onMoveRoom,
   onBulkApprove,
   onApproveRoom,
+  staffUsers,
+  onReassign,
 }) {
   const [activeRoom, setActiveRoom] = useState(null);
 
@@ -313,6 +358,8 @@ export default function HousekeepingKanban({
                       showCheckbox={isPendingColumn}
                       onSelectRoom={onSelectRoom}
                       onApproveRoom={onApproveRoom}
+                      staffUsers={staffUsers}
+                      onReassign={onReassign}
                     />
                   ))
                 )}
@@ -326,6 +373,8 @@ export default function HousekeepingKanban({
             <KanbanCardContent
               room={activeRoom}
               assignment={getAssignmentForRoom(activeRoom)}
+              staffUsers={staffUsers}
+              onReassign={onReassign}
               isOverlay
             />
           ) : null}
