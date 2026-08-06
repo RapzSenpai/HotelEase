@@ -93,6 +93,18 @@ function KanbanCardContent({
             {room.name || room.type || "Room"}
             {room.roomNumber ? ` • #${room.roomNumber}` : null}
           </button>
+          {room.isMidStayRequest && (
+            <div className="pt-1 space-y-1">
+              <span className="inline-flex items-center gap-1 rounded-md bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-600 border border-amber-500/20">
+                ✨ Mid-Stay Request
+              </span>
+              {room.midStayNote && (
+                <p className="text-[11px] italic text-foreground/75 bg-amber-500/5 px-2 py-1 rounded border border-amber-500/10">
+                  "{room.midStayNote}"
+                </p>
+              )}
+            </div>
+          )}
           <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-foreground/45">
             {room.floor && <span>Floor {room.floor}</span>}
             {room.floor && (assignment?.name || room.assignedToName) && <span>·</span>}

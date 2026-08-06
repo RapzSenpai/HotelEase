@@ -1,6 +1,12 @@
 import imageCompression from "browser-image-compression";
 
 const COMPRESSION_OPTIONS = {
+  avatar: {
+    maxSizeMB: 0.5,
+    maxWidthOrHeight: 512,
+    useWebWorker: true,
+    initialQuality: 0.85,
+  },
   roomPhotos: {
     maxSizeMB: 0.8,
     maxWidthOrHeight: 1920,
@@ -24,7 +30,7 @@ const COMPRESSION_OPTIONS = {
 /**
  * Compress an image file before upload.
  * @param {File} file
- * @param {"roomPhotos" | "announcementImages" | "paymentProofs"} preset
+ * @param {"avatar" | "roomPhotos" | "announcementImages" | "paymentProofs"} preset
  * @returns {Promise<File>} compressed file (or original if already small enough)
  */
 export async function compressImage(file, preset = "roomPhotos") {

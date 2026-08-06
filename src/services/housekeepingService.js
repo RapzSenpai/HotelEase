@@ -43,7 +43,10 @@ export async function updateRoomStatus({
     const roomSnap = await transaction.get(roomRef);
     if (!roomSnap.exists()) throw new Error("Room not found.");
 
-    const fromStatus = roomSnap.data()?.status || "Unknown";
+    const roomData = roomSnap.data() || {};
+    const fromStatus = roomData.status || "Unknown";
+    const isMidStay = !!roomData.isMidStayRequest;
+    const guestIdForNotif = roomData.midStayGuestId || null;
 
     const roomUpdate = {
       status: newStatus,
@@ -69,6 +72,14 @@ export async function updateRoomStatus({
       roomUpdate.assignedToUserId = deleteField();
       roomUpdate.assignedToName = deleteField();
       roomUpdate.photoUrls = deleteField();
+      if (isMidStay) {
+        roomUpdate.isMidStayRequest = deleteField();
+        roomUpdate.midStayNote = deleteField();
+        roomUpdate.midStayGuestId = deleteField();
+        roomUpdate.midStayGuestName = deleteField();
+        roomUpdate.midStayBookingId = deleteField();
+        roomUpdate.midStayRequestedAt = deleteField();
+      }
     }
 
     transaction.update(roomRef, roomUpdate);
@@ -82,13 +93,20 @@ export async function updateRoomStatus({
       changedByRole,
       changedByUserId: changedByUserId || null,
       changedByName: changedByName || "",
-      note: note || "",
+      note: note || (isMidStay ? "[Mid-Stay Cleaning]" : ""),
       photoUrls: Array.isArray(photoUrls) ? photoUrls : [],
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
 
-    return { ok: true, logId: logRef.id, roomName: roomSnap.data().name || roomSnap.data().type || "Room", newStatus };
+    return {
+      ok: true,
+      logId: logRef.id,
+      roomName: roomData.name || roomData.type || "Room",
+      newStatus,
+      isMidStay,
+      guestIdForNotif,
+    };
   }).then(async (result) => {
     if (result.newStatus === "Dirty / Needs Cleaning") {
       try {
@@ -100,6 +118,105 @@ export async function updateRoomStatus({
           link: "/fo/housekeeping"
         })));
       } catch(e) { console.error("Notif error", e); }
+    }
+
+    if (result.isMidStay && result.guestIdForNotif) {
+      try {
+        if (result.newStatus === "Being Cleaned") {
+          await createNotification(result.guestIdForNotif, {
+            type: "housekeeping_in_progress",
+            title: "Housekeeping in Progress 🧹",
+            message: `Housekeeping staff is currently cleaning your room (${result.roomName}).`,
+            link: "/housekeeping",
+          });
+        } else if (result.newStatus === "Available") {
+          await createNotification(result.guestIdForNotif, {
+            type: "housekeeping_done",
+            title: "Housekeeping Completed ✨",
+            message: `Your room (${result.roomName}) has been cleaned! Check your booking to view photos or leave feedback.`,
+            link: "/housekeeping",
+          });
+        }
+      } catch (e) {
+        console.error("Guest mid-stay notif error", e);
+      }
+    }
+
+    return { ok: true, logId: result.logId };
+  });
+}
+
+export async function requestMidStayHousekeeping({
+  roomId,
+  bookingId,
+  guestId,
+  guestName,
+  note = "",
+  trainingMode = null,
+}) {
+  if (!roomId) throw new Error("Invalid roomId passed to requestMidStayHousekeeping");
+
+  return runTransaction(db, async (transaction) => {
+    const roomsCol = getCol("rooms", trainingMode);
+    const roomRef = doc(db, roomsCol, roomId);
+    const roomSnap = await transaction.get(roomRef);
+    if (!roomSnap.exists()) throw new Error("Room not found.");
+
+    const roomData = roomSnap.data();
+    const fromStatus = roomData?.status || "Occupied / Checked In";
+
+    transaction.update(roomRef, {
+      status: "Dirty / Needs Cleaning",
+      isMidStayRequest: true,
+      midStayNote: note || "",
+      midStayGuestId: guestId || null,
+      midStayGuestName: guestName || "Guest",
+      midStayBookingId: bookingId || null,
+      midStayRequestedAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      statusChangedAt: serverTimestamp(),
+    });
+
+    const logsCol = housekeepingLogsCollection(trainingMode);
+    const logRef = doc(collection(db, logsCol));
+    transaction.set(logRef, {
+      roomId,
+      fromStatus,
+      toStatus: "Dirty / Needs Cleaning",
+      changedByRole: "guest",
+      changedByUserId: guestId || null,
+      changedByName: guestName || "Guest",
+      isMidStayRequest: true,
+      note: note ? `[Mid-Stay Request] ${note}` : "[Mid-Stay Request]",
+      photoUrls: [],
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+
+    return {
+      ok: true,
+      logId: logRef.id,
+      roomName: roomData.name || roomData.type || "Room",
+    };
+  }).then(async (result) => {
+    try {
+      const foUsers = await listUsers({ trainingMode }).then((users) =>
+        users.filter((u) => u.role === "fo"),
+      );
+      await Promise.all(
+        foUsers.map((fo) =>
+          createNotification(fo.id, {
+            type: "room_dirty",
+            title: "Mid-Stay Cleaning Requested 🧹",
+            message: `Guest (${guestName}) requested cleaning for ${result.roomName}${
+              note ? `: "${note}"` : "."
+            }`,
+            link: "/fo/housekeeping",
+          }),
+        ),
+      );
+    } catch (e) {
+      console.error("Notif error", e);
     }
     return { ok: true, logId: result.logId };
   });

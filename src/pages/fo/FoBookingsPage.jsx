@@ -143,6 +143,7 @@ function BookingCard({
             <span>
               <span className="font-medium text-foreground/70">Pax:</span>{" "}
               {booking.paxCount}
+              {booking.extraPaxCount > 0 ? ` (${booking.extraPaxCount} extra)` : ""}
             </span>
           )}
           {booking.bookingType && (
@@ -152,7 +153,7 @@ function BookingCard({
             </span>
           )}
           {booking.arrivalTime && (
-            <span>
+            <span className={booking.arrivalTime.toLowerCase().includes("midnight") || booking.arrivalTime.toLowerCase().includes("late") ? "font-semibold text-indigo-600 dark:text-indigo-400" : ""}>
               <span className="font-medium text-foreground/70">Est. Arrival:</span>{" "}
               {booking.arrivalTime}
             </span>

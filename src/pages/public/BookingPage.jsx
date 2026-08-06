@@ -8,6 +8,7 @@ import RequiredIndicator from "@/components/common/RequiredIndicator";
 import { createBooking, getAvailableRooms, uploadPaymentProof } from "@/services/bookingsService";
 import { mapFirebaseError } from "@/lib/errors";
 import { getRoom, isRoomActive, isRoomBookable } from "@/services/roomsService";
+import { getRoomCapacity, calculateBookingPricing } from "@/lib/roomCapacity";
 import RoomBookingsCalendar from "@/components/calendar/RoomBookingsCalendar";
 import { Calendar as CalendarIcon, Upload, CheckCircle2, ChevronLeft, ChevronRight, Clock } from "lucide-react";
 import {
@@ -104,9 +105,11 @@ export default function BookingPage() {
         const phone = profile.phone;
         if (phone.startsWith("+63")) {
           setCountryCode("+63");
-          setPhoneNumber(phone.slice(3));
+          setPhoneNumber(phone.slice(3).replace(/\s/g, ""));
         } else {
-          setPhoneNumber(phone);
+          // Local PH format (e.g. 0912 345 6789) — strip leading 0 for the +63 code
+          setCountryCode("+63");
+          setPhoneNumber(phone.replace(/^0/, "").replace(/\s/g, ""));
         }
       }
     }
@@ -163,11 +166,20 @@ export default function BookingPage() {
     return Math.round((b.getTime() - a.getTime()) / (1000 * 60 * 60 * 24));
   }, [checkIn, checkOut]);
 
-  const totalCost = useMemo(() => {
-    const rate = Number(room?.ratePerNight ?? 0);
-    if (!nights || !rate) return 0;
-    return nights * rate;
-  }, [room?.ratePerNight, nights]);
+  const roomCapacity = useMemo(() => getRoomCapacity(room), [room]);
+
+  const pricing = useMemo(() => {
+    return calculateBookingPricing({
+      ratePerNight: room?.ratePerNight,
+      basePax: roomCapacity.basePax,
+      maxPax: roomCapacity.maxPax,
+      extraPaxFee: roomCapacity.extraPaxFee,
+      nights,
+      paxCount,
+    });
+  }, [room?.ratePerNight, roomCapacity, nights, paxCount]);
+
+  const totalCost = pricing.totalCost;
 
   const partialAmount = useMemo(() => calculatePartialPayment(totalCost), [totalCost]);
   const amountDue = paymentType === "Full" ? totalCost : partialAmount;
@@ -179,6 +191,7 @@ export default function BookingPage() {
     if (!checkIn || !checkOut) { setStep1Error("Please select check-in and check-out dates."); return; }
     if (nights <= 0) { setStep1Error("Check-out must be after check-in."); return; }
     if (!bookable) { setStep1Error("This room is not currently bookable."); return; }
+    if (pricing.isExceedingMaxPax) { setStep1Error(`This room accommodates a maximum of ${roomCapacity.maxPax} guests. Please reduce the guest count.`); return; }
     setStep(2);
   }
   // Step 2 Book Now — includes getAvailableRooms() defensive re-check (P0.1)
@@ -190,6 +203,7 @@ export default function BookingPage() {
     if (!resolvedRoomId) { setSubmitError("Room ID is missing. Please reload the page."); return; }
     if (!roomActive) { setSubmitError("This room is no longer available for booking."); return; }
     if (!bookable) { setSubmitError("This room is not currently bookable."); return; }
+    if (pricing.isExceedingMaxPax) { setSubmitError(`This room accommodates a maximum of ${roomCapacity.maxPax} guests.`); return; }
     try {
       setSubmitting(true);
       // Defensive re-check: room may have been taken while guest was in the wizard.
@@ -205,6 +219,9 @@ export default function BookingPage() {
         checkInDate: checkIn,
         checkOutDate: checkOut,
         paxCount: Number(paxCount || 1),
+        extraPaxCount: pricing.extraPaxCount,
+        extraPaxFee: roomCapacity.extraPaxFee,
+        extraPaxTotal: pricing.extraPaxTotal,
         specialRequests,
         leadGuestName,
         leadGuestEmail,
@@ -231,7 +248,7 @@ export default function BookingPage() {
     } finally {
       setSubmitting(false);
     }
-  }, [user, room, resolvedRoomId, roomActive, bookable, checkIn, checkOut, paxCount, specialRequests, trainingMode, totalCost, paymentMethod, paymentType]);
+  }, [user, room, resolvedRoomId, roomActive, bookable, checkIn, checkOut, paxCount, pricing, roomCapacity, specialRequests, trainingMode, totalCost, paymentMethod, paymentType]);
 
   // Phase 10/11: exact signature preserved — only "GCash" arg replaced by paymentMethod
   async function handleUploadProof() {
@@ -255,7 +272,7 @@ export default function BookingPage() {
   function renderPaymentInstructions(method, amount) {
     const details = getPaymentDetails(method);
     return (
-      <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-2 text-sm">
+      <div className="rounded-lg border border-border/40 bg-muted/10 p-3 space-y-2 text-sm">
         <div className="font-semibold text-sm">Payment Instructions</div>
         <div className="space-y-1.5">
           <p>Please send <span className="font-semibold">&#8369;{amount.toLocaleString()}</span> via {method}:</p>
@@ -400,9 +417,30 @@ export default function BookingPage() {
                   <CalendarIcon className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-foreground/40 pointer-events-none" />
                 </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="paxCount" className="text-sm font-medium">Number of Guests (pax)<RequiredIndicator /></Label>
-                <Input id="paxCount" type="number" min={1} required value={paxCount} onChange={(e) => setPaxCount(e.target.value)} />
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="paxCount" className="text-sm font-medium">Number of Guests (pax)<RequiredIndicator /></Label>
+                  <span className="text-xs text-foreground/50">Max {roomCapacity.maxPax} pax</span>
+                </div>
+                <Input
+                  id="paxCount"
+                  type="number"
+                  min={1}
+                  max={roomCapacity.maxPax}
+                  required
+                  value={paxCount}
+                  onChange={(e) => setPaxCount(e.target.value)}
+                  className={pricing.isExceedingMaxPax ? "border-destructive focus-visible:ring-destructive" : ""}
+                />
+                <p className="text-xs text-foreground/50">
+                  Base rate covers up to {roomCapacity.basePax} guest{roomCapacity.basePax !== 1 ? "s" : ""}.
+                  {roomCapacity.extraPaxFee > 0 ? ` Extra guest fee: +₱${roomCapacity.extraPaxFee.toLocaleString()}/night per extra guest.` : ""}
+                </p>
+                {pricing.isExceedingMaxPax && (
+                  <p className="text-xs font-medium text-destructive">
+                    Exceeds maximum capacity of {roomCapacity.maxPax} guests. Please reduce guest count.
+                  </p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="specialRequests" className="text-sm font-medium">
@@ -419,28 +457,29 @@ export default function BookingPage() {
                   onChange={(e) => setArrivalTime(e.target.value)}
                 >
                   <option value="I don't know">I don't know</option>
-                  <option value="14:00 - 15:00">14:00 - 15:00</option>
-                  <option value="15:00 - 16:00">15:00 - 16:00</option>
-                  <option value="16:00 - 17:00">16:00 - 17:00</option>
-                  <option value="17:00 - 18:00">17:00 - 18:00</option>
-                  <option value="18:00 - 19:00">18:00 - 19:00</option>
-                  <option value="19:00 - 20:00">19:00 - 20:00</option>
-                  <option value="20:00 - 21:00">20:00 - 21:00</option>
-                  <option value="21:00 - 22:00">21:00 - 22:00</option>
-                  <option value="22:00 - 23:00">22:00 - 23:00</option>
-                  <option value="23:00 - 00:00">23:00 - 00:00</option>
-                  <option value="After midnight">After midnight</option>
+                  <option value="Standard Arrival (Anytime after 2:00 PM)">Standard Arrival (Anytime after 2:00 PM)</option>
+                  <option value="Late Arrival (After Midnight)">Late Arrival (After Midnight)</option>
                 </select>
               </div>
               {nights > 0 && (
-                <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-1.5 text-sm">
+                <div className="rounded-lg border border-border/40 bg-muted/10 p-3 space-y-1.5 text-sm">
                   <div className="flex items-center justify-between">
-                    <span className="text-foreground/70">Nights</span>
-                    <span className="font-semibold">{nights}</span>
+                    <span className="text-foreground/50">Nights</span>
+                    <span className="font-semibold text-foreground/80">{nights}</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-foreground/70">Estimated Total</span>
-                    <span className="font-semibold">PHP {totalCost.toLocaleString()}</span>
+                    <span className="text-foreground/50">Base Room Total ({nights} night{nights !== 1 ? "s" : ""})</span>
+                    <span className="font-medium text-foreground/80">PHP {pricing.baseTotal.toLocaleString()}</span>
+                  </div>
+                  {pricing.extraPaxCount > 0 && (
+                    <div className="flex items-center justify-between text-xs text-primary/90 font-medium">
+                      <span>Extra Guests ({pricing.extraPaxCount} pax × ₱{roomCapacity.extraPaxFee.toLocaleString()} × {nights}n)</span>
+                      <span>+PHP {pricing.extraPaxTotal.toLocaleString()}</span>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between border-t border-border/30 pt-1.5">
+                    <span className="text-foreground/70 font-semibold">Estimated Total</span>
+                    <span className="font-bold text-primary text-base">PHP {pricing.totalCost.toLocaleString()}</span>
                   </div>
                 </div>
               )}
@@ -545,8 +584,18 @@ export default function BookingPage() {
               </div>
               <div className="border-t border-border pt-3 space-y-2 text-sm">
                 <div className="flex items-center justify-between">
-                  <span className="text-foreground/70">Total Cost</span>
-                  <span className="font-semibold">PHP {totalCost.toLocaleString()}</span>
+                  <span className="text-foreground/70">Base Room Total</span>
+                  <span className="font-medium">PHP {pricing.baseTotal.toLocaleString()}</span>
+                </div>
+                {pricing.extraPaxCount > 0 && (
+                  <div className="flex items-center justify-between text-xs text-primary font-medium">
+                    <span>Extra Guests ({pricing.extraPaxCount} pax × ₱{roomCapacity.extraPaxFee.toLocaleString()} × {nights}n)</span>
+                    <span>+PHP {pricing.extraPaxTotal.toLocaleString()}</span>
+                  </div>
+                )}
+                <div className="flex items-center justify-between border-t border-dashed border-border/60 pt-1.5 font-semibold">
+                  <span className="text-foreground">Total Cost</span>
+                  <span>PHP {totalCost.toLocaleString()}</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-foreground/70">Amount Due Now</span>
@@ -563,7 +612,7 @@ export default function BookingPage() {
                   <p className="text-sm text-foreground/80">{specialRequests}</p>
                 </div>
               )}
-              <div className="rounded-lg border border-border bg-muted/30 p-3 text-xs text-foreground/60">
+              <div className="rounded-lg border border-border/40 bg-muted/10 p-3 text-xs text-foreground/60">
                 <Clock className="inline h-3.5 w-3.5 mr-1 align-middle" />
                 A confirmation email will be sent once your booking is approved by Front Office staff. Submitting this form does not guarantee immediate approval.
               </div>
@@ -655,7 +704,7 @@ export default function BookingPage() {
                   <span>Payment type:</span>
                   <span className="font-semibold text-foreground">{paymentType} &mdash; &#8369;{amountDue.toLocaleString()}</span>
                 </div>
-                <div className="rounded-lg border border-border bg-muted/30 p-3 text-xs text-foreground/60">
+                <div className="rounded-lg border border-border/40 bg-muted/10 p-3 text-xs text-foreground/60">
                   <Clock className="inline h-3.5 w-3.5 mr-1 align-middle" />
                   {paymentType === "Full" 
                     ? "Your full payment will be verified and recorded by Front Office. Your booking is pending FO review."
@@ -730,7 +779,7 @@ export default function BookingPage() {
                   <span className="font-medium">{paymentMethod}</span>
                 </div>
               </div>
-              <div className="rounded-lg border border-border bg-muted/30 p-3 text-xs text-foreground/60">
+              <div className="rounded-lg border border-border/40 bg-muted/10 p-3 text-xs text-foreground/60">
                 <Clock className="inline h-3.5 w-3.5 mr-1 align-middle" />
                 A confirmation email will be sent once your booking is approved by Front Office staff &mdash; not at this stage.
               </div>

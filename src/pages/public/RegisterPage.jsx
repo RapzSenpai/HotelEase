@@ -13,9 +13,13 @@ export default function RegisterPage() {
   const navigate = useNavigate();
   const { register, authError, loading } = useAuth();
 
-  const [fullName, setFullName] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [confirmTouched, setConfirmTouched] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [localError, setLocalError] = useState(null);
   const [passwordError, setPasswordError] = useState(null);
@@ -50,8 +54,16 @@ export default function RegisterPage() {
     }
     setPasswordError(null);
 
+    if (confirmPassword !== password) {
+      setConfirmTouched(true);
+      setLocalError("Passwords do not match. Please re-enter them.");
+      return;
+    }
+    setLocalError(null);
+
     try {
-      await register({ email, password, fullName });
+      const fullName = `${firstName.trim()} ${lastName.trim()}`.trim();
+      await register({ email, password, fullName, phone: phone.trim() });
       setCooldown(true);
       setTimeout(() => setCooldown(false), 60000);
       navigate("/login");
@@ -83,16 +95,30 @@ export default function RegisterPage() {
           style={{ position: "absolute", left: "-9999px", opacity: 0, height: 0, width: 0 }}
         />
 
-        <div className="space-y-2">
-          <Label htmlFor="fullName">Full Name<RequiredIndicator /></Label>
-          <Input
-            id="fullName"
-            required
-            placeholder="Enter your full name"
-            value={fullName}
-            onChange={(e) => setFullName(e.target.value)}
-            className="h-11"
-          />
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="firstName">First Name<RequiredIndicator /></Label>
+            <Input
+              id="firstName"
+              required
+              placeholder="First name"
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              className="h-11"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="lastName">Last Name<RequiredIndicator /></Label>
+            <Input
+              id="lastName"
+              required
+              placeholder="Last name"
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+              className="h-11"
+            />
+          </div>
         </div>
 
         <div className="space-y-2">
@@ -105,6 +131,20 @@ export default function RegisterPage() {
             placeholder="Enter your email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            className="h-11"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="phone">Phone Number<RequiredIndicator /></Label>
+          <Input
+            id="phone"
+            type="tel"
+            required
+            autoComplete="tel"
+            placeholder="e.g. 0912 345 6789"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
             className="h-11"
           />
         </div>
@@ -139,13 +179,47 @@ export default function RegisterPage() {
           {!passwordError && <p className="text-xs text-foreground/45">Min 8 characters, 1 uppercase, 1 number, 1 special character.</p>}
         </div>
 
+        <div className="space-y-2">
+          <Label htmlFor="confirmPassword">Confirm Password<RequiredIndicator /></Label>
+          <div className="relative">
+            <Input
+              id="confirmPassword"
+              type={showPassword ? "text" : "password"}
+              required
+              autoComplete="new-password"
+              placeholder="Re-enter your password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              className="h-11 pr-10"
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-xs"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 text-foreground/40 hover:text-foreground/70"
+            >
+              {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </Button>
+          </div>
+          {confirmPassword.length > 0 && !confirmTouched &&
+            (confirmPassword === password ? (
+              <p className="text-xs text-emerald-600">Passwords match.</p>
+            ) : (
+              <p className="text-xs text-destructive">Passwords do not match.</p>
+            ))}
+          {confirmTouched && confirmPassword !== password && (
+            <p className="text-xs text-destructive">Passwords do not match.</p>
+          )}
+        </div>
+
         {(localError || authError) ? (
           <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-foreground">
             {localError || authError}
           </div>
         ) : null}
 
-        <Button type="submit" size="lg" className="w-full" disabled={loading || cooldown}>
+        <Button type="submit" size="default" className="w-full" disabled={loading || cooldown}>
           {cooldown ? "Please wait..." : loading ? "Creating account..." : "Register"}
         </Button>
 

@@ -10,7 +10,7 @@ import {
 import { listRooms } from "@/services/roomsService";
 import { listUsers } from "@/services/userService";
 import { useAuth } from "@/contexts/AuthContext";
-import { CalendarDays, Users, BedDouble, CheckCircle2, CreditCard, Filter, Clock } from "lucide-react";
+import { CalendarDays, Users, BedDouble, CheckCircle2, CreditCard, Filter, Clock, Moon } from "lucide-react";
 
 // ── Check-In Page: Arrival-focused view ───────────────────────────────────────
 // This page shows bookings arriving today/soon (within CHECK_IN_WINDOW_HOURS).
@@ -274,6 +274,11 @@ export default function FoCheckInPage() {
                   const guestName =
                     guestsMap[b.guestId] || b.guestName || "Guest";
                   const roomName = room?.name || room?.type || b.roomId;
+                  const isLate = Boolean(
+                    b.arrivalTime &&
+                      (b.arrivalTime.toLowerCase().includes("midnight") ||
+                        b.arrivalTime.toLowerCase().includes("late"))
+                  );
 
                   return (
                     <div
@@ -291,15 +296,22 @@ export default function FoCheckInPage() {
                             {roomName}
                           </div>
                         </div>
-                        <span
-                          className={`inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[10px] font-semibold border ${
-                            b.status === "Approved"
-                              ? "bg-success/10 text-success border-success/20"
-                              : "bg-warning/10 text-warning border-warning/20"
-                          }`}
-                        >
-                          {b.status}
-                        </span>
+                        <div className="flex items-center gap-1 shrink-0">
+                          {isLate && (
+                            <span className="inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[9px] font-semibold bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
+                              <Moon className="h-2.5 w-2.5" /> Late
+                            </span>
+                          )}
+                          <span
+                            className={`inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[10px] font-semibold border ${
+                              b.status === "Approved"
+                                ? "bg-success/10 text-success border-success/20"
+                                : "bg-warning/10 text-warning border-warning/20"
+                            }`}
+                          >
+                            {b.status}
+                          </span>
+                        </div>
                       </div>
                       <Button
                         variant={isActive ? "default" : "outline"}
@@ -344,7 +356,7 @@ export default function FoCheckInPage() {
                       <div className="font-semibold">Booking Summary</div>
 
                       {/* Room info row */}
-                      <div className="flex items-start gap-3 rounded-lg border border-border/60 bg-muted/20 p-3">
+                      <div className="flex items-start gap-3 rounded-lg border border-border/40 bg-muted/10 p-3">
                         <BedDouble className="h-4 w-4 text-foreground/40 mt-0.5 shrink-0" />
                         <div className="min-w-0 space-y-0.5">
                           <div className="font-semibold text-sm">
@@ -373,7 +385,7 @@ export default function FoCheckInPage() {
                       </div>
 
                       {/* Guest details (full width) */}
-                      <div className="flex items-start gap-2.5 rounded-lg border border-border/60 bg-muted/20 p-3">
+                      <div className="flex items-start gap-2.5 rounded-lg border border-border/40 bg-muted/10 p-3">
                         <Users className="h-4 w-4 text-foreground/40 mt-0.5 shrink-0" />
                         <div className="min-w-0 flex-1">
                           <div className="text-[10px] uppercase tracking-wide text-foreground/40 mb-0.5">
@@ -398,7 +410,7 @@ export default function FoCheckInPage() {
 
                       {/* Stay & Arrival details grid */}
                       <div className="grid grid-cols-2 gap-3">
-                        <div className="flex items-start gap-2.5 rounded-lg border border-border/60 bg-muted/20 p-3">
+                        <div className="flex items-start gap-2.5 rounded-lg border border-border/40 bg-muted/10 p-3">
                           <CalendarDays className="h-4 w-4 text-foreground/40 mt-0.5 shrink-0" />
                           <div className="min-w-0">
                             <div className="text-[10px] uppercase tracking-wide text-foreground/40 mb-0.5">
@@ -418,38 +430,58 @@ export default function FoCheckInPage() {
                             ) : null}
                           </div>
                         </div>
-                        <div className="flex items-start gap-2.5 rounded-lg border border-border/60 bg-muted/20 p-3">
-                          <Clock className="h-4 w-4 text-foreground/40 mt-0.5 shrink-0" />
-                          <div className="min-w-0">
-                            <div className="text-[10px] uppercase tracking-wide text-foreground/40 mb-0.5">
-                              Arrival
+                        {(() => {
+                          const isLate = Boolean(
+                            selectedBooking.arrivalTime &&
+                              (selectedBooking.arrivalTime.toLowerCase().includes("midnight") ||
+                                selectedBooking.arrivalTime.toLowerCase().includes("late"))
+                          );
+                          return (
+                            <div className={`flex items-start gap-2.5 rounded-lg border p-3 ${
+                              isLate
+                                ? "border-indigo-500/30 bg-indigo-500/10 text-foreground"
+                                : "border-border/40 bg-muted/10"
+                            }`}>
+                              {isLate ? (
+                                <Moon className="h-4 w-4 text-indigo-600 dark:text-indigo-400 mt-0.5 shrink-0" />
+                              ) : (
+                                <Clock className="h-4 w-4 text-foreground/40 mt-0.5 shrink-0" />
+                              )}
+                              <div className="min-w-0">
+                                <div className="text-[10px] uppercase tracking-wide text-foreground/40 mb-0.5 flex items-center gap-1">
+                                  Arrival {isLate && <span className="text-indigo-600 dark:text-indigo-400 font-semibold">(Late Hold)</span>}
+                                </div>
+                                <div className={`text-xs font-semibold ${isLate ? "text-indigo-600 dark:text-indigo-400" : ""}`}>
+                                  {selectedBooking.arrivalTime || "I don't know"}
+                                </div>
+                                <div className="text-[10px] text-foreground/50 mt-0.5">
+                                  {isLate ? "Hold room past 00:00" : "Estimated time"}
+                                </div>
+                              </div>
                             </div>
-                            <div className="text-xs font-semibold">
-                              {selectedBooking.arrivalTime || "I don't know"}
-                            </div>
-                            <div className="text-[10px] text-foreground/50 mt-0.5">
-                              Estimated time
-                            </div>
-                          </div>
-                        </div>
+                          );
+                        })()}
                       </div>
 
                       {/* Total cost */}
-                      <div className="flex items-center justify-between rounded-lg border border-border/60 bg-muted/20 px-3 py-2.5">
-                        <span className="text-sm text-foreground/60">
-                          Total booking cost
-                        </span>
-                        <span className="text-sm font-bold text-foreground">
-                          PHP{" "}
-                          {Number(
-                            selectedBooking.totalCost ?? 0,
-                          ).toLocaleString()}
-                        </span>
+                      <div className="rounded-lg border border-border/40 bg-muted/10 px-3 py-2.5 space-y-1">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-foreground/60">Total booking cost</span>
+                          <span className="font-bold text-foreground">
+                            PHP {Number(selectedBooking.totalCost ?? 0).toLocaleString()}
+                          </span>
+                        </div>
+                        {selectedBooking.extraPaxTotal > 0 && (
+                          <div className="text-[11px] text-foreground/50 flex items-center justify-between pt-0.5 border-t border-border/40">
+                            <span>Base: ₱{Number(selectedBooking.baseTotal ?? (selectedBooking.totalCost - selectedBooking.extraPaxTotal)).toLocaleString()}</span>
+                            <span>Extra Guests ({selectedBooking.extraPaxCount} pax): +₱{Number(selectedBooking.extraPaxTotal).toLocaleString()}</span>
+                          </div>
+                        )}
                       </div>
 
                       {/* Payment status */}
                       {selectedBooking.paymentType && (
-                        <div className="flex items-start gap-2.5 rounded-lg border border-border/60 bg-muted/20 p-3">
+                        <div className="flex items-start gap-2.5 rounded-lg border border-border/40 bg-muted/10 p-3">
                           <CreditCard className="h-4 w-4 text-foreground/40 mt-0.5 shrink-0" />
                           <div className="min-w-0 flex-1">
                             <div className="text-[10px] uppercase tracking-wide text-foreground/40 mb-0.5">

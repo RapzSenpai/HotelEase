@@ -30,53 +30,56 @@ export const generateReceipt = (data) => {
   // --- HEADER ---
   // Background bar
   doc.setFillColor(...primaryColor);
-  doc.rect(0, 0, pageWidth, 32, 'F');
+  doc.rect(0, 0, pageWidth, 26, 'F');
 
   // "HotelEase" logo
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(22);
+  doc.setFontSize(18);
   doc.setTextColor(...darkTextColor);
-  doc.text("HotelEase", margin, 18);
+  doc.text("HotelEase", margin, 15);
 
   // Subtitle
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(9);
-  doc.text("BSHM Property Management System", margin, 25);
+  doc.setFontSize(8);
+  doc.text("BSHM Property Management System", margin, 21);
 
   // --- OFFICIAL RECEIPT TITLE ---
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(16);
+  doc.setFontSize(14);
   const title = "OFFICIAL RECEIPT";
   const titleWidth = doc.getTextWidth(title);
-  doc.text(title, (pageWidth - titleWidth) / 2, 45);
+  doc.text(title, (pageWidth - titleWidth) / 2, 36);
 
   // Receipt No and Date (Right Aligned)
-  doc.setFontSize(9);
+  doc.setFontSize(8.5);
   doc.setFont("helvetica", "normal");
   doc.setTextColor(...lightTextColor);
-  doc.text(`Receipt No: ${receiptNo}`, pageWidth - margin, 53, { align: 'right' });
-  doc.text(`Date: ${dateStr}`, pageWidth - margin, 58, { align: 'right' });
+  doc.text(`Receipt No: ${receiptNo}`, pageWidth - margin, 42, { align: 'right' });
+  doc.text(`Date: ${dateStr}`, pageWidth - margin, 47, { align: 'right' });
 
   // Separator Line
   doc.setDrawColor(...separatorColor);
   doc.setLineWidth(0.2);
-  doc.line(margin, 63, pageWidth - margin, 63);
+  doc.line(margin, 51, pageWidth - margin, 51);
 
   // --- GUEST INFO ---
   doc.setTextColor(...darkTextColor);
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(11);
-  doc.text("Bill To:", margin, 72);
+  doc.setFontSize(10);
+  doc.text("Bill To:", margin, 58);
   
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(10);
-  doc.text(`Name: ${data.guestName}`, margin, 78);
-  doc.text(`Email: ${data.guestEmail}`, margin, 83);
-  doc.text(`Processed By: ${data.processedBy}`, margin, 88);
+  doc.setFontSize(9);
+  doc.text(`Name: ${data.guestName}`, margin, 63);
+  doc.text(`Email: ${data.guestEmail}`, margin, 68);
+  doc.text(`Processed By: ${data.processedBy}`, margin, 73);
+
+  const baseTotal = data.baseTotal ?? ((data.total ?? data.subtotal) - (data.extraPaxTotal || 0));
+  const hasExtraPax = data.extraPaxTotal > 0;
 
   // --- STAY DETAILS TABLE ---
   autoTable(doc, {
-    startY: 95,
+    startY: 78,
     margin: { left: margin, right: margin },
     head: [['Description', 'Details']],
     body: [
@@ -84,11 +87,12 @@ export const generateReceipt = (data) => {
       ['Check-in', `${new Date(data.checkIn).toLocaleDateString()} at 2:00 PM`],
       ['Check-out', `${new Date(data.checkOut).toLocaleDateString()} at 12:00 NN`],
       ['Duration', `${data.numberOfNights} night(s)`],
-      ['Rate per Night', formatAmount(data.ratePerNight)],
+      ['Base Rate per Night', formatAmount(data.ratePerNight)],
+      ...(hasExtraPax ? [['Extra Guest Policy', `${data.extraPaxCount} extra guest(s) @ ${formatAmount(data.extraPaxFee)}/night`]] : []),
     ],
     theme: 'grid',
     headStyles: { fillColor: primaryColor, textColor: darkTextColor, fontStyle: 'bold' },
-    styles: { fontSize: 9, cellPadding: 5 },
+    styles: { fontSize: 8.5, cellPadding: 3 },
     columnStyles: { 
       0: { fontStyle: 'bold', cellWidth: 50 }, 
       1: { cellWidth: 130 } 
@@ -97,18 +101,20 @@ export const generateReceipt = (data) => {
 
   // --- PAYMENT SUMMARY TABLE ---
   autoTable(doc, {
-    startY: doc.lastAutoTable.finalY + 8,
+    startY: doc.lastAutoTable.finalY + 6,
     margin: { left: margin, right: margin },
-    head: [['Summary', 'Amount']],
+    head: [['Summary Item', 'Amount']],
     body: [
-      ['Total', formatAmount(data.total ?? data.subtotal)],
+      ['Base Room Charges', formatAmount(baseTotal)],
+      ...(hasExtraPax ? [['Extra Guest Surcharge', formatAmount(data.extraPaxTotal)]] : []),
+      ['Total Amount', formatAmount(data.total ?? data.subtotal)],
       ['Amount Paid', formatAmount(data.amountPaid)],
-      ['Balance', formatAmount(data.balance)],
+      ['Balance Due', formatAmount(data.balance)],
       ['Payment Method', `${data.paymentMethod || 'N/A'}`],
     ],
     theme: 'grid',
     headStyles: { fillColor: primaryColor, textColor: darkTextColor, fontStyle: 'bold' },
-    styles: { fontSize: 9, cellPadding: 5 },
+    styles: { fontSize: 8.5, cellPadding: 3 },
     columnStyles: { 
       0: { fontStyle: 'bold', cellWidth: 130 }, 
       1: { cellWidth: 50, halign: 'right' } 
@@ -117,17 +123,16 @@ export const generateReceipt = (data) => {
 
   // --- FOOTER ---
   const finalY = doc.lastAutoTable.finalY;
-  const pageHeight = doc.internal.pageSize.height;
-  const footerY = Math.max(finalY + 20, pageHeight - 35);
+  const footerY = finalY + 12;
   
   doc.setDrawColor(...separatorColor);
   doc.line(margin, footerY, pageWidth - margin, footerY);
   
-  doc.setFontSize(9);
+  doc.setFontSize(8.5);
   doc.setTextColor(...lightTextColor);
-  doc.text("Thank you for choosing HotelEase!", pageWidth / 2, footerY + 8, { align: "center" });
-  doc.setFontSize(8);
-  doc.text("This is a system-generated receipt.", pageWidth / 2, footerY + 13, { align: "center" });
+  doc.text("Thank you for choosing HotelEase!", pageWidth / 2, footerY + 6, { align: "center" });
+  doc.setFontSize(7.5);
+  doc.text("This is a system-generated receipt.", pageWidth / 2, footerY + 10, { align: "center" });
 
   // Save/Download
   doc.save(`HotelEase-Receipt-${receiptNo}.pdf`);

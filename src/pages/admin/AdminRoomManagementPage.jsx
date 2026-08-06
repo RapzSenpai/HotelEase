@@ -28,6 +28,7 @@ import {
 } from "@/services/roomsService";
 import { uploadImageToCloudinary } from "@/services/cloudinaryService";
 import { optimizeCloudinaryUrl } from "@/lib/cloudinaryTransform";
+import { getRoomCapacity, ROOM_TYPE_CAPACITY_DEFAULTS } from "@/lib/roomCapacity";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -63,12 +64,16 @@ const SORT_OPTIONS = [
 // ---------------------------------------------------------------------------
 
 function initialForm() {
+  const defaults = ROOM_TYPE_CAPACITY_DEFAULTS["Single Room"];
   return {
     roomNumber: "",
     name: "",
     type: "Single Room",
     status: "Available",
     ratePerNight: "",
+    basePax: String(defaults.basePax),
+    maxPax: String(defaults.maxPax),
+    extraPaxFee: String(defaults.extraPaxFee),
     description: "",
     floor: "",
     amenitiesCsv: "",
@@ -424,8 +429,17 @@ function SlideOverForm({ open, onClose, editingId, form, setForm, submitError, s
                 value={existingTypes.includes(form.type) ? form.type : (form.type ? "Custom" : "")}
                 onChange={(e) => {
                   const val = e.target.value;
+                  const defaults = ROOM_TYPE_CAPACITY_DEFAULTS[val];
                   if (val === "Custom") {
                     setForm((p) => ({ ...p, type: "" }));
+                  } else if (defaults) {
+                    setForm((p) => ({
+                      ...p,
+                      type: val,
+                      basePax: String(defaults.basePax),
+                      maxPax: String(defaults.maxPax),
+                      extraPaxFee: String(defaults.extraPaxFee),
+                    }));
                   } else {
                     setForm((p) => ({ ...p, type: val }));
                   }
@@ -476,9 +490,9 @@ function SlideOverForm({ open, onClose, editingId, form, setForm, submitError, s
             </div>
           </div>
 
-          {/* ── Section: Pricing ── */}
+          {/* ── Section: Pricing & Capacity ── */}
           <div className="space-y-3">
-            <h3 className="text-xs font-semibold text-foreground/50 uppercase tracking-wider">Pricing & Schedule</h3>
+            <h3 className="text-xs font-semibold text-foreground/50 uppercase tracking-wider">Pricing & Guest Capacity</h3>
 
             <div className="space-y-1.5">
               <Label htmlFor="so-rate" className="text-xs font-medium text-foreground/60">Rate per Night <RequiredIndicator /></Label>
@@ -492,6 +506,41 @@ function SlideOverForm({ open, onClose, editingId, form, setForm, submitError, s
                   className="pl-12"
                   value={form.ratePerNight}
                   onChange={(e) => setForm((p) => ({ ...p, ratePerNight: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-3 pt-1">
+              <div className="space-y-1.5">
+                <Label htmlFor="so-basePax" className="text-xs font-medium text-foreground/60">Base Included Pax <RequiredIndicator /></Label>
+                <Input
+                  id="so-basePax"
+                  type="number"
+                  required
+                  min={1}
+                  value={form.basePax}
+                  onChange={(e) => setForm((p) => ({ ...p, basePax: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="so-maxPax" className="text-xs font-medium text-foreground/60">Max Pax Capacity <RequiredIndicator /></Label>
+                <Input
+                  id="so-maxPax"
+                  type="number"
+                  required
+                  min={1}
+                  value={form.maxPax}
+                  onChange={(e) => setForm((p) => ({ ...p, maxPax: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="so-extraPaxFee" className="text-xs font-medium text-foreground/60">Extra Pax Fee / Night (PHP)</Label>
+                <Input
+                  id="so-extraPaxFee"
+                  type="number"
+                  min={0}
+                  value={form.extraPaxFee}
+                  onChange={(e) => setForm((p) => ({ ...p, extraPaxFee: e.target.value }))}
                 />
               </div>
             </div>
@@ -732,6 +781,9 @@ export default function AdminRoomManagementPage() {
       type: String(form.type ?? "").trim(),
       status: String(form.status ?? "").trim(),
       ratePerNight: Number(form.ratePerNight ?? 0),
+      basePax: Math.max(1, Number(form.basePax) || 1),
+      maxPax: Math.max(1, Number(form.maxPax) || 1),
+      extraPaxFee: Math.max(0, Number(form.extraPaxFee) || 0),
       description: String(form.description ?? "").trim(),
       floor: String(form.floor ?? "").trim(),
       amenities: String(form.amenitiesCsv ?? "")
@@ -755,6 +807,8 @@ export default function AdminRoomManagementPage() {
     if (!payload.status) throw new Error("Room status is required.");
     if (!Number.isFinite(payload.ratePerNight) || payload.ratePerNight <= 0)
       throw new Error("Rate per night must be a positive number.");
+    if (payload.basePax > payload.maxPax)
+      throw new Error("Base pax cannot exceed maximum pax capacity.");
 
     return payload;
   }
@@ -809,6 +863,7 @@ export default function AdminRoomManagementPage() {
   }
 
   function startEdit(room) {
+    const cap = getRoomCapacity(room);
     setEditingId(room.id);
     setForm({
       roomNumber: room.roomNumber ?? "",
@@ -816,6 +871,9 @@ export default function AdminRoomManagementPage() {
       type: room.type ?? "Single Room",
       status: room.status ?? "Available",
       ratePerNight: String(room.ratePerNight ?? ""),
+      basePax: String(cap.basePax),
+      maxPax: String(cap.maxPax),
+      extraPaxFee: String(cap.extraPaxFee),
       description: room.description ?? "",
       floor: room.floor ?? "",
       amenitiesCsv: Array.isArray(room.amenities) ? room.amenities.join(", ") : "",
@@ -1035,6 +1093,7 @@ export default function AdminRoomManagementPage() {
                   <TableHead>Floor</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Rate</TableHead>
+                  <TableHead>Capacity</TableHead>
                   <TableHead>Photos</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -1043,6 +1102,7 @@ export default function AdminRoomManagementPage() {
                 {filteredRooms.map((r) => {
                   const firstPhoto = Array.isArray(r.photos) && r.photos.length > 0 ? r.photos[0] : null;
                   const photoCount = Array.isArray(r.photos) ? r.photos.length : 0;
+                  const cap = getRoomCapacity(r);
                   return (
                     <TableRow
                       key={r.id}
@@ -1078,6 +1138,9 @@ export default function AdminRoomManagementPage() {
                       </TableCell>
                       <TableCell className="text-sm font-semibold text-primary">
                         PHP {Number(r.ratePerNight ?? 0).toLocaleString()}
+                      </TableCell>
+                      <TableCell className="text-xs text-foreground/60">
+                        Max {cap.maxPax} <span className="text-foreground/40">({cap.basePax} incl.)</span>
                       </TableCell>
                       <TableCell className="text-xs text-foreground/40">
                         {photoCount > 0 ? `${photoCount} photo${photoCount !== 1 ? "s" : ""}` : "No photos"}

@@ -144,6 +144,18 @@ export default function HousekeepingList({
                       {room.name || room.type || "Room"}
                       {room.roomNumber ? ` · #${room.roomNumber}` : ""}
                     </div>
+                    {room.isMidStayRequest && (
+                      <div className="mt-1 space-y-1">
+                        <span className="inline-flex items-center gap-1 rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-amber-600 border border-amber-500/20">
+                          ✨ Mid-Stay Request
+                        </span>
+                        {room.midStayNote && (
+                          <p className="text-[11px] italic text-foreground/75 truncate max-w-[180px]" title={room.midStayNote}>
+                            "{room.midStayNote}"
+                          </p>
+                        )}
+                      </div>
+                    )}
                     <div className="mt-1 text-xs text-foreground/45">
                       Floor {room.floor || "—"}
                     </div>

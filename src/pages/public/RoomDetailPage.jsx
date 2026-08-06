@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { NavLink, useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { getRoom, isRoomActive } from "@/services/roomsService";
+import { getRoomCapacity } from "@/lib/roomCapacity";
 import { mapFirebaseError } from "@/lib/errors";
 import { toggleFavorite, subscribeToFavorites } from "@/services/favoritesService";
 import {
@@ -28,6 +29,7 @@ import {
   Wind,
   Tv,
   Bath,
+  Users,
   Wine,
   UtensilsCrossed,
   Car,
@@ -658,7 +660,22 @@ export default function RoomDetailPage() {
                   )}
                 </div>
 
-                <Separator className="bg-border/50" />
+                {/* Guest Capacity Badge */}
+                {(() => {
+                  const cap = getRoomCapacity(room);
+                  return (
+                    <div className="flex items-center gap-3 rounded-xl border border-border/50 bg-white p-3.5 shadow-[0_1px_3px_rgba(28,28,30,0.04)]">
+                      <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary shrink-0">
+                        <Users className="h-4 w-4" />
+                      </div>
+                      <div className="min-w-0 text-sm">
+                        <span className="font-semibold text-foreground">Guest Capacity:</span>{" "}
+                        <span className="text-foreground/85 font-medium">Up to {cap.maxPax} guests</span>{" "}
+                        <span className="text-foreground/50 text-xs font-normal">({cap.basePax} included in rate{cap.extraPaxFee > 0 ? `, +₱${cap.extraPaxFee.toLocaleString()}/night per extra guest` : ""})</span>
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {/* Description */}
                 {room.description && (

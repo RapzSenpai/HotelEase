@@ -91,6 +91,18 @@ export default function Navbar({ onToggleSidebar }) {
                 My Bookings
               </NavLink>
               <NavLink
+                to="/housekeeping"
+                className={({ isActive }) =>
+                  `rounded-md px-3 py-1.5 text-sm transition-colors ${
+                    isActive
+                      ? "bg-primary/10 text-foreground"
+                      : "text-foreground/70 hover:bg-surface-hover hover:text-foreground/90"
+                  }`
+                }
+              >
+                Housekeeping
+              </NavLink>
+              <NavLink
                 to="/favorites"
                 className={({ isActive }) =>
                   `rounded-md px-3 py-1.5 text-sm transition-colors ${
@@ -220,6 +232,19 @@ export default function Navbar({ onToggleSidebar }) {
             >
               <CalendarDays className="h-4 w-4" />
               My Bookings
+            </NavLink>
+
+            <NavLink
+              to="/housekeeping"
+              className={({ isActive }) =>
+                `flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+                  isActive
+                    ? "bg-primary/15 text-primary"
+                    : "text-foreground/80 hover:bg-muted"
+                }`
+              }
+            >
+              Housekeeping
             </NavLink>
 
             <NavLink

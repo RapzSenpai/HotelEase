@@ -185,7 +185,11 @@ export default function FoCheckOutPage() {
       checkIn: booking.checkInDate?.toDate?.() || booking.checkInDate,
       checkOut: booking.checkOutDate?.toDate?.() || booking.checkOutDate,
       numberOfNights: booking.nights,
-      ratePerNight: booking.nights > 0 ? booking.totalCost / booking.nights : 0,
+      ratePerNight: booking.nights > 0 ? Number(booking.baseTotal ?? (booking.totalCost - (booking.extraPaxTotal || 0))) / booking.nights : 0,
+      baseTotal: Number(booking.baseTotal ?? (booking.totalCost - (booking.extraPaxTotal || 0))),
+      extraPaxCount: Number(booking.extraPaxCount ?? 0),
+      extraPaxFee: Number(booking.extraPaxFee ?? 0),
+      extraPaxTotal: Number(booking.extraPaxTotal ?? 0),
       total: booking.totalCost,
       subtotal: booking.totalCost,
       amountPaid: totalPaid,
@@ -499,11 +503,25 @@ export default function FoCheckOutPage() {
                     </div>
                   </CardContent>
 
+                  {selectedBooking.extraPaxTotal > 0 ? (
+                    <div className="rounded-lg border border-border/40 bg-muted/10 p-2.5 space-y-1 text-xs">
+                      <div className="flex items-center justify-between text-foreground/70">
+                        <span>Base Room Rate ({selectedBooking.nights}n):</span>
+                        <span className="font-medium">PHP {Number(selectedBooking.baseTotal ?? (selectedBooking.totalCost - selectedBooking.extraPaxTotal)).toLocaleString()}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-primary font-medium">
+                        <span>Extra Guests ({selectedBooking.extraPaxCount} pax):</span>
+                        <span>+PHP {Number(selectedBooking.extraPaxTotal).toLocaleString()}</span>
+                      </div>
+                    </div>
+                  ) : null}
+
                   {selectedBooking.nights ? (
                     <div className="text-xs text-foreground/50 text-center">
                       {selectedBooking.nights} night
                       {selectedBooking.nights !== 1 ? "s" : ""} ·{" "}
                       {selectedBooking.paxCount ?? 1} pax
+                      {selectedBooking.extraPaxCount > 0 ? ` (${selectedBooking.extraPaxCount} extra)` : ""}
                     </div>
                   ) : null}
                 </Card>

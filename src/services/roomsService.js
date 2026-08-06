@@ -78,6 +78,10 @@ export async function createRoom(payload) {
     policies: payload.policies ?? "",
     checkInTime: payload.checkInTime ?? "",
     checkOutTime: payload.checkOutTime ?? "",
+    // Capacity fields
+    basePax: payload.basePax !== undefined ? Number(payload.basePax) : undefined,
+    maxPax: payload.maxPax !== undefined ? Number(payload.maxPax) : undefined,
+    extraPaxFee: payload.extraPaxFee !== undefined ? Number(payload.extraPaxFee) : undefined,
     facilities: Array.isArray(payload.facilities) ? payload.facilities : [],
     photos: Array.isArray(payload.photos) ? payload.photos : [],
     isActive: payload.isActive ?? true,
@@ -102,6 +106,10 @@ export async function updateRoom(roomId, payload) {
       payload.ratePerNight === undefined
         ? undefined
         : Number(payload.ratePerNight),
+    // Capacity fields
+    basePax: payload.basePax !== undefined ? Number(payload.basePax) : undefined,
+    maxPax: payload.maxPax !== undefined ? Number(payload.maxPax) : undefined,
+    extraPaxFee: payload.extraPaxFee !== undefined ? Number(payload.extraPaxFee) : undefined,
     description: payload.description ?? "",
     floor: payload.floor ?? "",
     amenities: Array.isArray(payload.amenities) ? payload.amenities : [],

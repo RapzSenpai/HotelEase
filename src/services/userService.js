@@ -40,13 +40,14 @@ export async function createUserProfile({
   email,
   role = "guest",
   fullName = "",
+  phone = "",
   trainingMode = false,
 } = {}) {
   const col = usersCollection(trainingMode);
   const ref = doc(db, col, uid);
   await setDoc(
     ref,
-    { uid, email: email ?? null, fullName, role, createdAt: serverTimestamp() },
+    { uid, email: email ?? null, fullName, phone, role, createdAt: serverTimestamp() },
     { merge: true }
   );
 }
@@ -55,6 +56,24 @@ export async function listUsers({ trainingMode = false } = {}) {
   const col = usersCollection(trainingMode);
   const snap = await getDocs(collection(db, col));
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+
+export async function updateUserProfile(uid, patch, { trainingMode = false } = {}) {
+  if (!uid || typeof uid !== "string") throw new Error("Invalid uid passed to updateUserProfile");
+  if (!patch || typeof patch !== "object" || Array.isArray(patch)) {
+    throw new Error("Invalid patch passed to updateUserProfile");
+  }
+
+  const allowed = ["fullName", "phone", "photoUrl"];
+  const invalid = Object.keys(patch).filter((k) => !allowed.includes(k));
+  if (invalid.length > 0) {
+    throw new Error(`Cannot update field(s): ${invalid.join(", ")}`);
+  }
+
+  const col = usersCollection(trainingMode);
+  const ref = doc(db, col, uid);
+  await updateDoc(ref, { ...patch, updatedAt: serverTimestamp() });
+  return { ok: true };
 }
 
 export async function setUserRole(uid, role, { trainingMode = false } = {}) {

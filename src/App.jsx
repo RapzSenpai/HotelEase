@@ -17,6 +17,7 @@ const BookingPage = lazy(() => import("@/pages/public/BookingPage"));
 const MyBookingsPage = lazy(() => import("@/pages/public/MyBookingsPage"));
 const ProfilePage = lazy(() => import("@/pages/public/ProfilePage"));
 const FavoritesPage = lazy(() => import("@/pages/public/FavoritesPage"));
+const HousekeepingPage = lazy(() => import("@/pages/public/HousekeepingPage"));
 const AboutPage = lazy(() => import("@/pages/public/AboutPage"));
 const ContactPage = lazy(() => import("@/pages/public/ContactPage"));
 const PrivacyPage = lazy(() => import("@/pages/public/PrivacyPage"));
@@ -120,6 +121,14 @@ export default function App() {
           element={
             <PrivateRoute allowedRoles={["guest"]}>
               <SuspenseWrapper><FavoritesPage /></SuspenseWrapper>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/housekeeping"
+          element={
+            <PrivateRoute allowedRoles={["guest"]}>
+              <SuspenseWrapper><HousekeepingPage /></SuspenseWrapper>
             </PrivateRoute>
           }
         />

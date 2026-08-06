@@ -267,7 +267,7 @@ export default function FoAnnouncementsPage() {
               </div>
 
               <div className="flex flex-col gap-1.5 pt-1">
-                <Button type="submit" disabled={submitting} size="sm" className="w-full h-9">
+                <Button type="submit" disabled={submitting} size="default" className="w-full">
                   {submitting ? "Saving..." : editingId ? "Save Changes" : "Publish"}
                 </Button>
                 {editingId && (
@@ -275,7 +275,7 @@ export default function FoAnnouncementsPage() {
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="w-full h-8 text-xs"
+                    className="w-full text-xs"
                     onClick={resetForm}
                   >
                     Cancel

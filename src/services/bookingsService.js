@@ -21,6 +21,7 @@ import { uploadImageToCloudinary } from "./cloudinaryService";
 import { sendBookingConfirmation } from "./emailService";
 import { recordPayment } from "./paymentsService";
 import { calculatePartialPayment, PROOF_REQUIRED_METHODS } from "@/lib/paymentDetails";
+import { getRoomCapacity } from "@/lib/roomCapacity";
 import { auth } from "@/firebase/firebase.config";
 
 const CANCELLED_STATUS = "Cancelled";
@@ -402,7 +403,14 @@ export async function createBooking(payload) {
       throw new Error("This room is not currently bookable.");
     }
 
-    const totalCost = Number(dataOr(roomData, "ratePerNight", 0)) * nights;
+    const paxCount = Number(payload.paxCount ?? 1);
+    const roomCapacity = getRoomCapacity(roomData);
+    const extraPaxCount = Math.max(0, paxCount - roomCapacity.basePax);
+    const baseRate = Number(dataOr(roomData, "ratePerNight", 0));
+    const baseTotal = baseRate * nights;
+    const extraPaxFee = roomCapacity.extraPaxFee;
+    const extraPaxTotal = extraPaxCount * extraPaxFee * nights;
+    const totalCost = baseTotal + extraPaxTotal;
 
     // Phase 18.2: Determine initial status based on payment method
     // Proof-exempt methods (OTC, Card) skip "Awaiting Payment" and go straight to "Pending"
@@ -422,10 +430,14 @@ export async function createBooking(payload) {
       checkInDate: checkInTs,
       checkOutDate: checkOutTs,
       nights,
+      baseTotal,
       totalCost,
       status: initialStatus,
       bookingType: "Online",
-      paxCount: Number(payload.paxCount ?? 1),
+      paxCount,
+      extraPaxCount,
+      extraPaxFee,
+      extraPaxTotal,
       specialRequests: payload.specialRequests ?? "",
       // P0.3 — lead guest fields (supports booking-on-behalf-of, separate from guestId)
       leadGuestName: payload.leadGuestName ?? null,

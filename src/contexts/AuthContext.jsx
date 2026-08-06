@@ -51,6 +51,7 @@ export function AuthProvider({ children }) {
             setRole(null);
             setProfile(null);
             setTrainingMode(false);
+            setAuthError(null); // clear any stale error from sign-out transition
             assignedRoleRef.current = null;
             setLoading(false);
             return;
@@ -126,7 +127,7 @@ export function AuthProvider({ children }) {
       }
     }
 
-    async function register({ email, password, fullName = "" }) {
+    async function register({ email, password, fullName = "", phone = "" }) {
       setAuthError(null);
       setLoading(true);
       assignedRoleRef.current = "guest";
@@ -145,6 +146,7 @@ export function AuthProvider({ children }) {
           email: cred.user.email,
           role: "guest",
           fullName,
+          phone,
           trainingMode: effectiveTrainingMode,
         });
 

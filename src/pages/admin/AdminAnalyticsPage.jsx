@@ -227,7 +227,7 @@ export default function AdminAnalyticsPage() {
                 <div className="col-span-3 text-center py-6 text-muted-foreground">No bookings recorded in this range.</div>
               ) : (
                 summary.peakBookingDays.map((p, idx) => (
-                  <div key={p.date} className="flex items-center gap-4 p-4 rounded-xl bg-muted/30">
+                  <div key={p.date} className="flex items-center gap-4 p-4 rounded-xl bg-muted/10">
                     <div className="w-8 h-8 rounded-full bg-gold/20 text-gold flex items-center justify-center font-bold text-sm">
                       {idx + 1}
                     </div>

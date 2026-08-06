@@ -391,7 +391,7 @@ export default function FoDashboardPage() {
             Live room overview with status tracking and quick-action shortcuts.
           </p>
         </div>
-        <div className="rounded-lg border border-border/60 bg-muted/20 px-3 py-2 text-xs text-foreground/60">
+        <div className="rounded-lg border border-border/40 bg-muted/10 px-3 py-2 text-xs text-foreground/60">
           <span className="font-semibold text-foreground/80">Shortcuts:</span>{" "}
           <kbd className="rounded border border-border bg-background px-1.5 py-0.5 font-mono">C</kbd>{" "}
           Check-in ·{" "}

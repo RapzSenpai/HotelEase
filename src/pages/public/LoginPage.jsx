@@ -147,7 +147,7 @@ export default function LoginPage() {
           </div>
         )}
 
-        <Button type="submit" size="lg" className="w-full" disabled={loading || isLocked}>
+        <Button type="submit" size="default" className="w-full" disabled={loading || isLocked}>
           {isLocked ? `Locked — ${remainingSeconds}s` : loading ? "Signing in..." : "Login"}
         </Button>
 
@@ -243,7 +243,7 @@ export default function LoginPage() {
               <Button
                 type="button"
                 variant="default"
-                size="lg"
+                size="default"
                 className="w-full"
                 disabled={trainingSubmitting || !trainingCode || !trainingRole}
                 onClick={async () => {
