@@ -19,7 +19,7 @@ import {
   isValidHousekeepingTransition,
   resolveDropStatus,
 } from "@/lib/room-status-transitions";
-import { getStatusCardClasses } from "@/components/rooms/RoomStatusBadge";
+import { getStatusCardClasses } from "@/components/rooms/roomStatusHelpers";
 import StaffAssignmentBadge from "@/components/rooms/StaffAssignmentBadge";
 import CleaningTimer from "@/components/rooms/CleaningTimer";
 import HousekeepingPhotoUpload from "@/components/housekeeping/HousekeepingPhotoUpload";

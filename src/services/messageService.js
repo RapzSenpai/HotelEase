@@ -12,8 +12,9 @@ import {
 } from "firebase/firestore";
 import emailjs from "@emailjs/browser";
 import { db } from "@/firebase/firebase.config";
-import { listUsers } from "@/services/userService";
+import { listFoUsers } from "@/services/userService";
 import { createNotification } from "@/services/notificationService";
+import { buildReplyBody } from "@/services/emailHtml";
 
 const MESSAGES_COL = "messages";
 
@@ -29,8 +30,9 @@ async function sendReplyEmail({ toEmail, name, subject, replyMessage }) {
   const templateParams = {
     to_email: toEmail,
     to_name: name,
-    subject: subject,
-    reply_message: replyMessage,
+    subject: `Re: ${subject}`,
+    eyebrow: "Support Reply",
+    bodyHTML: buildReplyBody(subject, replyMessage),
   };
 
   await emailjs.send(serviceId, templateId, templateParams, publicKey);
@@ -61,8 +63,8 @@ export async function submitMessage({ name, email, subject, message, guestId = n
   });
 
   try {
-    const users = await listUsers();
-    const foUsers = users.filter((u) => u.role === "fo");
+    // Guest-safe: only read FO-role users (guests must not list other guests).
+    const foUsers = await listFoUsers();
     await Promise.all(
       foUsers.map((fo) =>
         createNotification(fo.id, {

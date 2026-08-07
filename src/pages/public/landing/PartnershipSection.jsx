@@ -1,6 +1,6 @@
 import hotelLogo from "@/assets/Hotellogo.png";
 import cctcLogo from "@/assets/logocctc.png";
-import { SectionEyebrow, AmbientGlow, LayeredLogoBadge } from "./helpers";
+import { SectionEyebrow, AmbientGlow, LayeredLogoBadge } from "./components";
 
 export default function PartnershipSection() {
   return (

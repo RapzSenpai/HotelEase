@@ -64,12 +64,14 @@ service cloud.firestore {
     // --- PRODUCTION COLLECTIONS (Protected) ---
 
     match /users/{uid} {
-      // Allow any signed-in (non-anonymous) user to read user docs.
-      // Needed so guests can query FO staff when sending cancellation notifications.
-      // User docs only contain: uid, email, fullName, role — no sensitive data.
-      allow read: if isAuthenticated() && !isAnonymous();
+      // Read: FO/Admin may read any user. A guest may read their OWN profile,
+      // plus FO-role user docs (used when fanning out cancellation/support
+      // notifications). Guests must NOT be able to enumerate other guests.
+      allow read: if (isProdFOOrAdmin() && !isAnonymous()) ||
+                       (!isAnonymous() && isOwner(uid)) ||
+                       (!isAnonymous() && resource.data.role == 'fo');
       allow create: if isOwner(uid) && !isAnonymous() && request.resource.data.role == 'guest';
-      allow update: if (isOwner(uid) && !isAnonymous() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['fullName', 'email', 'phone', 'photoUrl', 'updatedAt', 'lastLoginAt', 'lastLoginIp', 'isOnline', 'lastSeenAt', 'sessions', 'lastLoginDevice', 'revokedSessions', 'currentSessionId', 'lastSessionActiveAt', 'activeSessionId', 'sessionRevokeTimestamp'])) || isProdAdmin();
+      allow update: if (isOwner(uid) && !isAnonymous() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['fullName', 'email', 'phone', 'photoUrl', 'updatedAt', 'lastLoginAt', 'lastLoginIp', 'isOnline', 'lastSeenAt', 'sessions', 'lastLoginDevice', 'revokedSessions', 'currentSessionId', 'lastSessionActiveAt', 'activeSessionId', 'sessionRevokeTimestamp', 'emailVerified', 'verifiedAt', 'verificationCodeHash', 'verificationExpiresAt', 'verificationAttempts', 'verificationResendAt'])) || isProdAdmin();
       allow delete: if isProdAdmin() && !isAnonymous();
 
       // Favorites subcollection - users can manage their own favorites
@@ -79,7 +81,8 @@ service cloud.firestore {
     }
 
     match /rooms/{roomId} {
-      allow read: if isAuthenticated();
+      // Public catalog — the /rooms library page is browsable without signing in.
+      allow read: if true;
       allow create, delete: if isProdFOOrAdmin() && !isAnonymous();
       // FO/Admin: full updates. Guests: may ONLY trigger a mid-stay housekeeping
       // request by flipping a room to "Dirty / Needs Cleaning", and may only
@@ -96,8 +99,10 @@ service cloud.firestore {
     }
 
     match /bookings/{id} {
-      // Read: Allow all authenticated users so they can fetch room availability for the calendar.
-      allow read: if isAuthenticated();
+      // Read: FO/Admin may read all. A guest may read only their OWN bookings.
+      // Guests read occupancy via the PII-free `room_availability` collection.
+      allow read: if (isProdFOOrAdmin() && !isAnonymous()) ||
+                       (!isAnonymous() && isOwner(resource.data.guestId));
       
       // CREATE: GuestId must match authenticated user
       allow create: if isAuthenticated() && 
@@ -120,6 +125,35 @@ service cloud.firestore {
                           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['paymentProofUrl', 'paymentType', 'paymentMethod', 'proofUploadedAt', 'status', 'updatedAt']))));
 
       allow delete: if isProdFOOrAdmin() && !isAnonymous();
+    }
+
+    // PII-free availability markers (PROD). Guests read occupancy here instead of
+    // the `bookings` collection. Contains ONLY { roomId, date, bookingId, status }.
+    match /room_availability/{markerId} {
+      allow read: if isAuthenticated() && !isAnonymous();
+
+      // Guest writes must reference a REAL booking they own that is currently
+      // active — so a guest can only mark/unmark nights tied to their own hold.
+      function guestOwnsActiveBooking(bookingId) {
+        let ref = /databases/$(database)/documents/bookings/$(bookingId);
+        return bookingId is string &&
+               exists(ref) &&
+               get(ref).data.guestId == request.auth.uid &&
+               get(ref).data.status in ['Awaiting Payment', 'Pending', 'Approved', 'Checked In'];
+      }
+
+      allow create: if (isProdFOOrAdmin() && !isAnonymous()) ||
+                       (isAuthenticated() && !isAnonymous() &&
+                        guestOwnsActiveBooking(request.resource.data.bookingId) &&
+                        request.resource.data.status in ['Awaiting Payment', 'Pending', 'Approved', 'Checked In']);
+
+      allow update: if (isProdFOOrAdmin() && !isAnonymous()) ||
+                       (isAuthenticated() && !isAnonymous() &&
+                        guestOwnsActiveBooking(resource.data.bookingId));
+
+      allow delete: if (isProdFOOrAdmin() && !isAnonymous()) ||
+                       (isAuthenticated() && !isAnonymous() &&
+                        guestOwnsActiveBooking(resource.data.bookingId));
     }
 
     match /payments/{id} {

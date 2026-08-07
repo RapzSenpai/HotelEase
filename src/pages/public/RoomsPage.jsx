@@ -376,10 +376,13 @@ export default function RoomsPage() {
     let settled = false;
     setLoading(true);
 
-    // Lazy-expire stale bookings
-    checkAndExpireStaleBookings({ trainingMode }).catch((e) => {
-      console.error("Failed to check stale bookings:", e);
-    });
+    // Lazy-expire stale bookings (staff/training only — global sweep reads the
+    // whole bookings collection, which guests aren't allowed to do /rooms rules)
+    if (role === "fo" || role === "admin" || trainingMode) {
+      checkAndExpireStaleBookings({ trainingMode }).catch((e) => {
+        console.error("Failed to check stale bookings:", e);
+      });
+    }
 
     const unsubscribe = subscribeToRooms(
       (data) => {
@@ -395,7 +398,7 @@ export default function RoomsPage() {
     return () => {
       if (typeof unsubscribe === "function") unsubscribe();
     };
-  }, [trainingMode]);
+  }, [trainingMode, role]);
 
   useEffect(() => {
     if (!user || role !== "guest") {

@@ -15,6 +15,7 @@ const RoomDetailPage = lazy(() => import("@/pages/public/RoomDetailPage"));
 const LoginPage = lazy(() => import("@/pages/public/LoginPage"));
 const RegisterPage = lazy(() => import("@/pages/public/RegisterPage"));
 const ForgotPasswordPage = lazy(() => import("@/pages/public/ForgotPasswordPage"));
+const VerifyEmailPage = lazy(() => import("@/pages/public/VerifyEmailPage"));
 const BookingPage = lazy(() => import("@/pages/public/BookingPage"));
 const MyBookingsPage = lazy(() => import("@/pages/public/MyBookingsPage"));
 const ProfilePage = lazy(() => import("@/pages/public/ProfilePage"));
@@ -111,6 +112,18 @@ export default function App() {
               <GuestAuthRoute>
                 <SuspenseWrapper><ForgotPasswordPage /></SuspenseWrapper>
               </GuestAuthRoute>
+            </MaintenanceRoute>
+          }
+        />
+
+        {/* Email verification gate — unverified guests are redirected here by PrivateRoute */}
+        <Route
+          path="/verify-email"
+          element={
+            <MaintenanceRoute>
+              <PrivateRoute allowedRoles={["guest"]}>
+                <SuspenseWrapper><VerifyEmailPage /></SuspenseWrapper>
+              </PrivateRoute>
             </MaintenanceRoute>
           }
         />

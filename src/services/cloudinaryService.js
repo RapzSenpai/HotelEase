@@ -21,10 +21,10 @@ const UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
 /**
  * Upload a single File object to Cloudinary.
  * @param {File} file
- * @param {{ folder?: string, onProgress?: (pct: number) => void }} options
+ * @param {{ onProgress?: (pct: number) => void, compressionPreset?: string }} options
  * @returns {Promise<{ url: string, publicId: string }>}
  */
-export async function uploadImageToCloudinary(file, { folder = "rooms", onProgress, compressionPreset = "roomPhotos" } = {}) {
+export async function uploadImageToCloudinary(file, { onProgress, compressionPreset = "roomPhotos" } = {}) {
   file = await compressImage(file, compressionPreset);
   if (!CLOUD_NAME || !UPLOAD_PRESET) {
     throw new Error(

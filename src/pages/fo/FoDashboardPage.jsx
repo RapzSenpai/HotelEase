@@ -82,7 +82,8 @@ const STATUS_FILTERS = [
   { id: "Housekeeping", label: "Housekeeping" },
 ];
 
-function MetricPill({ label, value, icon: Icon }) {
+function MetricPill({ label, value, icon }) {
+  const Icon = icon;
   return (
     <div className="flex items-center gap-2 rounded-lg border border-border/60 bg-background px-3 py-2">
       <Icon className="h-4 w-4 shrink-0 text-foreground/45" />
@@ -132,7 +133,7 @@ function matchesHotkeyAction(room, hotkey, trainingMode, trainingBookingsByRoomI
 
 export default function FoDashboardPage() {
   const navigate = useNavigate();
-  const { trainingMode, user, profile } = useAuth();
+  const { trainingMode } = useAuth();
   const [rooms, setRooms] = useState([]);
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -143,9 +144,6 @@ export default function FoDashboardPage() {
   const [trainingBookingsByRoomId, setTrainingBookingsByRoomId] = useState(
     new Map(),
   );
-
-  const currentStaffName =
-    profile?.fullName || user?.displayName || user?.email || "Staff";
 
   const prevStatusesRef = useRef(null);
   const isInitialLoadRef = useRef(true);
@@ -279,6 +277,7 @@ export default function FoDashboardPage() {
     const activeStatuses = visibleRooms.filter(
       (room) => room.status && room.status !== "Available",
     );
+    const nowMs = new Date().getTime();
     const avgMinutes =
       activeStatuses.length > 0
         ? Math.round(
@@ -286,7 +285,7 @@ export default function FoDashboardPage() {
               const ts = getStatusTimestamp(room);
               const date = toJsDate(ts);
               if (!date) return sum;
-              return sum + (Date.now() - date.getTime()) / 60000;
+              return sum + (nowMs - date.getTime()) / 60000;
             }, 0) / activeStatuses.length,
           )
         : 0;

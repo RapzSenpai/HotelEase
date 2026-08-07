@@ -11,7 +11,7 @@ export default function HousekeepingPhotoUpload({
   compact = false,
 }) {
   const [uploading, setUploading] = useState(false);
-  const [progress, setProgress] = useState(0);
+  const [, setProgress] = useState(0);
   const [uploadError, setUploadError] = useState(null);
 
   async function handleFiles(event) {

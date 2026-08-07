@@ -4,17 +4,6 @@ function normalizeStatus(status) {
   return (status || "").trim();
 }
 
-export function getStatusCardClasses(status) {
-  return "border-border bg-background hover:border-border/80";
-}
-
-export const HOUSEKEEPING_STEPS = [
-  "Dirty / Needs Cleaning",
-  "Being Cleaned",
-  "Pending Approval",
-  "Available",
-];
-
 export default function RoomStatusBadge({ status }) {
   const s = normalizeStatus(status);
 

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
@@ -12,16 +12,21 @@ export default function Navbar({ onToggleSidebar }) {
   const location = useLocation();
   const [mobileGuestMenuOpen, setMobileGuestMenuOpen] = useState(false);
 
+  // Auto-close mobile guest drawer when route changes (state adjusted during
+  // render — not in an effect — per React's "adjusting state on props change").
+  const [prevPathname, setPrevPathname] = useState(location.pathname);
+  if (prevPathname !== location.pathname) {
+    setPrevPathname(location.pathname);
+    if (mobileGuestMenuOpen) {
+      setMobileGuestMenuOpen(false);
+    }
+  }
+
   const isLanding = location.pathname === "/";
   const roleResolved = !user || !loading;
   const isFoOrAdmin = roleResolved && isStaffRole(role);
   const isGuest = roleResolved && user && role === "guest";
   const homePath = getLogoHomePath(role);
-
-  // Auto-close mobile guest drawer when route changes
-  useEffect(() => {
-    setMobileGuestMenuOpen(false);
-  }, [location.pathname]);
 
   const logo = (
     <>

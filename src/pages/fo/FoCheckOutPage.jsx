@@ -21,16 +21,6 @@ import { listUsers } from "@/services/userService";
 import { useAuth } from "@/contexts/AuthContext";
 import { trackEvent, GA_EVENTS } from "@/services/gaService";
 
-function formatDate(tsLike) {
-  try {
-    const d = tsLike?.toDate ? tsLike.toDate() : tsLike;
-    if (!d) return "—";
-    return d.toISOString().slice(0, 10);
-  } catch {
-    return "—";
-  }
-}
-
 function formatMethod(p) {
   // Check top-level `note` field first (written by updated paymentsService),
   // then fall back to legacy methodDetails sub-fields for older records.
@@ -66,7 +56,6 @@ export default function FoCheckOutPage() {
   const [paymentMethod, setPaymentMethod] = useState("Cash");
   const [paymentRef, setPaymentRef] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [paymentSuccess, setPaymentSuccess] = useState(false);
   const [lastReceiptData, setLastReceiptData] = useState(null);
   const [generatingReceipt, setGeneratingReceipt] = useState(false);
 
@@ -290,7 +279,6 @@ export default function FoCheckOutPage() {
       console.log("[FoCheckOutPage] recordPayment succeeded:", result);
 
       setLastReceiptData(result.receiptData);
-      setPaymentSuccess(true);
       setPaymentRef("");
       await refreshAll(selectedBookingId);
     } catch (e) {
@@ -554,7 +542,7 @@ export default function FoCheckOutPage() {
                       <Button
                         variant="default"
                         className="flex-1"
-                        onClick={() => setPaymentSuccess(false)}
+                        onClick={() => setLastReceiptData(null)}
                       >
                         Done
                       </Button>

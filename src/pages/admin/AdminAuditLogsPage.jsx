@@ -100,10 +100,17 @@ export default function AdminAuditLogsPage() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [viewingLog, setViewingLog] = useState(null);
 
-  useEffect(() => {
+  // Reset fetch/loading state when the query signature changes. Done during
+  // render (not synchronously inside the effect) to keep effects side-effect free.
+  const filterKey = `${actionTypeFilter}|${targetTypeFilter}|${limit}|${trainingMode}|${refreshKey}`;
+  const [prevFilterKey, setPrevFilterKey] = useState(filterKey);
+  if (prevFilterKey !== filterKey) {
+    setPrevFilterKey(filterKey);
     setLoading(true);
     setError(null);
+  }
 
+  useEffect(() => {
     const unsub = subscribeToAuditLogs(
       {
         actionType: actionTypeFilter === "all" ? undefined : actionTypeFilter,

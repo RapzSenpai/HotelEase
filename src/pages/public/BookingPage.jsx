@@ -257,7 +257,7 @@ export default function BookingPage() {
     } finally {
       setSubmitting(false);
     }
-  }, [user, room, resolvedRoomId, roomActive, bookable, checkIn, checkOut, paxCount, pricing, roomCapacity, specialRequests, trainingMode, totalCost, paymentMethod, paymentType]);
+  }, [user, room, resolvedRoomId, roomActive, bookable, checkIn, checkOut, paxCount, pricing, roomCapacity, specialRequests, trainingMode, totalCost, paymentMethod, paymentType, arrivalTime, countryCode, honeypot, leadGuestEmail, leadGuestName, phoneNumber]);
 
   // Phase 10/11: exact signature preserved — only "GCash" arg replaced by paymentMethod
   async function handleUploadProof() {

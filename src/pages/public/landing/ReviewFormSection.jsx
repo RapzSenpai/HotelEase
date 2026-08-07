@@ -7,7 +7,8 @@ import { NavLink } from "react-router-dom";
 import { Star, Quote } from "lucide-react";
 import { createTestimonial } from "@/services/testimonialsService";
 import { mapFirebaseError } from "@/lib/errors";
-import { AmbientGlow, cleanPanel } from "./helpers";
+import { AmbientGlow } from "./components";
+import { cleanPanel } from "./helpers";
 
 function StarSelector({ value, onChange, disabled }) {
   const [hovered, setHovered] = useState(0);

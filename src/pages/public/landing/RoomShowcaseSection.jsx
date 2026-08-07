@@ -7,6 +7,8 @@ import { optimizeCloudinaryUrl } from "@/lib/cloudinaryTransform";
 import {
   SectionEyebrow,
   AmbientGlow,
+} from "./components";
+import {
   cleanPanel,
   getRoomHeadline,
   getRoomAmenities,

@@ -3,10 +3,12 @@ import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 
 import { listBookingsForRoom } from "@/services/bookingsService";
+import { getRoomAvailabilityCards } from "@/services/availabilityService";
 
 const statusToColor = {
   Pending: "#F97316", // warning/orange
   Approved: "#8B5CF6", // reserved/purple
+  "Awaiting Payment": "#F59E0B",
   "Checked In": "#EF4444", // danger/red
   "Checked Out": "#6B7280", // muted/gray
   Cancelled: "#94A3B8",
@@ -20,6 +22,34 @@ export default function RoomBookingsCalendar({ roomId, trainingMode = false }) {
 
   useEffect(() => {
     let isMounted = true;
+
+    // Reconstruct full-range events from night markers by grouping on bookingId.
+    function fromMarkers(cards) {
+      const byBooking = new Map();
+      for (const c of cards) {
+        if (!c.bookingId) continue;
+        if (!byBooking.has(c.bookingId)) {
+          byBooking.set(c.bookingId, { id: c.bookingId, status: c.status, start: null, end: null });
+        }
+        const g = byBooking.get(c.bookingId);
+        const d = new Date(`${c.date}T00:00:00`);
+        const dEnd = new Date(d);
+        dEnd.setDate(dEnd.getDate() + 1);
+        g.start = g.start && g.start < d ? g.start : d;
+        g.end = g.end && g.end > dEnd ? g.end : dEnd;
+        if (g.status !== c.status) g.status = c.status;
+      }
+      return [...byBooking.values()].map((g) => ({
+        id: g.id,
+        title: g.status,
+        start: g.start,
+        end: g.end,
+        backgroundColor: statusToColor[g.status] || "#F5C518",
+        borderColor: statusToColor[g.status] || "#F5C518",
+        allDay: true,
+      }));
+    }
+
     async function load() {
       try {
         setLoading(true);
@@ -29,24 +59,31 @@ export default function RoomBookingsCalendar({ roomId, trainingMode = false }) {
           setLoading(false);
           return;
         }
-        const bookings = await listBookingsForRoom(normalizedRoomId, { trainingMode });
+
+        let mapped;
+        if (trainingMode) {
+          // Legacy path: full booking objects from the open training sandbox.
+          const bookings = await listBookingsForRoom(normalizedRoomId, { trainingMode });
+          mapped = bookings.map((b) => {
+            const start = b.checkInDate?.toDate ? b.checkInDate.toDate() : b.checkInDate;
+            const end = b.checkOutDate?.toDate ? b.checkOutDate.toDate() : b.checkOutDate;
+            return {
+              id: b.id,
+              title: b.status,
+              start,
+              end,
+              backgroundColor: statusToColor[b.status] || "#F5C518",
+              borderColor: statusToColor[b.status] || "#F5C518",
+              allDay: true,
+            };
+          });
+        } else {
+          // PROD: PII-free night markers (guests can't read other guests' bookings).
+          const cards = await getRoomAvailabilityCards(normalizedRoomId);
+          mapped = fromMarkers(cards);
+        }
+
         if (!isMounted) return;
-
-        const mapped = bookings.map((b) => {
-          const start = b.checkInDate?.toDate ? b.checkInDate.toDate() : b.checkInDate;
-          const end = b.checkOutDate?.toDate ? b.checkOutDate.toDate() : b.checkOutDate;
-
-          return {
-            id: b.id,
-            title: b.status,
-            start,
-            end,
-            backgroundColor: statusToColor[b.status] || "#F5C518",
-            borderColor: statusToColor[b.status] || "#F5C518",
-            allDay: true,
-          };
-        });
-
         setEvents(mapped);
       } catch (e) {
         if (!isMounted) return;

@@ -4,7 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { getMaintenanceStatus } from "@/services/maintenanceService";
 
 export default function MaintenanceRoute({ children }) {
-  const { user, role, loading } = useAuth();
+  const { role } = useAuth();
   const [maintenanceCheck, setMaintenanceCheck] = useState({
     enabled: false,
     loading: true,

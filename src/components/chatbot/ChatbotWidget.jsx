@@ -131,7 +131,6 @@ export default function ChatbotWidget() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [showQuickReplies, setShowQuickReplies] = useState(true);
-  const [isAnimating, setIsAnimating] = useState(false);
   const listRef = useRef(null);
   const inputRef = useRef(null);
 

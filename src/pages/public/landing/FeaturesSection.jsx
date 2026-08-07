@@ -1,5 +1,6 @@
 import { Card, CardContent, CardDescription, CardTitle } from "@/components/ui/card";
-import { SectionEyebrow, AmbientGlow, FEATURES, BENTO_FEATURE_LAYOUT } from "./helpers";
+import { SectionEyebrow, AmbientGlow } from "./components";
+import { FEATURES, BENTO_FEATURE_LAYOUT } from "./helpers";
 
 export default function FeaturesSection() {
   return (

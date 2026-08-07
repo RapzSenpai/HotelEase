@@ -11,12 +11,19 @@ function urgencyClass(minutes) {
 export default function CleaningTimer({ startedAt, label = "Cleaning for" }) {
   const [elapsed, setElapsed] = useState(null);
 
+  // Reset elapsed when the startedAt changes to an invalid value (state
+  // adjusted during render rather than synchronously inside the effect).
+  const [prevStartedAt, setPrevStartedAt] = useState(startedAt);
+  if (prevStartedAt !== startedAt) {
+    setPrevStartedAt(startedAt);
+    if (!toJsDate(startedAt)) {
+      setElapsed(null);
+    }
+  }
+
   useEffect(() => {
     const startDate = toJsDate(startedAt);
-    if (!startDate) {
-      setElapsed(null);
-      return;
-    }
+    if (!startDate) return;
 
     const tick = () => setElapsed(formatElapsed(startDate));
     tick();

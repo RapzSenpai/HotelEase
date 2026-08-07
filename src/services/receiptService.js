@@ -13,7 +13,6 @@ export const generateReceipt = (data) => {
   const dateStr = paymentDate.toLocaleDateString();
   const pageWidth = doc.internal.pageSize.width; // 210
   const margin = 15;
-  const contentWidth = pageWidth - (margin * 2); // 180
 
   const formatAmount = (num) => 
     `Php ${Number(num).toLocaleString('en-PH', {
@@ -140,6 +139,145 @@ export const generateReceipt = (data) => {
   return {
     receiptNo,
     receiptGeneratedAt: new Date()
+  };
+};
+
+/**
+ * Generates a professional Check-In Slip / Guest Registration PDF for HotelEase.
+ * Issued to the guest at the front desk during check-in as a reference for
+ * their stay (paid-to-date + balance due). Separate from the check-out receipt.
+ *
+ * @param {Object} data - Check-in slip data
+ * @returns {Object} Slip metadata for Firestore
+ */
+export const generateCheckInSlip = (data) => {
+  const doc = new jsPDF();
+  const slipNo = data.slipNo || data.receiptNo || "CIS-" + Date.now();
+  const issuedDate = data.issuedDate instanceof Date ? data.issuedDate : new Date(data.issuedDate || Date.now());
+  const dateStr = issuedDate.toLocaleDateString();
+  const pageWidth = doc.internal.pageSize.width; // 210
+  const margin = 15;
+
+  const formatAmount = (num) =>
+    `Php ${Number(num).toLocaleString('en-PH', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    })}`
+
+  // Colors
+  const primaryColor = [245, 197, 24]; // #F5C518
+  const darkTextColor = [33, 33, 33];
+  const lightTextColor = [100, 100, 100];
+  const separatorColor = [200, 200, 200];
+
+  // --- HEADER ---
+  doc.setFillColor(...primaryColor);
+  doc.rect(0, 0, pageWidth, 26, 'F');
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(18);
+  doc.setTextColor(...darkTextColor);
+  doc.text("HotelEase", margin, 15);
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8);
+  doc.text("BSHM Property Management System", margin, 21);
+
+  // --- CHECK-IN SLIP TITLE ---
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(14);
+  const title = "CHECK-IN SLIP";
+  const titleWidth = doc.getTextWidth(title);
+  doc.text(title, (pageWidth - titleWidth) / 2, 36);
+
+  // Slip No and Date (Right Aligned)
+  doc.setFontSize(8.5);
+  doc.setFont("helvetica", "normal");
+  doc.setTextColor(...lightTextColor);
+  doc.text(`Slip No: ${slipNo}`, pageWidth - margin, 42, { align: 'right' });
+  doc.text(`Date: ${dateStr}`, pageWidth - margin, 47, { align: 'right' });
+
+  // Separator Line
+  doc.setDrawColor(...separatorColor);
+  doc.setLineWidth(0.2);
+  doc.line(margin, 51, pageWidth - margin, 51);
+
+  // --- GUEST INFO ---
+  doc.setTextColor(...darkTextColor);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(10);
+  doc.text("Guest:", margin, 58);
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.text(`Name: ${data.guestName}`, margin, 63);
+  doc.text(`Email: ${data.guestEmail}`, margin, 68);
+  doc.text(`Phone: ${data.guestPhone || "—"}`, margin, 73);
+  doc.text(`Front Desk: ${data.processedBy}`, margin, 78);
+
+  // --- STAY DETAILS TABLE ---
+  let startY = data.guestPhone ? 86 : 83;
+  autoTable(doc, {
+    startY,
+    margin: { left: margin, right: margin },
+    head: [['Description', 'Details']],
+    body: [
+      ['Room', `${data.roomName} (${data.roomType})`],
+      ['Room No.', `${data.roomNumber || "—"}`],
+      ['Check-in', `${new Date(data.checkIn).toLocaleDateString()} at 2:00 PM`],
+      ['Check-out', `${new Date(data.checkOut).toLocaleDateString()} at 12:00 NN`],
+      ['Duration', `${data.numberOfNights} night(s)`],
+      ['Base Rate per Night', formatAmount(data.ratePerNight)],
+      ...(data.extraPaxTotal > 0 ? [['Extra Guest Surcharge', formatAmount(data.extraPaxTotal)]] : []),
+    ],
+    theme: 'grid',
+    headStyles: { fillColor: primaryColor, textColor: darkTextColor, fontStyle: 'bold' },
+    styles: { fontSize: 8.5, cellPadding: 3 },
+    columnStyles: {
+      0: { fontStyle: 'bold', cellWidth: 50 },
+      1: { cellWidth: 130 }
+    }
+  });
+
+  // --- PAYMENT POSITION TABLE ---
+  autoTable(doc, {
+    startY: doc.lastAutoTable.finalY + 6,
+    margin: { left: margin, right: margin },
+    head: [['Payment Position', 'Amount']],
+    body: [
+      ['Total Stay Amount', formatAmount(data.total)],
+      ['Amount Paid (to date)', formatAmount(data.amountPaid)],
+      ['Balance Due (at checkout)', formatAmount(data.balance)],
+      ['Payment Method', `${data.paymentMethod || 'N/A'}`],
+    ],
+    theme: 'grid',
+    headStyles: { fillColor: primaryColor, textColor: darkTextColor, fontStyle: 'bold' },
+    styles: { fontSize: 8.5, cellPadding: 3 },
+    columnStyles: {
+      0: { fontStyle: 'bold', cellWidth: 130 },
+      1: { cellWidth: 50, halign: 'right' }
+    }
+  });
+
+  // --- FOOTER ---
+  const finalY = doc.lastAutoTable.finalY;
+  const footerY = finalY + 12;
+
+  doc.setDrawColor(...separatorColor);
+  doc.line(margin, footerY, pageWidth - margin, footerY);
+
+  doc.setFontSize(8.5);
+  doc.setTextColor(...lightTextColor);
+  doc.text("Welcome to HotelEase! Please present this slip at check-out.", pageWidth / 2, footerY + 6, { align: "center" });
+  doc.setFontSize(7.5);
+  doc.text("This is a system-generated check-in slip, not an official receipt.", pageWidth / 2, footerY + 10, { align: "center" });
+
+  // Save/Download
+  doc.save(`HotelEase-CheckInSlip-${slipNo}.pdf`);
+
+  return {
+    slipNo,
+    issuedAt: new Date()
   };
 };
 

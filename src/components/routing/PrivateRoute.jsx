@@ -4,7 +4,7 @@ import { getHomePathForRole } from "@/lib/routing";
 
 export default function PrivateRoute({ allowedRoles = [], children }) {
   const location = useLocation();
-  const { user, role, loading } = useAuth();
+  const { user, role, loading, profile } = useAuth();
 
   if (loading) {
     return (
@@ -16,6 +16,24 @@ export default function PrivateRoute({ allowedRoles = [], children }) {
 
   if (!user) {
     return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+  }
+
+  // Email/password guests must verify their email before using guest-only pages.
+  const needsVerification =
+    role === "guest" &&
+    !user.isAnonymous &&
+    profile != null &&
+    profile.emailVerified === false &&
+    !location.pathname.startsWith("/verify-email");
+
+  if (needsVerification) {
+    return (
+      <Navigate
+        to="/verify-email"
+        replace
+        state={{ from: location.pathname }}
+      />
+    );
   }
 
   if (allowedRoles.length > 0 && !allowedRoles.includes(role)) {

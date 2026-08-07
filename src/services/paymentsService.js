@@ -56,8 +56,18 @@ export async function listPaymentsForBooking(
   // Sort newest-first by createdAt (handles both Firestore Timestamps and
   // plain objects/nulls gracefully).
   records.sort((a, b) => {
-    const aMs = a.createdAt?.toMillis?.() ?? a.createdAt?.seconds * 1000 ?? 0;
-    const bMs = b.createdAt?.toMillis?.() ?? b.createdAt?.seconds * 1000 ?? 0;
+    const aMs =
+      a.createdAt?.toMillis
+        ? a.createdAt.toMillis()
+        : typeof a.createdAt?.seconds === "number"
+          ? a.createdAt.seconds * 1000
+          : 0;
+    const bMs =
+      b.createdAt?.toMillis
+        ? b.createdAt.toMillis()
+        : typeof b.createdAt?.seconds === "number"
+          ? b.createdAt.seconds * 1000
+          : 0;
     return bMs - aMs;
   });
 

@@ -337,7 +337,7 @@ export default function ProfilePage() {
                   <p className="mt-0.5 text-sm text-foreground">{user.email || "—"}</p>
                 </div>
               </div>
-              {user.emailVerified ? (
+              {profile?.emailVerified || user.emailVerified ? (
                 <Badge variant="success">
                   <CheckCircle2 className="mr-1 h-3.5 w-3.5" /> Verified
                 </Badge>

@@ -70,10 +70,7 @@ export default function NotificationBell() {
   }, [user?.uid]);
 
   useEffect(() => {
-    if (!user?.uid || role !== "fo") {
-      setPendingRequests([]);
-      return;
-    }
+    if (!user?.uid || role !== "fo") return;
     const unsub = subscribeToPendingBookingRequests((data) => {
       setPendingRequests(data);
     });

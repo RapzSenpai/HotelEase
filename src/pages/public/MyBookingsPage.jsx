@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton, SkeletonList } from "@/components/ui/skeleton";
 import { useAuth } from "@/contexts/AuthContext";
-import { listBookingsForUser, cancelBooking, requestCancellation, checkAndExpireStaleBookings, uploadPaymentProof } from "@/services/bookingsService";
+import { listBookingsForUser, cancelBooking, requestCancellation, uploadPaymentProof } from "@/services/bookingsService";
 import { mapFirebaseError } from "@/lib/errors";
 import { listRooms, isRoomActive } from "@/services/roomsService";
 import { listPaymentsForBooking } from "@/services/paymentsService";
@@ -129,8 +129,6 @@ function BookingCard({ booking, room, trainingMode, userProfile, onCancelled }) 
   const [cancellationReason, setCancellationReason] = useState("");
   
   // Payment proof upload state
-  const [paymentType, setPaymentType] = useState("Full");
-  const [paymentMethod, setPaymentMethod] = useState("GCash");
   const [paymentFile, setPaymentFile] = useState(null);
   const [uploadingProof, setUploadingProof] = useState(false);
 
@@ -739,12 +737,8 @@ export default function MyBookingsPage() {
         setLoading(true);
         setError(null);
 
-        // Check for stale bookings (lazy-expiry)
-        try {
-          await checkAndExpireStaleBookings({ trainingMode });
-        } catch (e) {
-          console.error("Failed to check stale bookings:", e);
-        }
+        // Lazy-expiry is done by FO/admin (global sweep). Guests can't run it
+        // (rules limit guests to their own bookings), so nothing to do here.
 
         const [bookingData, roomData] = await Promise.all([
           listBookingsForUser(user.uid, { trainingMode }),

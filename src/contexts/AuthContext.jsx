@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useContext, useEffect, useMemo, useState, useRef } from "react";
+import { createContext, useContext, useCallback, useEffect, useMemo, useState, useRef } from "react";
 import {
   createUserWithEmailAndPassword,
   signInAnonymously,
@@ -22,6 +22,10 @@ import {
   validateTrainingSessionCode,
 } from "@/services/trainingService";
 import { mapAuthError } from "@/lib/authErrors";
+import {
+  issueVerificationCode,
+  verifyEmailCode,
+} from "@/services/emailVerificationService";
 
 const AuthContext = createContext(null);
 
@@ -68,6 +72,15 @@ export function AuthProvider({ children }) {
             return;
           }
 
+          // Guard against the sign-out race: register() creates a user and then
+          // immediately signs out. The async handler below keeps running for the
+          // just-created user AFTER sign-out, and its Firestore reads/writes then
+          // run with request.auth == null -> Phase-4 rules deny them and the error
+          // leaks onto the /login form. Bail out if the live session no longer
+          // matches the user captured by this callback.
+          const stillSignedIn = () => auth.currentUser?.uid === firebaseUser.uid;
+          if (!stillSignedIn()) return;
+
           const TRAINING_OVERRIDE_KEY = "bshm_training_override";
 
           let effectiveTrainingMode = (() => {
@@ -85,9 +98,13 @@ export function AuthProvider({ children }) {
 
           setTrainingMode(effectiveTrainingMode);
 
+          if (!stillSignedIn()) return;
+
           const userDoc = await getUserDoc(firebaseUser.uid, {
             preferTraining: effectiveTrainingMode,
           });
+
+          if (!stillSignedIn()) return;
 
           if (userDoc) {
             // Force logout enforcement: if this session was created before the
@@ -178,6 +195,39 @@ export function AuthProvider({ children }) {
     );
     return unsub;
   }, [user?.uid, user?.metadata?.lastSignInTime, trainingMode]);
+
+  // Email verification (OTP) helpers. Defined in the provider body so they see
+  // the current trainingMode/profile rather than a stale closure.
+  const sendVerificationCode = useCallback(async () => {
+    const currentUser = auth.currentUser;
+    if (!currentUser?.uid) throw new Error("Not signed in.");
+    return issueVerificationCode({
+      uid: currentUser.uid,
+      email: currentUser.email,
+      fullName: profile?.fullName || "",
+      trainingMode,
+    });
+  }, [profile, trainingMode]);
+
+  const verifyEmailWithCode = useCallback(
+    async (code) => {
+      const currentUser = auth.currentUser;
+      if (!currentUser?.uid) throw new Error("Not signed in.");
+      const result = await verifyEmailCode({
+        uid: currentUser.uid,
+        code,
+        trainingMode,
+      });
+      if (result.ok) {
+        const fresh = await getUserDoc(currentUser.uid, {
+          preferTraining: trainingMode,
+        });
+        if (fresh) setProfile(fresh);
+      }
+      return result;
+    },
+    [trainingMode],
+  );
 
   const api = useMemo(() => {
     async function login({ email, password }) {
@@ -293,7 +343,7 @@ export function AuthProvider({ children }) {
     }
 
     return { login, register, logout, signInWithTrainingCode, forgotPassword };
-  }, []);
+  }, [trainingMode]);
 
   const value = useMemo(
     () => ({
@@ -303,9 +353,11 @@ export function AuthProvider({ children }) {
       trainingMode,
       loading,
       authError,
+      sendVerificationCode,
+      verifyEmailWithCode,
       ...api,
     }),
-    [user, role, trainingMode, loading, authError, api]
+    [user, role, trainingMode, loading, authError, profile, api, sendVerificationCode, verifyEmailWithCode]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

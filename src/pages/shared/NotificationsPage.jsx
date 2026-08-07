@@ -96,11 +96,16 @@ export default function NotificationsPage() {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  // Clear loading when the authenticated user goes away (during render, not the
+  // effect) so the "sign in" empty state shows instead of an endless spinner.
+  const [prevUid, setPrevUid] = useState(user?.uid);
+  if (prevUid !== user?.uid) {
+    setPrevUid(user?.uid);
+    if (!user?.uid) setLoading(false);
+  }
+
   useEffect(() => {
-    if (!user?.uid) {
-      setLoading(false);
-      return;
-    }
+    if (!user?.uid) return;
 
     const q = query(
       collection(db, "notifications", user.uid, "items"),

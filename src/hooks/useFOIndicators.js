@@ -2,10 +2,9 @@ import { useEffect, useState } from "react";
 import { subscribeToPendingBookingRequests, subscribeToAllBookings } from "@/services/bookingsService";
 import { subscribeToMessages } from "@/services/messageService";
 import { subscribeToRooms } from "@/services/roomsService";
-import { listBookingsByStatuses } from "@/services/bookingsService";
 import { subscribeToAllTestimonials } from "@/services/testimonialsService";
 
-export function useFOIndicators({ trainingMode = null } = {}) {
+export function useFOIndicators({ trainingMode = null, role = null } = {}) {
   const [pendingBookingsCount, setPendingBookingsCount] = useState(0);
   const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
   const [hasApprovedCheckIns, setHasApprovedCheckIns] = useState(false);
@@ -23,12 +22,15 @@ export function useFOIndicators({ trainingMode = null } = {}) {
     }, { trainingMode });
     unsubscribers.push(unsubPending);
 
-    // 2. Unread messages count
-    const unsubMessages = subscribeToMessages((messages) => {
-      const unreadCount = messages.filter((m) => m.status === "unread").length;
-      setUnreadMessagesCount(unreadCount);
-    });
-    unsubscribers.push(unsubMessages);
+    // 2. Unread messages count — messages are admin-read-only per rules, so
+    //    only subscribe for the admin role.
+    if (role === "admin") {
+      const unsubMessages = subscribeToMessages((messages) => {
+        const unreadCount = messages.filter((m) => m.status === "unread").length;
+        setUnreadMessagesCount(unreadCount);
+      });
+      unsubscribers.push(unsubMessages);
+    }
 
     // 3. Approved bookings (ready for check-in)
     const unsubApproved = subscribeToAllBookings((bookings) => {
@@ -69,12 +71,15 @@ export function useFOIndicators({ trainingMode = null } = {}) {
     }, { trainingMode });
     unsubscribers.push(unsubDirtyRooms);
 
-    // 6. Pending testimonials
-    const unsubTestimonials = subscribeToAllTestimonials((testimonials) => {
-      const pendingCount = testimonials.filter((t) => t.status === "Pending").length;
-      setPendingTestimonialsCount(pendingCount);
-    });
-    unsubscribers.push(unsubTestimonials);
+    // 6. Pending testimonials — testimonials are admin-read-only for non-approved
+    //    per rules, so only subscribe for the admin role.
+    if (role === "admin") {
+      const unsubTestimonials = subscribeToAllTestimonials((testimonials) => {
+        const pendingCount = testimonials.filter((t) => t.status === "Pending").length;
+        setPendingTestimonialsCount(pendingCount);
+      });
+      unsubscribers.push(unsubTestimonials);
+    }
 
     // 7. Cancellation Requests (status === "Cancellation Requested")
     const unsubCancellations = subscribeToAllBookings((bookings) => {
@@ -86,7 +91,7 @@ export function useFOIndicators({ trainingMode = null } = {}) {
     return () => {
       unsubscribers.forEach((unsub) => unsub());
     };
-  }, [trainingMode]);
+  }, [trainingMode, role]);
 
   return {
     pendingBookingsCount,

@@ -1,4 +1,4 @@
-import { HOUSEKEEPING_STEPS } from "@/components/rooms/RoomStatusBadge";
+import { HOUSEKEEPING_STEPS } from "@/components/rooms/roomStatusHelpers";
 
 const STEP_LABELS = {
   "Dirty / Needs Cleaning": "Dirty",

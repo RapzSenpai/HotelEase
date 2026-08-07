@@ -11,6 +11,7 @@ import { listRooms } from "@/services/roomsService";
 import { listUsers } from "@/services/userService";
 import { useAuth } from "@/contexts/AuthContext";
 import { trackEvent, GA_EVENTS } from "@/services/gaService";
+import { generateCheckInSlip } from "@/services/receiptService";
 import { CalendarDays, Users, BedDouble, CheckCircle2, CreditCard, Filter, Clock, Moon } from "lucide-react";
 
 // ── Check-In Page: Arrival-focused view ───────────────────────────────────────
@@ -97,7 +98,7 @@ export default function FoCheckInPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const roomIdParam = searchParams.get("roomId");
-  const { trainingMode } = useAuth();
+  const { trainingMode, profile } = useAuth();
 
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -211,6 +212,36 @@ export default function FoCheckInPage() {
       setError(null);
       await checkInBooking(bookingId, { trainingMode });
       trackEvent(GA_EVENTS.CHECK_IN, { booking_id: bookingId });
+
+      // Issue a Check-In Slip / Guest Registration to the guest (non-blocking).
+      const b = selectedBooking;
+      const room = roomById.get(b?.roomId);
+      const paid =
+        Number(b?.payment?.deposit ?? 0) || Number(b?.amountPaid ?? 0);
+      const total = Number(b?.totalCost ?? 0);
+      try {
+        generateCheckInSlip({
+          guestName:
+            guestsMap[b.guestId] || b.guestName || "Guest",
+          guestEmail: b.leadGuestEmail || "",
+          guestPhone: b.leadGuestPhone || "",
+          roomName: room?.name || room?.type || b.roomId,
+          roomType: room?.type || "",
+          roomNumber: room?.roomNumber || "",
+          checkIn: b.checkInDate?.toDate?.() || b.checkInDate,
+          checkOut: b.checkOutDate?.toDate?.() || b.checkOutDate,
+          numberOfNights: b.nights,
+          ratePerNight: room?.ratePerNight || 0,
+          extraPaxTotal: Number(b.extraPaxTotal ?? 0),
+          total,
+          amountPaid: paid,
+          balance: Math.max(0, total - paid),
+          paymentMethod: b.paymentMethod || b.payment?.method || "N/A",
+          processedBy: profile?.fullName || profile?.email || "Front Office Staff",
+        });
+      } catch (slipErr) {
+        console.error("Failed to generate check-in slip:", slipErr);
+      }
       navigate(`/fo/check-out?roomId=${roomIdParam || ""}`);
     } catch (e) {
       setError(e?.message || "Check-in failed.");

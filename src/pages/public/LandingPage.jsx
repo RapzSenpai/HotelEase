@@ -8,7 +8,7 @@ import { subscribeToApprovedTestimonials } from "@/services/testimonialsService"
 import { useAuth } from "@/contexts/AuthContext";
 import { getHomePathForRole, isStaffRole } from "@/lib/routing";
 import ChatbotWidget from "@/components/chatbot/ChatbotWidget";
-import { SectionDivider } from "./landing/helpers";
+import { SectionDivider } from "./landing/components";
 import HeroSection from "./landing/HeroSection";
 import PartnershipSection from "./landing/PartnershipSection";
 import RoomShowcaseSection from "./landing/RoomShowcaseSection";
@@ -59,7 +59,6 @@ export default function LandingPage() {
 
   useEffect(() => {
     let isMounted = true;
-    setAnnouncementsLoading(true);
     listAnnouncements({ limitCount: 6 })
       .then((data) => { if (isMounted) { setAnnouncements(data); setAnnouncementsLoading(false); } })
       .catch((e) => { if (isMounted) { setAnnouncementsError(mapFirebaseError(e) || "Failed to load announcements."); setAnnouncementsLoading(false); } });
@@ -67,7 +66,6 @@ export default function LandingPage() {
   }, []);
 
   useEffect(() => {
-    setRoomsLoading(true);
     let settled = false;
     const unsub = subscribeToRooms((data) => {
       setRooms(data);

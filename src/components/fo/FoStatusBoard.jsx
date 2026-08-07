@@ -18,9 +18,8 @@ import {
   isValidFoTransition,
   resolveDropStatus,
 } from "@/lib/room-status-transitions";
-import RoomStatusBadge, {
-  getStatusCardClasses,
-} from "@/components/rooms/RoomStatusBadge";
+import RoomStatusBadge from "@/components/rooms/RoomStatusBadge";
+import { getStatusCardClasses } from "@/components/rooms/roomStatusHelpers";
 import { timeSince, getStatusTimestamp } from "@/lib/time-utils";
 
 function BoardColumn({ status, count, children }) {

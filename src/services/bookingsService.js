@@ -15,7 +15,13 @@ import {
 import { db } from "@/firebase/firebase.config";
 import { getCol } from "@/lib/db-utils";
 import { isRoomActive, isRoomBookable, listRooms } from "./roomsService";
-import { listUsers } from "./userService";
+import { listFoUsers } from "./userService";
+import {
+  clearBookingMarked,
+  getBlockedRoomIds,
+  nightKeys,
+  setBookingMarked,
+} from "./availabilityService";
 import { createNotification } from "./notificationService";
 import { uploadImageToCloudinary } from "./cloudinaryService";
 import { sendBookingConfirmation } from "./emailService";
@@ -185,6 +191,21 @@ export async function approveBooking(bookingId, { trainingMode = null } = {}) {
 
     return { ok: true, roomName: roomSnap.data().name || roomSnap.data().type || "Room", guestId: booking.guestId, booking };
   }).then(async (result) => {
+    // PROD: refresh availability marker status after approval.
+    if (!trainingMode) {
+      try {
+        await setBookingMarked({
+          roomId: result.booking.roomId,
+          bookingId,
+          checkIn: result.booking.checkInDate,
+          checkOut: result.booking.checkOutDate,
+          status: "Approved",
+        });
+      } catch (e) {
+        console.warn("Availability marker refresh failed:", e);
+      }
+    }
+
     // Only auto-record payment for proof-required methods that actually uploaded proof.
     // OTC/Card: deposit stays 0 until FO manually records payment at the desk.
     const requiresProof = PROOF_REQUIRED_METHODS.includes(result.booking.paymentMethod);
@@ -333,6 +354,19 @@ export async function checkOutBooking(bookingId, { trainingMode = null } = {}) {
       statusChangedAt: serverTimestamp(),
     });
 
+    return { booking, ok: true };
+  }).then(async (result) => {
+    // PROD: free availability markers on check-out so the nights can be re-booked.
+    if (!trainingMode) {
+      try {
+        await clearBookingMarked({
+          roomId: result.booking.roomId,
+          dates: nightKeys(result.booking.checkInDate, result.booking.checkOutDate),
+        });
+      } catch (e) {
+        console.warn("Availability marker cleanup failed:", e);
+      }
+    }
     return { ok: true };
   });
 }
@@ -370,19 +404,25 @@ export async function createBooking(payload) {
   }
 
   // ── Conflict check must run OUTSIDE the transaction.
-  // transaction.get() only accepts DocumentReferences, not Queries.
-  const conflictsQuery = query(
-    collection(db, BOOKINGS_COL),
-    where("roomId", "==", roomId),
-    where("status", "in", ["Awaiting Payment", "Pending", "Approved", "Checked In"]),
-  );
-  const conflictsSnap = await getDocs(conflictsQuery);
-  const hasConflict = conflictsSnap.docs.some((conflictDoc) => {
-    const b = conflictDoc.data();
-    const bIn = toDate(b.checkInDate);
-    const bOut = toDate(b.checkOutDate);
-    return checkIn < bOut && checkOut > bIn;
-  });
+  // PROD: read the PII-free availability markers (guests can't query bookings).
+  // Training: legacy overlap query against the open sandbox.
+  let hasConflict = false;
+  if (trainingMode) {
+    const conflictsQuery = query(
+      collection(db, BOOKINGS_COL),
+      where("roomId", "==", roomId),
+      where("status", "in", ["Awaiting Payment", "Pending", "Approved", "Checked In"]),
+    );
+    const conflictsSnap = await getDocs(conflictsQuery);
+    hasConflict = conflictsSnap.docs.some((conflictDoc) => {
+      const b = conflictDoc.data();
+      const bIn = toDate(b.checkInDate);
+      const bOut = toDate(b.checkOutDate);
+      return checkIn < bOut && checkOut > bIn;
+    });
+  } else {
+    hasConflict = (await getBlockedRoomIds(checkIn, checkOut)).has(roomId);
+  }
 
   if (hasConflict) {
     throw new Error(
@@ -463,10 +503,29 @@ export async function createBooking(payload) {
     return { id: bookingRef.id, roomName: roomData.name || roomData.type || "Room" };
   }).then(async (result) => {
     try {
+      // PROD: write the PII-free availability marker so guests can read
+      // occupancy without access to other guests' bookings. Training keeps
+      // reading the legacy sandbox directly, so no markers are needed there.
+      if (!trainingMode) {
+        await setBookingMarked({
+          roomId,
+          bookingId: result.id,
+          checkIn,
+          checkOut,
+          status: PROOF_REQUIRED_METHODS.includes(payload.paymentMethod)
+            ? "Awaiting Payment"
+            : "Pending",
+        });
+      }
+    } catch (e) {
+      console.warn("Availability marker write failed (booking still created):", e);
+    }
+
+    try {
       // FO Notifications: ONLY notify real 'fo' staff
       // We look in the appropriate collection based on trainingMode
-      const foUsers = await listUsers({ trainingMode }).then(users =>
-        users.filter(u => u.role === "fo" && u.id !== guestId)
+      const foUsers = await listFoUsers({ trainingMode }).then(users =>
+        users.filter(u => u.id !== guestId)
       );
 
       const guestDoc = await getDoc(doc(db, getCol("users", trainingMode), guestId));
@@ -643,12 +702,22 @@ export async function cancelBooking(bookingId, { trainingMode = null } = {}) {
   });
 
   try {
+    // PROD: free the availability markers for this booking's nights.
+    if (!trainingMode) {
+      try {
+        await clearBookingMarked({
+          roomId: booking.roomId,
+          dates: nightKeys(booking.checkInDate, booking.checkOutDate),
+        });
+      } catch (e) {
+        console.warn("Availability marker cleanup failed:", e);
+      }
+    }
+
     const checkInStr = booking.checkInDate?.toDate
       ? booking.checkInDate.toDate().toLocaleDateString()
       : "unknown date";
-    const foUsers = await listUsers({ trainingMode }).then((users) =>
-      users.filter((u) => u.role === "fo"),
-    );
+    const foUsers = await listFoUsers({ trainingMode }).then((users) => users);
 
     await Promise.all(
       foUsers.map((fo) =>
@@ -682,6 +751,13 @@ export async function getAvailableRoomIds(checkInStr, checkOutStr, { trainingMod
   const checkOut = toDate(checkOutStr);
   if (!checkIn || !checkOut || checkOut <= checkIn) return new Set();
 
+  // PROD: read the PII-free availability markers. Guests cannot read other
+  // guests' bookings, so this is the only safe source.
+  if (!trainingMode) {
+    return getBlockedRoomIds(checkInStr, checkOutStr);
+  }
+
+  // Training: legacy path against the open training_bookings sandbox.
   const activeBookings = await listBookingsByStatuses(
     ["Awaiting Payment", "Pending", "Approved", "Checked In"],
     { trainingMode },
@@ -759,7 +835,7 @@ export async function requestCancellation(bookingId, guestId, reason, { training
     return { ok: true, roomName: "Room" }; 
   }).then(async () => {
     try {
-      const foUsers = await listUsers({ trainingMode }).then(users => users.filter(u => u.role === "fo"));
+      const foUsers = await listFoUsers({ trainingMode });
       await Promise.all(foUsers.map(fo => createNotification(fo.id, {
         type: "cancellation_requested",
         title: "Cancellation Requested",
@@ -828,6 +904,18 @@ export async function approveCancellation(bookingId, { trainingMode = null } = {
   });
 
   try {
+    // PROD: free the availability markers for this booking's nights.
+    if (!trainingMode) {
+      try {
+        await clearBookingMarked({
+          roomId: booking.roomId,
+          dates: nightKeys(booking.checkInDate, booking.checkOutDate),
+        });
+      } catch (e) {
+        console.warn("Availability marker cleanup failed:", e);
+      }
+    }
+
     await createNotification(booking.guestId, {
       type: "cancellation_approved",
       title: "Cancellation Approved",
@@ -939,8 +1027,8 @@ export async function uploadPaymentProof(bookingId, file, paymentType, paymentMe
   });
 
   try {
-    const foUsers = await listUsers({ trainingMode }).then(users =>
-      users.filter(u => u.role === "fo" && u.id !== currentUser.uid)
+    const foUsers = await listFoUsers({ trainingMode }).then(users =>
+      users.filter(u => u.id !== currentUser.uid)
     );
 
     await Promise.all(foUsers.map(fo => createNotification(fo.id, {
@@ -976,6 +1064,18 @@ export async function checkAndExpireStaleBookings({ trainingMode = null } = {}) 
       rejectionReason: "Payment deadline expired",
       updatedAt: serverTimestamp(),
     });
+
+    // PROD: free availability markers for the expired booking's nights.
+    if (!trainingMode) {
+      try {
+        await clearBookingMarked({
+          roomId: booking.roomId,
+          dates: nightKeys(booking.checkInDate, booking.checkOutDate),
+        });
+      } catch (e) {
+        console.warn("Availability marker cleanup failed:", e);
+      }
+    }
     
     try {
       await createNotification(booking.guestId, {

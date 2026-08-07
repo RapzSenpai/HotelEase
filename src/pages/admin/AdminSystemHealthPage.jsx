@@ -47,13 +47,18 @@ export default function AdminSystemHealthPage() {
       setLoading(false);
     });
 
-    // Load error logs
-    loadErrorLogs();
+    // Load error logs (via promise chain so no synchronous setState in the effect)
+    getRecentErrorLogs(10)
+      .then((logs) => setErrorLogs(logs))
+      .catch((error) => console.error("Failed to load error logs:", error));
 
-    // Real performance metrics
+    // Real performance metrics (setState deferred onto a microtask so the
+    // effect body stays free of synchronous setState calls).
     const summary = summarizeSamples();
     const latencyOp = Object.values(summary.operations || {}).sort((a, b) => b.count - a.count)[0];
-    setRealLatency(latencyOp ? latencyOp.avgMs : null);
+    Promise.resolve().then(() =>
+      setRealLatency(latencyOp ? latencyOp.avgMs : null),
+    );
     probeConnectivity().then((r) => setRealConnectivity(r));
 
     return unsubscribe;

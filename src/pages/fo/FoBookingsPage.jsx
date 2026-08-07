@@ -77,7 +77,6 @@ function BookingCard({
   onRejectReasonChange,
   onSubmitReject,
 }) {
-  const guestLabel = booking.guestName || booking.guestId || "—";
   const [imageDialogOpen, setImageDialogOpen] = useState(false);
 
   return (

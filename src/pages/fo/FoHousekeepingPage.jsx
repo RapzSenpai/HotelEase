@@ -97,11 +97,17 @@ export default function FoHousekeepingPage() {
     return data.filter((r) => cleaningStatuses.includes(r.status));
   }, [rooms, roomIdParam]);
 
-  useEffect(() => {
+    // Reset logs when the selected room clears (during render, not in the effect).
+  const [prevSelectedRoomId, setPrevSelectedRoomId] = useState(selectedRoomId);
+  if (prevSelectedRoomId !== selectedRoomId) {
+    setPrevSelectedRoomId(selectedRoomId);
     if (!selectedRoomId) {
       setLogs([]);
-      return;
     }
+  }
+
+  useEffect(() => {
+    if (!selectedRoomId) return;
     const unsub = subscribeToHousekeepingLogsForRoom(
       selectedRoomId,
       (data) => setLogs(data),
@@ -247,8 +253,6 @@ export default function FoHousekeepingPage() {
       toast.error(e?.message || "Bulk approve failed.");
     }
   }
-
-  const selectedRoom = visibleRooms.find((r) => r.id === selectedRoomId);
 
   return (
     <div className="space-y-5">

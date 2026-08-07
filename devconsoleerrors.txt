@@ -1,0 +1,491 @@
+client:510 [2026-08-07T14:51:16.572Z]  @firebase/firestore: Firestore (12.11.0): FIRESTORE (12.11.0) INTERNAL ASSERTION FAILED: Unexpected state (ID: ca9) CONTEXT: {"ve":-1}
+(anonymous) @ client:510
+defaultLogHandler @ index.esm-DebL9OP1.js?v=bf704cb0:1320
+error @ index.esm-DebL9OP1.js?v=bf704cb0:1394
+__PRIVATE_logError @ firebase_firestore.js?v=bf704cb0:2653
+__PRIVATE__fail @ firebase_firestore.js?v=bf704cb0:2702
+__PRIVATE_hardAssert @ firebase_firestore.js?v=bf704cb0:2706
+We @ firebase_firestore.js?v=bf704cb0:7628
+(anonymous) @ firebase_firestore.js?v=bf704cb0:7655
+forEachTarget @ firebase_firestore.js?v=bf704cb0:7675
+tt @ firebase_firestore.js?v=bf704cb0:7648
+__PRIVATE_onWatchStreamChange @ firebase_firestore.js?v=bf704cb0:14618
+onNext @ firebase_firestore.js?v=bf704cb0:14316
+(anonymous) @ firebase_firestore.js?v=bf704cb0:14271
+(anonymous) @ firebase_firestore.js?v=bf704cb0:14289
+(anonymous) @ firebase_firestore.js?v=bf704cb0:17311
+(anonymous) @ firebase_firestore.js?v=bf704cb0:17331
+client:510 [2026-08-07T14:51:16.574Z]  @firebase/firestore: Firestore (12.11.0): INTERNAL UNHANDLED ERROR:  Error: FIRESTORE (12.11.0) INTERNAL ASSERTION FAILED: Unexpected state (ID: ca9) CONTEXT: {"ve":-1}
+    at __PRIVATE__fail (http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:2702:31)
+    at __PRIVATE_hardAssert (http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:2706:45)
+    at __PRIVATE_TargetState.We (http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:7628:17)
+    at http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:7655:8
+    at Array.forEach (<anonymous>)
+    at __PRIVATE_WatchChangeAggregator.forEachTarget (http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:7675:40)
+    at __PRIVATE_WatchChangeAggregator.tt (http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:7648:8)
+    at __PRIVATE_onWatchStreamChange (http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:14618:134)
+    at __PRIVATE_PersistentListenStream.onNext (http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:14316:24)
+    at http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:14271:48
+(anonymous) @ client:510
+defaultLogHandler @ index.esm-DebL9OP1.js?v=bf704cb0:1320
+error @ index.esm-DebL9OP1.js?v=bf704cb0:1394
+__PRIVATE_logError @ firebase_firestore.js?v=bf704cb0:2653
+(anonymous) @ firebase_firestore.js?v=bf704cb0:17333
+client:510 [roomsService] subscribeToRooms error: FirebaseError: Missing or insufficient permissions.
+(anonymous) @ client:510
+(anonymous) @ roomsService.js:175
+(anonymous) @ firebase_firestore.js?v=bf704cb0:16251
+client:510 [2026-08-07T14:51:16.578Z]  @firebase/firestore: Firestore (12.11.0): FIRESTORE (12.11.0) INTERNAL ASSERTION FAILED: Unexpected state (ID: b815) CONTEXT: {"Pc":"Error: FIRESTORE (12.11.0) INTERNAL ASSERTION FAILED: Unexpected state (ID: ca9) CONTEXT: {\"ve\":-1}\n    at __PRIVATE__fail (http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:2702:31)\n    at __PRIVATE_hardAssert (http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:2706:45)\n    at __PRIVATE_TargetState.We (http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:7628:17)\n    at http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:7655:8\n    at Array.forEach (<anonymous>)\n    at __PRIVATE_WatchChangeAggregator.forEachTarget (http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:7675:40)\n    at __PRIVATE_WatchChangeAggregator.tt (http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:7648:8)\n    at __PRIVATE_onWatchStreamChange (http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:14618:134)\n    at __PRIVATE_PersistentListenStream.onNext (http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:14316:24)\n    at http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:14271:48"}
+(anonymous) @ client:510
+defaultLogHandler @ index.esm-DebL9OP1.js?v=bf704cb0:1320
+error @ index.esm-DebL9OP1.js?v=bf704cb0:1394
+__PRIVATE_logError @ firebase_firestore.js?v=bf704cb0:2653
+__PRIVATE__fail @ firebase_firestore.js?v=bf704cb0:2702
+fail @ firebase_firestore.js?v=bf704cb0:2693
+uc @ firebase_firestore.js?v=bf704cb0:17343
+enqueue @ firebase_firestore.js?v=bf704cb0:17309
+enqueueAndForget @ firebase_firestore.js?v=bf704cb0:17296
+(anonymous) @ firebase_firestore.js?v=bf704cb0:14289
+(anonymous) @ firebase_firestore.js?v=bf704cb0:14269
+o_ @ firebase_firestore.js?v=bf704cb0:13813
+(anonymous) @ firebase_firestore.js?v=bf704cb0:13947
+(anonymous) @ firebase_firestore.js?v=bf704cb0:13837
+Va @ firebase_firestore.js?v=bf704cb0:906
+D @ firebase_firestore.js?v=bf704cb0:874
+Z.qa @ firebase_firestore.js?v=bf704cb0:2467
+Lb @ firebase_firestore.js?v=bf704cb0:1384
+N.Y @ firebase_firestore.js?v=bf704cb0:1243
+N.ba @ firebase_firestore.js?v=bf704cb0:1194
+Va @ firebase_firestore.js?v=bf704cb0:906
+D @ firebase_firestore.js?v=bf704cb0:874
+Qc @ firebase_firestore.js?v=bf704cb0:1888
+h.Xa @ firebase_firestore.js?v=bf704cb0:1883
+h.Ca @ firebase_firestore.js?v=bf704cb0:1880
+Gc @ firebase_firestore.js?v=bf704cb0:1778
+h.Ma @ firebase_firestore.js?v=bf704cb0:1745
+2firebase_firestore.js?v=bf704cb0:2702 Uncaught (in promise) Error: FIRESTORE (12.11.0) INTERNAL ASSERTION FAILED: Unexpected state (ID: ca9) CONTEXT: {"ve":-1}
+    at __PRIVATE__fail (firebase_firestore.js?v=bf704cb0:2702:31)
+    at __PRIVATE_hardAssert (firebase_firestore.js?v=bf704cb0:2706:45)
+    at __PRIVATE_TargetState.We (firebase_firestore.js?v=bf704cb0:7628:17)
+    at firebase_firestore.js?v=bf704cb0:7655:8
+    at Array.forEach (<anonymous>)
+    at __PRIVATE_WatchChangeAggregator.forEachTarget (firebase_firestore.js?v=bf704cb0:7675:40)
+    at __PRIVATE_WatchChangeAggregator.tt (firebase_firestore.js?v=bf704cb0:7648:8)
+    at __PRIVATE_onWatchStreamChange (firebase_firestore.js?v=bf704cb0:14618:134)
+    at __PRIVATE_PersistentListenStream.onNext (firebase_firestore.js?v=bf704cb0:14316:24)
+    at firebase_firestore.js?v=bf704cb0:14271:48
+__PRIVATE__fail @ firebase_firestore.js?v=bf704cb0:2702
+__PRIVATE_hardAssert @ firebase_firestore.js?v=bf704cb0:2706
+We @ firebase_firestore.js?v=bf704cb0:7628
+(anonymous) @ firebase_firestore.js?v=bf704cb0:7655
+forEachTarget @ firebase_firestore.js?v=bf704cb0:7675
+tt @ firebase_firestore.js?v=bf704cb0:7648
+__PRIVATE_onWatchStreamChange @ firebase_firestore.js?v=bf704cb0:14618
+onNext @ firebase_firestore.js?v=bf704cb0:14316
+(anonymous) @ firebase_firestore.js?v=bf704cb0:14271
+(anonymous) @ firebase_firestore.js?v=bf704cb0:14289
+(anonymous) @ firebase_firestore.js?v=bf704cb0:17311
+(anonymous) @ firebase_firestore.js?v=bf704cb0:17331
+firebase_firestore.js?v=bf704cb0:2702 Uncaught Error: FIRESTORE (12.11.0) INTERNAL ASSERTION FAILED: Unexpected state (ID: b815) CONTEXT: {"Pc":"Error: FIRESTORE (12.11.0) INTERNAL ASSERTION FAILED: Unexpected state (ID: ca9) CONTEXT: {\"ve\":-1}\n    at __PRIVATE__fail (http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:2702:31)\n    at __PRIVATE_hardAssert (http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:2706:45)\n    at __PRIVATE_TargetState.We (http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:7628:17)\n    at http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:7655:8\n    at Array.forEach (<anonymous>)\n    at __PRIVATE_WatchChangeAggregator.forEachTarget (http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:7675:40)\n    at __PRIVATE_WatchChangeAggregator.tt (http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:7648:8)\n    at __PRIVATE_onWatchStreamChange (http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:14618:134)\n    at __PRIVATE_PersistentListenStream.onNext (http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:14316:24)\n    at http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:14271:48"}
+    at __PRIVATE__fail (firebase_firestore.js?v=bf704cb0:2702:31)
+    at fail (firebase_firestore.js?v=bf704cb0:2693:40)
+    at __PRIVATE_AsyncQueueImpl.uc (firebase_firestore.js?v=bf704cb0:17343:14)
+    at __PRIVATE_AsyncQueueImpl.enqueue (firebase_firestore.js?v=bf704cb0:17309:12)
+    at __PRIVATE_AsyncQueueImpl.enqueueAndForget (firebase_firestore.js?v=bf704cb0:17296:8)
+    at firebase_firestore.js?v=bf704cb0:14289:12
+    at __PRIVATE_StreamBridge.n_ (firebase_firestore.js?v=bf704cb0:14269:4)
+    at __PRIVATE_StreamBridge.o_ (firebase_firestore.js?v=bf704cb0:13813:8)
+    at firebase_firestore.js?v=bf704cb0:13947:347
+    at Y.<anonymous> (firebase_firestore.js?v=bf704cb0:13837:4)
+__PRIVATE__fail @ firebase_firestore.js?v=bf704cb0:2702
+fail @ firebase_firestore.js?v=bf704cb0:2693
+uc @ firebase_firestore.js?v=bf704cb0:17343
+enqueue @ firebase_firestore.js?v=bf704cb0:17309
+enqueueAndForget @ firebase_firestore.js?v=bf704cb0:17296
+(anonymous) @ firebase_firestore.js?v=bf704cb0:14289
+(anonymous) @ firebase_firestore.js?v=bf704cb0:14269
+o_ @ firebase_firestore.js?v=bf704cb0:13813
+(anonymous) @ firebase_firestore.js?v=bf704cb0:13947
+(anonymous) @ firebase_firestore.js?v=bf704cb0:13837
+Va @ firebase_firestore.js?v=bf704cb0:906
+D @ firebase_firestore.js?v=bf704cb0:874
+Z.qa @ firebase_firestore.js?v=bf704cb0:2467
+Lb @ firebase_firestore.js?v=bf704cb0:1384
+N.Y @ firebase_firestore.js?v=bf704cb0:1243
+N.ba @ firebase_firestore.js?v=bf704cb0:1194
+Va @ firebase_firestore.js?v=bf704cb0:906
+D @ firebase_firestore.js?v=bf704cb0:874
+Qc @ firebase_firestore.js?v=bf704cb0:1888
+h.Xa @ firebase_firestore.js?v=bf704cb0:1883
+h.Ca @ firebase_firestore.js?v=bf704cb0:1880
+Gc @ firebase_firestore.js?v=bf704cb0:1778
+h.Ma @ firebase_firestore.js?v=bf704cb0:1745
+client:510 [2026-08-07T14:51:26.058Z]  @firebase/firestore: Firestore (12.11.0): FIRESTORE (12.11.0) INTERNAL ASSERTION FAILED: Unexpected state (ID: b815) CONTEXT: {"Pc":"Error: FIRESTORE (12.11.0) INTERNAL ASSERTION FAILED: Unexpected state (ID: ca9) CONTEXT: {\"ve\":-1}\n    at __PRIVATE__fail (http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:2702:31)\n    at __PRIVATE_hardAssert (http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:2706:45)\n    at __PRIVATE_TargetState.We (http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:7628:17)\n    at http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:7655:8\n    at Array.forEach (<anonymous>)\n    at __PRIVATE_WatchChangeAggregator.forEachTarget (http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:7675:40)\n    at __PRIVATE_WatchChangeAggregator.tt (http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:7648:8)\n    at __PRIVATE_onWatchStreamChange (http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:14618:134)\n    at __PRIVATE_PersistentListenStream.onNext (http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:14316:24)\n    at http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:14271:48"}
+(anonymous) @ client:510
+defaultLogHandler @ index.esm-DebL9OP1.js?v=bf704cb0:1320
+error @ index.esm-DebL9OP1.js?v=bf704cb0:1394
+__PRIVATE_logError @ firebase_firestore.js?v=bf704cb0:2653
+__PRIVATE__fail @ firebase_firestore.js?v=bf704cb0:2702
+fail @ firebase_firestore.js?v=bf704cb0:2693
+uc @ firebase_firestore.js?v=bf704cb0:17343
+enqueue @ firebase_firestore.js?v=bf704cb0:17309
+enqueueAndForget @ firebase_firestore.js?v=bf704cb0:17296
+handleDelayElapsed @ firebase_firestore.js?v=bf704cb0:14840
+(anonymous) @ firebase_firestore.js?v=bf704cb0:14822
+firebase_firestore.js?v=bf704cb0:2702 Uncaught Error: FIRESTORE (12.11.0) INTERNAL ASSERTION FAILED: Unexpected state (ID: b815) CONTEXT: {"Pc":"Error: FIRESTORE (12.11.0) INTERNAL ASSERTION FAILED: Unexpected state (ID: ca9) CONTEXT: {\"ve\":-1}\n    at __PRIVATE__fail (http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:2702:31)\n    at __PRIVATE_hardAssert (http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:2706:45)\n    at __PRIVATE_TargetState.We (http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:7628:17)\n    at http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:7655:8\n    at Array.forEach (<anonymous>)\n    at __PRIVATE_WatchChangeAggregator.forEachTarget (http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:7675:40)\n    at __PRIVATE_WatchChangeAggregator.tt (http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:7648:8)\n    at __PRIVATE_onWatchStreamChange (http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:14618:134)\n    at __PRIVATE_PersistentListenStream.onNext (http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:14316:24)\n    at http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:14271:48"}
+    at __PRIVATE__fail (firebase_firestore.js?v=bf704cb0:2702:31)
+    at fail (firebase_firestore.js?v=bf704cb0:2693:40)
+    at __PRIVATE_AsyncQueueImpl.uc (firebase_firestore.js?v=bf704cb0:17343:14)
+    at __PRIVATE_AsyncQueueImpl.enqueue (firebase_firestore.js?v=bf704cb0:17309:12)
+    at __PRIVATE_AsyncQueueImpl.enqueueAndForget (firebase_firestore.js?v=bf704cb0:17296:8)
+    at DelayedOperation.handleDelayElapsed (firebase_firestore.js?v=bf704cb0:14840:19)
+    at firebase_firestore.js?v=bf704cb0:14822:45
+__PRIVATE__fail @ firebase_firestore.js?v=bf704cb0:2702
+fail @ firebase_firestore.js?v=bf704cb0:2693
+uc @ firebase_firestore.js?v=bf704cb0:17343
+enqueue @ firebase_firestore.js?v=bf704cb0:17309
+enqueueAndForget @ firebase_firestore.js?v=bf704cb0:17296
+handleDelayElapsed @ firebase_firestore.js?v=bf704cb0:14840
+(anonymous) @ firebase_firestore.js?v=bf704cb0:14822
+client:510 [2026-08-07T14:51:30.878Z]  @firebase/firestore: Firestore (12.11.0): FIRESTORE (12.11.0) INTERNAL ASSERTION FAILED: Unexpected state (ID: b815) CONTEXT: {"Pc":"Error: FIRESTORE (12.11.0) INTERNAL ASSERTION FAILED: Unexpected state (ID: ca9) CONTEXT: {\"ve\":-1}\n    at __PRIVATE__fail (http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:2702:31)\n    at __PRIVATE_hardAssert (http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:2706:45)\n    at __PRIVATE_TargetState.We (http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:7628:17)\n    at http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:7655:8\n    at Array.forEach (<anonymous>)\n    at __PRIVATE_WatchChangeAggregator.forEachTarget (http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:7675:40)\n    at __PRIVATE_WatchChangeAggregator.tt (http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:7648:8)\n    at __PRIVATE_onWatchStreamChange (http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:14618:134)\n    at __PRIVATE_PersistentListenStream.onNext (http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:14316:24)\n    at http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:14271:48"}
+(anonymous) @ client:510
+defaultLogHandler @ index.esm-DebL9OP1.js?v=bf704cb0:1320
+error @ index.esm-DebL9OP1.js?v=bf704cb0:1394
+__PRIVATE_logError @ firebase_firestore.js?v=bf704cb0:2653
+__PRIVATE__fail @ firebase_firestore.js?v=bf704cb0:2702
+fail @ firebase_firestore.js?v=bf704cb0:2693
+uc @ firebase_firestore.js?v=bf704cb0:17343
+enqueue @ firebase_firestore.js?v=bf704cb0:17309
+enqueueAndForget @ firebase_firestore.js?v=bf704cb0:17296
+(anonymous) @ firebase_firestore.js?v=bf704cb0:16724
+(anonymous) @ RoomsPage.jsx:399
+react_stack_bottom_frame @ react-dom_client.js?v=bf704cb0:12908
+runWithFiberInDEV @ react-dom_client.js?v=bf704cb0:851
+commitHookEffectListUnmount @ react-dom_client.js?v=bf704cb0:6642
+commitHookPassiveUnmountEffects @ react-dom_client.js?v=bf704cb0:6655
+commitPassiveUnmountEffectsInsideOfDeletedTree_begin @ react-dom_client.js?v=bf704cb0:7864
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=bf704cb0:7783
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=bf704cb0:7814
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=bf704cb0:7789
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=bf704cb0:7797
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=bf704cb0:7789
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=bf704cb0:7814
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=bf704cb0:7789
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=bf704cb0:7797
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=bf704cb0:7789
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=bf704cb0:7797
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=bf704cb0:7789
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=bf704cb0:7797
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=bf704cb0:7789
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=bf704cb0:7814
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=bf704cb0:7789
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=bf704cb0:7797
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=bf704cb0:7789
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=bf704cb0:7814
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=bf704cb0:7789
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=bf704cb0:7814
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=bf704cb0:7789
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=bf704cb0:7797
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=bf704cb0:7789
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=bf704cb0:7797
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=bf704cb0:7789
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=bf704cb0:7814
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=bf704cb0:7789
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=bf704cb0:7802
+flushPassiveEffects @ react-dom_client.js?v=bf704cb0:8804
+flushPendingEffects @ react-dom_client.js?v=bf704cb0:8769
+performWorkOnRootViaSchedulerTask @ react-dom_client.js?v=bf704cb0:9055
+performWorkUntilDeadline @ react-dom_client.js?v=bf704cb0:36
+client:510 [2026-08-07T14:51:30.885Z]  @firebase/firestore: Firestore (12.11.0): FIRESTORE (12.11.0) INTERNAL ASSERTION FAILED: Unexpected state (ID: b815) CONTEXT: {"Pc":"Error: FIRESTORE (12.11.0) INTERNAL ASSERTION FAILED: Unexpected state (ID: ca9) CONTEXT: {\"ve\":-1}\n    at __PRIVATE__fail (http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:2702:31)\n    at __PRIVATE_hardAssert (http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:2706:45)\n    at __PRIVATE_TargetState.We (http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:7628:17)\n    at http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:7655:8\n    at Array.forEach (<anonymous>)\n    at __PRIVATE_WatchChangeAggregator.forEachTarget (http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:7675:40)\n    at __PRIVATE_WatchChangeAggregator.tt (http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:7648:8)\n    at __PRIVATE_onWatchStreamChange (http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:14618:134)\n    at __PRIVATE_PersistentListenStream.onNext (http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:14316:24)\n    at http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:14271:48"}
+(anonymous) @ client:510
+defaultLogHandler @ index.esm-DebL9OP1.js?v=bf704cb0:1320
+error @ index.esm-DebL9OP1.js?v=bf704cb0:1394
+__PRIVATE_logError @ firebase_firestore.js?v=bf704cb0:2653
+__PRIVATE__fail @ firebase_firestore.js?v=bf704cb0:2702
+fail @ firebase_firestore.js?v=bf704cb0:2693
+uc @ firebase_firestore.js?v=bf704cb0:17343
+enqueue @ firebase_firestore.js?v=bf704cb0:17309
+enqueueAndForget @ firebase_firestore.js?v=bf704cb0:17296
+__PRIVATE_firestoreClientGetDocumentViaSnapshotListener @ firebase_firestore.js?v=bf704cb0:16744
+getDoc @ firebase_firestore.js?v=bf704cb0:20080
+(anonymous) @ maintenanceService.js:14
+(anonymous) @ MaintenanceRoute.jsx:16
+(anonymous) @ MaintenanceRoute.jsx:31
+react_stack_bottom_frame @ react-dom_client.js?v=bf704cb0:12904
+runWithFiberInDEV @ react-dom_client.js?v=bf704cb0:851
+commitHookEffectListMount @ react-dom_client.js?v=bf704cb0:6617
+commitHookPassiveMountEffects @ react-dom_client.js?v=bf704cb0:6652
+commitPassiveMountOnFiber @ react-dom_client.js?v=bf704cb0:7618
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=bf704cb0:7606
+commitPassiveMountOnFiber @ react-dom_client.js?v=bf704cb0:7672
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=bf704cb0:7606
+commitPassiveMountOnFiber @ react-dom_client.js?v=bf704cb0:7617
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=bf704cb0:7606
+commitPassiveMountOnFiber @ react-dom_client.js?v=bf704cb0:7672
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=bf704cb0:7606
+commitPassiveMountOnFiber @ react-dom_client.js?v=bf704cb0:7617
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=bf704cb0:7606
+commitPassiveMountOnFiber @ react-dom_client.js?v=bf704cb0:7622
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=bf704cb0:7606
+commitPassiveMountOnFiber @ react-dom_client.js?v=bf704cb0:7672
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=bf704cb0:7606
+commitPassiveMountOnFiber @ react-dom_client.js?v=bf704cb0:7672
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=bf704cb0:7606
+commitPassiveMountOnFiber @ react-dom_client.js?v=bf704cb0:7617
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=bf704cb0:7606
+commitPassiveMountOnFiber @ react-dom_client.js?v=bf704cb0:7672
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=bf704cb0:7606
+commitPassiveMountOnFiber @ react-dom_client.js?v=bf704cb0:7617
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=bf704cb0:7606
+commitPassiveMountOnFiber @ react-dom_client.js?v=bf704cb0:7617
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=bf704cb0:7606
+commitPassiveMountOnFiber @ react-dom_client.js?v=bf704cb0:7617
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=bf704cb0:7606
+commitPassiveMountOnFiber @ react-dom_client.js?v=bf704cb0:7672
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=bf704cb0:7606
+commitPassiveMountOnFiber @ react-dom_client.js?v=bf704cb0:7617
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=bf704cb0:7606
+commitPassiveMountOnFiber @ react-dom_client.js?v=bf704cb0:7672
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=bf704cb0:7606
+commitPassiveMountOnFiber @ react-dom_client.js?v=bf704cb0:7672
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=bf704cb0:7606
+commitPassiveMountOnFiber @ react-dom_client.js?v=bf704cb0:7617
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=bf704cb0:7606
+commitPassiveMountOnFiber @ react-dom_client.js?v=bf704cb0:7617
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=bf704cb0:7606
+commitPassiveMountOnFiber @ react-dom_client.js?v=bf704cb0:7672
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=bf704cb0:7606
+commitPassiveMountOnFiber @ react-dom_client.js?v=bf704cb0:7627
+flushPassiveEffects @ react-dom_client.js?v=bf704cb0:8808
+flushPendingEffects @ react-dom_client.js?v=bf704cb0:8769
+performWorkOnRootViaSchedulerTask @ react-dom_client.js?v=bf704cb0:9055
+performWorkUntilDeadline @ react-dom_client.js?v=bf704cb0:36
+client:510 Error fetching maintenance status: Error: FIRESTORE (12.11.0) INTERNAL ASSERTION FAILED: Unexpected state (ID: b815) CONTEXT: {"Pc":"Error: FIRESTORE (12.11.0) INTERNAL ASSERTION FAILED: Unexpected state (ID: ca9) CONTEXT: {\"ve\":-1}\n    at __PRIVATE__fail (http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:2702:31)\n    at __PRIVATE_hardAssert (http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:2706:45)\n    at __PRIVATE_TargetState.We (http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:7628:17)\n    at http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:7655:8\n    at Array.forEach (<anonymous>)\n    at __PRIVATE_WatchChangeAggregator.forEachTarget (http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:7675:40)\n    at __PRIVATE_WatchChangeAggregator.tt (http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:7648:8)\n    at __PRIVATE_onWatchStreamChange (http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:14618:134)\n    at __PRIVATE_PersistentListenStream.onNext (http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:14316:24)\n    at http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:14271:48"}
+    at __PRIVATE__fail (firebase_firestore.js?v=bf704cb0:2702:31)
+    at fail (firebase_firestore.js?v=bf704cb0:2693:40)
+    at __PRIVATE_AsyncQueueImpl.uc (firebase_firestore.js?v=bf704cb0:17343:14)
+    at __PRIVATE_AsyncQueueImpl.enqueue (firebase_firestore.js?v=bf704cb0:17309:12)
+    at __PRIVATE_AsyncQueueImpl.enqueueAndForget (firebase_firestore.js?v=bf704cb0:17296:8)
+    at __PRIVATE_firestoreClientGetDocumentViaSnapshotListener (firebase_firestore.js?v=bf704cb0:16744:22)
+    at getDoc (firebase_firestore.js?v=bf704cb0:20080:9)
+    at getMaintenanceStatus (maintenanceService.js:14:27
+    at checkMaintenance (MaintenanceRoute.jsx:16:30
+    at MaintenanceRoute.jsx:31:5
+(anonymous) @ client:510
+(anonymous) @ maintenanceService.js:34
+(anonymous) @ MaintenanceRoute.jsx:16
+(anonymous) @ MaintenanceRoute.jsx:31
+react_stack_bottom_frame @ react-dom_client.js?v=bf704cb0:12904
+runWithFiberInDEV @ react-dom_client.js?v=bf704cb0:851
+commitHookEffectListMount @ react-dom_client.js?v=bf704cb0:6617
+commitHookPassiveMountEffects @ react-dom_client.js?v=bf704cb0:6652
+commitPassiveMountOnFiber @ react-dom_client.js?v=bf704cb0:7618
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=bf704cb0:7606
+commitPassiveMountOnFiber @ react-dom_client.js?v=bf704cb0:7672
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=bf704cb0:7606
+commitPassiveMountOnFiber @ react-dom_client.js?v=bf704cb0:7617
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=bf704cb0:7606
+commitPassiveMountOnFiber @ react-dom_client.js?v=bf704cb0:7672
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=bf704cb0:7606
+commitPassiveMountOnFiber @ react-dom_client.js?v=bf704cb0:7617
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=bf704cb0:7606
+commitPassiveMountOnFiber @ react-dom_client.js?v=bf704cb0:7622
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=bf704cb0:7606
+commitPassiveMountOnFiber @ react-dom_client.js?v=bf704cb0:7672
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=bf704cb0:7606
+commitPassiveMountOnFiber @ react-dom_client.js?v=bf704cb0:7672
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=bf704cb0:7606
+commitPassiveMountOnFiber @ react-dom_client.js?v=bf704cb0:7617
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=bf704cb0:7606
+commitPassiveMountOnFiber @ react-dom_client.js?v=bf704cb0:7672
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=bf704cb0:7606
+commitPassiveMountOnFiber @ react-dom_client.js?v=bf704cb0:7617
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=bf704cb0:7606
+commitPassiveMountOnFiber @ react-dom_client.js?v=bf704cb0:7617
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=bf704cb0:7606
+commitPassiveMountOnFiber @ react-dom_client.js?v=bf704cb0:7617
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=bf704cb0:7606
+commitPassiveMountOnFiber @ react-dom_client.js?v=bf704cb0:7672
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=bf704cb0:7606
+commitPassiveMountOnFiber @ react-dom_client.js?v=bf704cb0:7617
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=bf704cb0:7606
+commitPassiveMountOnFiber @ react-dom_client.js?v=bf704cb0:7672
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=bf704cb0:7606
+commitPassiveMountOnFiber @ react-dom_client.js?v=bf704cb0:7672
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=bf704cb0:7606
+commitPassiveMountOnFiber @ react-dom_client.js?v=bf704cb0:7617
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=bf704cb0:7606
+commitPassiveMountOnFiber @ react-dom_client.js?v=bf704cb0:7617
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=bf704cb0:7606
+commitPassiveMountOnFiber @ react-dom_client.js?v=bf704cb0:7672
+recursivelyTraversePassiveMountEffects @ react-dom_client.js?v=bf704cb0:7606
+commitPassiveMountOnFiber @ react-dom_client.js?v=bf704cb0:7627
+flushPassiveEffects @ react-dom_client.js?v=bf704cb0:8808
+flushPendingEffects @ react-dom_client.js?v=bf704cb0:8769
+performWorkOnRootViaSchedulerTask @ react-dom_client.js?v=bf704cb0:9055
+performWorkUntilDeadline @ react-dom_client.js?v=bf704cb0:36
+client:510 [2026-08-07T14:51:30.888Z]  @firebase/firestore: Firestore (12.11.0): FIRESTORE (12.11.0) INTERNAL ASSERTION FAILED: Unexpected state (ID: b815) CONTEXT: {"Pc":"Error: FIRESTORE (12.11.0) INTERNAL ASSERTION FAILED: Unexpected state (ID: ca9) CONTEXT: {\"ve\":-1}\n    at __PRIVATE__fail (http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:2702:31)\n    at __PRIVATE_hardAssert (http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:2706:45)\n    at __PRIVATE_TargetState.We (http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:7628:17)\n    at http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:7655:8\n    at Array.forEach (<anonymous>)\n    at __PRIVATE_WatchChangeAggregator.forEachTarget (http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:7675:40)\n    at __PRIVATE_WatchChangeAggregator.tt (http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:7648:8)\n    at __PRIVATE_onWatchStreamChange (http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:14618:134)\n    at __PRIVATE_PersistentListenStream.onNext (http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:14316:24)\n    at http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:14271:48"}
+(anonymous) @ client:510
+defaultLogHandler @ index.esm-DebL9OP1.js?v=bf704cb0:1320
+error @ index.esm-DebL9OP1.js?v=bf704cb0:1394
+__PRIVATE_logError @ firebase_firestore.js?v=bf704cb0:2653
+__PRIVATE__fail @ firebase_firestore.js?v=bf704cb0:2702
+fail @ firebase_firestore.js?v=bf704cb0:2693
+uc @ firebase_firestore.js?v=bf704cb0:17343
+enqueue @ firebase_firestore.js?v=bf704cb0:17309
+enqueueAndForget @ firebase_firestore.js?v=bf704cb0:17296
+__PRIVATE_firestoreClientGetDocumentViaSnapshotListener @ firebase_firestore.js?v=bf704cb0:16744
+getDoc @ firebase_firestore.js?v=bf704cb0:20080
+(anonymous) @ maintenanceService.js:14
+(anonymous) @ MaintenanceRoute.jsx:16
+(anonymous) @ MaintenanceRoute.jsx:31
+react_stack_bottom_frame @ react-dom_client.js?v=bf704cb0:12904
+runWithFiberInDEV @ react-dom_client.js?v=bf704cb0:851
+commitHookEffectListMount @ react-dom_client.js?v=bf704cb0:6617
+commitHookPassiveMountEffects @ react-dom_client.js?v=bf704cb0:6652
+reconnectPassiveEffects @ react-dom_client.js?v=bf704cb0:7701
+recursivelyTraverseReconnectPassiveEffects @ react-dom_client.js?v=bf704cb0:7688
+reconnectPassiveEffects @ react-dom_client.js?v=bf704cb0:7713
+recursivelyTraverseReconnectPassiveEffects @ react-dom_client.js?v=bf704cb0:7688
+reconnectPassiveEffects @ react-dom_client.js?v=bf704cb0:7700
+recursivelyTraverseReconnectPassiveEffects @ react-dom_client.js?v=bf704cb0:7688
+reconnectPassiveEffects @ react-dom_client.js?v=bf704cb0:7713
+recursivelyTraverseReconnectPassiveEffects @ react-dom_client.js?v=bf704cb0:7688
+reconnectPassiveEffects @ react-dom_client.js?v=bf704cb0:7700
+recursivelyTraverseReconnectPassiveEffects @ react-dom_client.js?v=bf704cb0:7688
+reconnectPassiveEffects @ react-dom_client.js?v=bf704cb0:7713
+recursivelyTraverseReconnectPassiveEffects @ react-dom_client.js?v=bf704cb0:7688
+reconnectPassiveEffects @ react-dom_client.js?v=bf704cb0:7713
+doubleInvokeEffectsOnFiber @ react-dom_client.js?v=bf704cb0:8924
+runWithFiberInDEV @ react-dom_client.js?v=bf704cb0:851
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom_client.js?v=bf704cb0:8917
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom_client.js?v=bf704cb0:8917
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom_client.js?v=bf704cb0:8917
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom_client.js?v=bf704cb0:8917
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom_client.js?v=bf704cb0:8917
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom_client.js?v=bf704cb0:8917
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom_client.js?v=bf704cb0:8917
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom_client.js?v=bf704cb0:8917
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom_client.js?v=bf704cb0:8917
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom_client.js?v=bf704cb0:8917
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom_client.js?v=bf704cb0:8917
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom_client.js?v=bf704cb0:8917
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom_client.js?v=bf704cb0:8917
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom_client.js?v=bf704cb0:8917
+commitDoubleInvokeEffectsInDEV @ react-dom_client.js?v=bf704cb0:8932
+flushPassiveEffects @ react-dom_client.js?v=bf704cb0:8809
+flushPendingEffects @ react-dom_client.js?v=bf704cb0:8769
+performWorkOnRootViaSchedulerTask @ react-dom_client.js?v=bf704cb0:9055
+performWorkUntilDeadline @ react-dom_client.js?v=bf704cb0:36
+client:510 Error fetching maintenance status: Error: FIRESTORE (12.11.0) INTERNAL ASSERTION FAILED: Unexpected state (ID: b815) CONTEXT: {"Pc":"Error: FIRESTORE (12.11.0) INTERNAL ASSERTION FAILED: Unexpected state (ID: ca9) CONTEXT: {\"ve\":-1}\n    at __PRIVATE__fail (http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:2702:31)\n    at __PRIVATE_hardAssert (http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:2706:45)\n    at __PRIVATE_TargetState.We (http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:7628:17)\n    at http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:7655:8\n    at Array.forEach (<anonymous>)\n    at __PRIVATE_WatchChangeAggregator.forEachTarget (http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:7675:40)\n    at __PRIVATE_WatchChangeAggregator.tt (http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:7648:8)\n    at __PRIVATE_onWatchStreamChange (http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:14618:134)\n    at __PRIVATE_PersistentListenStream.onNext (http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:14316:24)\n    at http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:14271:48"}
+    at __PRIVATE__fail (firebase_firestore.js?v=bf704cb0:2702:31)
+    at fail (firebase_firestore.js?v=bf704cb0:2693:40)
+    at __PRIVATE_AsyncQueueImpl.uc (firebase_firestore.js?v=bf704cb0:17343:14)
+    at __PRIVATE_AsyncQueueImpl.enqueue (firebase_firestore.js?v=bf704cb0:17309:12)
+    at __PRIVATE_AsyncQueueImpl.enqueueAndForget (firebase_firestore.js?v=bf704cb0:17296:8)
+    at __PRIVATE_firestoreClientGetDocumentViaSnapshotListener (firebase_firestore.js?v=bf704cb0:16744:22)
+    at getDoc (firebase_firestore.js?v=bf704cb0:20080:9)
+    at getMaintenanceStatus (maintenanceService.js:14:27
+    at checkMaintenance (MaintenanceRoute.jsx:16:30
+    at MaintenanceRoute.jsx:31:5
+(anonymous) @ client:510
+(anonymous) @ maintenanceService.js:34
+(anonymous) @ MaintenanceRoute.jsx:16
+(anonymous) @ MaintenanceRoute.jsx:31
+react_stack_bottom_frame @ react-dom_client.js?v=bf704cb0:12904
+runWithFiberInDEV @ react-dom_client.js?v=bf704cb0:851
+commitHookEffectListMount @ react-dom_client.js?v=bf704cb0:6617
+commitHookPassiveMountEffects @ react-dom_client.js?v=bf704cb0:6652
+reconnectPassiveEffects @ react-dom_client.js?v=bf704cb0:7701
+recursivelyTraverseReconnectPassiveEffects @ react-dom_client.js?v=bf704cb0:7688
+reconnectPassiveEffects @ react-dom_client.js?v=bf704cb0:7713
+recursivelyTraverseReconnectPassiveEffects @ react-dom_client.js?v=bf704cb0:7688
+reconnectPassiveEffects @ react-dom_client.js?v=bf704cb0:7700
+recursivelyTraverseReconnectPassiveEffects @ react-dom_client.js?v=bf704cb0:7688
+reconnectPassiveEffects @ react-dom_client.js?v=bf704cb0:7713
+recursivelyTraverseReconnectPassiveEffects @ react-dom_client.js?v=bf704cb0:7688
+reconnectPassiveEffects @ react-dom_client.js?v=bf704cb0:7700
+recursivelyTraverseReconnectPassiveEffects @ react-dom_client.js?v=bf704cb0:7688
+reconnectPassiveEffects @ react-dom_client.js?v=bf704cb0:7713
+recursivelyTraverseReconnectPassiveEffects @ react-dom_client.js?v=bf704cb0:7688
+reconnectPassiveEffects @ react-dom_client.js?v=bf704cb0:7713
+doubleInvokeEffectsOnFiber @ react-dom_client.js?v=bf704cb0:8924
+runWithFiberInDEV @ react-dom_client.js?v=bf704cb0:851
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom_client.js?v=bf704cb0:8917
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom_client.js?v=bf704cb0:8917
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom_client.js?v=bf704cb0:8917
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom_client.js?v=bf704cb0:8917
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom_client.js?v=bf704cb0:8917
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom_client.js?v=bf704cb0:8917
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom_client.js?v=bf704cb0:8917
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom_client.js?v=bf704cb0:8917
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom_client.js?v=bf704cb0:8917
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom_client.js?v=bf704cb0:8917
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom_client.js?v=bf704cb0:8917
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom_client.js?v=bf704cb0:8917
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom_client.js?v=bf704cb0:8917
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom_client.js?v=bf704cb0:8917
+commitDoubleInvokeEffectsInDEV @ react-dom_client.js?v=bf704cb0:8932
+flushPassiveEffects @ react-dom_client.js?v=bf704cb0:8809
+flushPendingEffects @ react-dom_client.js?v=bf704cb0:8769
+performWorkOnRootViaSchedulerTask @ react-dom_client.js?v=bf704cb0:9055
+performWorkUntilDeadline @ react-dom_client.js?v=bf704cb0:36
+firebase_firestore.js?v=bf704cb0:2702 Uncaught Error: FIRESTORE (12.11.0) INTERNAL ASSERTION FAILED: Unexpected state (ID: b815) CONTEXT: {"Pc":"Error: FIRESTORE (12.11.0) INTERNAL ASSERTION FAILED: Unexpected state (ID: ca9) CONTEXT: {\"ve\":-1}\n    at __PRIVATE__fail (http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:2702:31)\n    at __PRIVATE_hardAssert (http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:2706:45)\n    at __PRIVATE_TargetState.We (http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:7628:17)\n    at http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:7655:8\n    at Array.forEach (<anonymous>)\n    at __PRIVATE_WatchChangeAggregator.forEachTarget (http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:7675:40)\n    at __PRIVATE_WatchChangeAggregator.tt (http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:7648:8)\n    at __PRIVATE_onWatchStreamChange (http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:14618:134)\n    at __PRIVATE_PersistentListenStream.onNext (http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:14316:24)\n    at http://localhost:5173/node_modules/.vite/deps/firebase_firestore.js?v=bf704cb0:14271:48"}
+    at __PRIVATE__fail (firebase_firestore.js?v=bf704cb0:2702:31)
+    at fail (firebase_firestore.js?v=bf704cb0:2693:40)
+    at __PRIVATE_AsyncQueueImpl.uc (firebase_firestore.js?v=bf704cb0:17343:14)
+    at __PRIVATE_AsyncQueueImpl.enqueue (firebase_firestore.js?v=bf704cb0:17309:12)
+    at __PRIVATE_AsyncQueueImpl.enqueueAndForget (firebase_firestore.js?v=bf704cb0:17296:8)
+    at firebase_firestore.js?v=bf704cb0:16724:24
+    at RoomsPage.jsx:399:46
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=bf704cb0:12908:5)
+    at runWithFiberInDEV (react-dom_client.js?v=bf704cb0:851:66)
+    at commitHookEffectListUnmount (react-dom_client.js?v=bf704cb0:6642:149)
+__PRIVATE__fail @ firebase_firestore.js?v=bf704cb0:2702
+fail @ firebase_firestore.js?v=bf704cb0:2693
+uc @ firebase_firestore.js?v=bf704cb0:17343
+enqueue @ firebase_firestore.js?v=bf704cb0:17309
+enqueueAndForget @ firebase_firestore.js?v=bf704cb0:17296
+(anonymous) @ firebase_firestore.js?v=bf704cb0:16724
+(anonymous) @ RoomsPage.jsx:399
+react_stack_bottom_frame @ react-dom_client.js?v=bf704cb0:12908
+runWithFiberInDEV @ react-dom_client.js?v=bf704cb0:851
+commitHookEffectListUnmount @ react-dom_client.js?v=bf704cb0:6642
+commitHookPassiveUnmountEffects @ react-dom_client.js?v=bf704cb0:6655
+commitPassiveUnmountEffectsInsideOfDeletedTree_begin @ react-dom_client.js?v=bf704cb0:7864
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=bf704cb0:7783
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=bf704cb0:7814
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=bf704cb0:7789
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=bf704cb0:7797
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=bf704cb0:7789
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=bf704cb0:7814
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=bf704cb0:7789
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=bf704cb0:7797
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=bf704cb0:7789
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=bf704cb0:7797
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=bf704cb0:7789
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=bf704cb0:7797
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=bf704cb0:7789
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=bf704cb0:7814
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=bf704cb0:7789
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=bf704cb0:7797
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=bf704cb0:7789
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=bf704cb0:7814
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=bf704cb0:7789
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=bf704cb0:7814
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=bf704cb0:7789
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=bf704cb0:7797
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=bf704cb0:7789
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=bf704cb0:7797
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=bf704cb0:7789
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=bf704cb0:7814
+recursivelyTraversePassiveUnmountEffects @ react-dom_client.js?v=bf704cb0:7789
+commitPassiveUnmountOnFiber @ react-dom_client.js?v=bf704cb0:7802
+flushPassiveEffects @ react-dom_client.js?v=bf704cb0:8804
+flushPendingEffects @ react-dom_client.js?v=bf704cb0:8769
+performWorkOnRootViaSchedulerTask @ react-dom_client.js?v=bf704cb0:9055
+performWorkUntilDeadline @ react-dom_client.js?v=bf704cb0:36
+client:510 An error occurred in the <RoomsPage> component.
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://react.dev/link/error-boundaries to learn more about error boundaries.

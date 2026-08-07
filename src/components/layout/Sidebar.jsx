@@ -194,7 +194,7 @@ export default function Sidebar({ open, onClose }) {
     hasDirtyRooms,
     pendingTestimonialsCount,
     hasPendingCancellations,
-  } = useFOIndicators({ trainingMode });
+  } = useFOIndicators({ trainingMode, role });
 
   useEffect(() => {
     if (role !== "admin") return;
@@ -226,12 +226,15 @@ export default function Sidebar({ open, onClose }) {
     onClose?.();
   }, [location.pathname]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => {
-    const currentPath = location.pathname;
-    if (currentPath.startsWith("/fo/")) {
-      setVisitedSections((prev) => new Set([...prev, currentPath]));
+  // Mark FO section paths as visited (state adjusted during render so we don't
+  // setState synchronously inside an effect).
+  const [prevVisitedPath, setPrevVisitedPath] = useState(location.pathname);
+  if (prevVisitedPath !== location.pathname) {
+    setPrevVisitedPath(location.pathname);
+    if (location.pathname.startsWith("/fo/")) {
+      setVisitedSections((prev) => new Set([...prev, location.pathname]));
     }
-  }, [location.pathname]);
+  }
 
   if (!user || (role !== "fo" && role !== "admin")) return null;
 

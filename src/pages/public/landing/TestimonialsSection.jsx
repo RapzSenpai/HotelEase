@@ -2,7 +2,8 @@ import { useState, useMemo, memo } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Star } from "lucide-react";
-import { SectionEyebrow, AmbientGlow, cleanPanel } from "./helpers";
+import { SectionEyebrow, AmbientGlow } from "./components";
+import { cleanPanel } from "./helpers";
 
 const TestimonialCardItem = memo(function TestimonialCardItem({ testimonial }) {
   const rating = Number(testimonial.rating ?? 5);

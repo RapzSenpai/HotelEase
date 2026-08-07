@@ -1,7 +1,8 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Image } from "lucide-react";
-import { SectionEyebrow, AmbientGlow, cleanPanel, formatDate } from "./helpers";
+import { SectionEyebrow, AmbientGlow } from "./components";
+import { cleanPanel, formatDate } from "./helpers";
 import { optimizeCloudinaryUrl } from "@/lib/cloudinaryTransform";
 
 export default function AnnouncementsSection({ announcements, announcementsLoading, announcementsError }) {

@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { Outlet, useLocation } from "react-router-dom";
+import { Outlet, useLocation, Navigate } from "react-router-dom";
 import { Toaster } from "sonner";
 import Navbar from "@/components/layout/Navbar";
 import Sidebar from "@/components/layout/Sidebar";
@@ -18,12 +18,33 @@ const trainingBanner = (
 );
 
 export default function AppShell() {
-  const { role, trainingMode } = useAuth();
+  const { user, role, profile, loading, trainingMode } = useAuth();
   const location = useLocation();
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   const toggleMobileSidebar = useCallback(() => setMobileSidebarOpen((v) => !v), []);
   const closeMobileSidebar = useCallback(() => setMobileSidebarOpen(false), []);
+
+  // Global email-verification gate: an email/password guest must finish the
+  // OTP flow before touching ANY page (Rooms, My Bookings, landing, etc.).
+  // Public pages like Rooms are intentionally browsable, so once logged in as
+  // an unverified guest we lock them to /verify-email.
+  const isUnverifiedGuest =
+    !loading &&
+    user &&
+    !user.isAnonymous &&
+    role === "guest" &&
+    profile != null &&
+    profile.emailVerified === false;
+
+  if (
+    isUnverifiedGuest &&
+    !location.pathname.startsWith("/verify-email") &&
+    !location.pathname.startsWith("/login") &&
+    !location.pathname.startsWith("/register")
+  ) {
+    return <Navigate to="/verify-email" replace state={{ from: location.pathname }} />;
+  }
 
   const hasSidebar = role === "fo" || role === "admin";
   const isLanding = location.pathname === "/";

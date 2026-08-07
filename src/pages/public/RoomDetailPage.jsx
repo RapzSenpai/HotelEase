@@ -311,7 +311,6 @@ export default function RoomDetailPage() {
   // --- form state ---
   const [formRating, setFormRating] = useState(0);
   const [formFeedback, setFormFeedback] = useState("");
-  const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState(null);
 
@@ -340,7 +339,6 @@ export default function RoomDetailPage() {
         const data = await getRoom(roomId);
         if (!isMounted) return;
         setRoom(data);
-        setCurrentPhotoIndex(0);
         trackEvent(GA_EVENTS.ROOM_VIEW, {
           item_id: roomId,
           item_name: data?.name || data?.roomNumber || "",

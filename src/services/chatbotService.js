@@ -1,22 +1,9 @@
-// To get your free Groq API key:
-// 1. Go to https://console.groq.com
-// 2. Sign in and go to API Keys
-// 3. Click "Create API Key"
-// 4. Paste into .env as VITE_GROQ_API_KEY
-
-import Groq from "groq-sdk";
 import { listRooms } from "@/services/roomsService";
 
-// KNOWN LIMITATION: Groq API key is exposed client-side (dangerouslyAllowBrowser: true).
-// Firebase Spark (free) plan does not support Cloud Functions to proxy this call.
-// Future work: migrate to serverless proxy (Vercel Edge Function / Cloudflare Worker)
-// once deployment platform is finalized. Accepted as academic-scope risk for capstone.
-const groq = new Groq({
-  apiKey: import.meta.env.VITE_GROQ_API_KEY,
-  dangerouslyAllowBrowser: true,
-});
-
-const MODEL_ID = "llama-3.1-8b-instant";
+// The Groq API key never ships to the browser. Chat requests are forwarded to a
+// Cloudflare Worker proxy (server-side), which injects the key + rate limits.
+// See /worker. The proxy URL is configured via VITE_GROQ_PROXY_URL.
+const GROQ_PROXY_URL = import.meta.env.VITE_GROQ_PROXY_URL;
 
 const SYSTEM_PROMPT = `You are HotelEase Assistant, a professional and friendly concierge chatbot for HotelEase — a hotel management system for the BSHM department at Consolatrix Suites, Toledo City.
 
@@ -73,8 +60,7 @@ export async function sendMessage(
   roomsContext = null,
   options = {},
 ) {
-  const apiKey = import.meta.env.VITE_GROQ_API_KEY;
-  if (!apiKey || typeof apiKey !== "string" || !apiKey.trim()) {
+  if (!GROQ_PROXY_URL) {
     return UNAVAILABLE;
   }
 
@@ -97,28 +83,33 @@ export async function sendMessage(
   }));
 
   try {
-    const response = await groq.chat.completions.create({
-      model: MODEL_ID,
-      messages: [
-        {
-          role: "system",
-          content: SYSTEM_PROMPT + roomsBlock,
-        },
-        ...historyMessages,
-        {
-          role: "user",
-          content: userMessage,
-        },
-      ],
-      max_tokens: 300,
-      temperature: 0.7,
+    const response = await fetch(GROQ_PROXY_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        messages: [
+          {
+            role: "system",
+            content: SYSTEM_PROMPT + roomsBlock,
+          },
+          ...historyMessages,
+          {
+            role: "user",
+            content: userMessage,
+          },
+        ],
+      }),
     });
 
-    return (
-      response.choices[0]?.message?.content?.trim() || UNAVAILABLE
-    );
+    if (!response.ok) {
+      console.error(`chatbotService: Groq proxy returned ${response.status}`);
+      return UNAVAILABLE;
+    }
+
+    const data = await response.json();
+    return data?.content?.trim() || UNAVAILABLE;
   } catch (e) {
-    console.error("chatbotService: Groq error", e);
+    console.error("chatbotService: Groq proxy error", e);
     return UNAVAILABLE;
   }
 }

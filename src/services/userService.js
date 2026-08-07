@@ -1,4 +1,4 @@
-import { collection, deleteDoc, doc, getDoc, getDocs, serverTimestamp, setDoc, updateDoc, onSnapshot } from "firebase/firestore";
+import { collection, deleteDoc, doc, getDoc, getDocs, serverTimestamp, setDoc, updateDoc, onSnapshot, query, where } from "firebase/firestore";
 import { db } from "@/firebase/firebase.config";
 import { getCol } from "@/lib/db-utils";
 
@@ -47,7 +47,7 @@ export async function createUserProfile({
   const ref = doc(db, col, uid);
   await setDoc(
     ref,
-    { uid, email: email ?? null, fullName, phone, role, createdAt: serverTimestamp() },
+    { uid, email: email ?? null, fullName, phone, role, emailVerified: false, createdAt: serverTimestamp() },
     { merge: true }
   );
 }
@@ -55,6 +55,18 @@ export async function createUserProfile({
 export async function listUsers({ trainingMode = false } = {}) {
   const col = usersCollection(trainingMode);
   const snap = await getDocs(collection(db, col));
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+
+/**
+ * Guest-safe way to fetch Front Office staff only. Guests can read FO-role
+ * user docs (for cancellation/notification fan-out) but must NOT be able to
+ * read other guests — so use this instead of listUsers() in guest flows.
+ */
+export async function listFoUsers({ trainingMode = false } = {}) {
+  const col = usersCollection(trainingMode);
+  const q = query(collection(db, col), where("role", "==", "fo"));
+  const snap = await getDocs(q);
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
 

@@ -253,7 +253,8 @@ export default function ContactPage() {
   );
 }
 
-function InfoRow({ icon: Icon, label, value }) {
+function InfoRow({ icon, label, value }) {
+  const Icon = icon;
   return (
     <div className="flex items-start gap-3">
       <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10">

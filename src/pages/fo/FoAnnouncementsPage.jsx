@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -162,7 +162,7 @@ export default function FoAnnouncementsPage() {
     try {
       await deleteAnnouncement(id);
       await refresh();
-    } catch (e) {
+    } catch {
       setError("Failed to delete announcement.");
     }
   }
