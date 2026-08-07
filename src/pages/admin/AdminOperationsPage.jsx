@@ -268,7 +268,7 @@ export default function AdminOperationsPage() {
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between gap-2">
                 <CardTitle className="flex items-center gap-2 text-lg">
-                  <div className="p-2 rounded-lg bg-gold/10 text-gold">
+                  <div className="p-2 rounded-lg bg-primary/10 text-primary">
                     <Layers className="h-5 w-5" />
                   </div>
                   Bulk Room Status
@@ -284,7 +284,7 @@ export default function AdminOperationsPage() {
                 <div className="flex items-center gap-2">
                   <Label className="text-xs font-semibold text-muted-foreground whitespace-nowrap">Filter List:</Label>
                   <Select.Root value={currentStatusFilter} onValueChange={setCurrentStatusFilter}>
-                    <Select.Trigger className="flex h-9 w-44 items-center justify-between rounded-lg border border-border bg-background px-3 py-1.5 text-xs text-foreground shadow-sm hover:border-border/80 focus:outline-none focus:ring-2 focus:ring-gold/30 transition-colors">
+                    <Select.Trigger className="flex h-9 w-44 items-center justify-between rounded-lg border border-border bg-background px-3 py-1.5 text-xs text-foreground shadow-sm hover:border-border/80 focus:outline-none focus:ring-2 focus:ring-primary/30 transition-colors">
                       <Select.Value />
                       <ChevronDown className="h-4 w-4 opacity-50 ml-1.5 shrink-0 text-muted-foreground" />
                     </Select.Trigger>
@@ -319,7 +319,7 @@ export default function AdminOperationsPage() {
               <div className="max-h-72 space-y-2 overflow-y-auto rounded-xl border border-border/60 p-2 bg-background">
                 {loadingRooms ? (
                   <div className="flex items-center justify-center gap-2 p-6 text-sm text-muted-foreground">
-                    <Loader2 className="h-4 w-4 animate-spin text-gold" /> Loading rooms…
+                    <Loader2 className="h-4 w-4 animate-spin text-primary" /> Loading rooms…
                   </div>
                 ) : filteredRooms.length === 0 ? (
                   <div className="p-6 text-center text-sm text-muted-foreground">No rooms match filter.</div>
@@ -331,14 +331,14 @@ export default function AdminOperationsPage() {
                         key={r.id}
                         className={`flex cursor-pointer items-center justify-between rounded-xl border px-3.5 py-2.5 transition-all ${
                           isSelected
-                            ? "border-gold/50 bg-gold/10 shadow-sm"
+                            ? "border-primary/50 bg-primary/10 shadow-sm"
                             : "border-border/60 bg-background hover:bg-muted/20 hover:border-border"
                         }`}
                       >
                         <div className="flex items-center gap-3">
                           <input
                             type="checkbox"
-                            className="h-4 w-4 accent-gold rounded cursor-pointer"
+                            className="h-4 w-4 accent-primary rounded cursor-pointer"
                             checked={isSelected}
                             onChange={() => toggleSelect(r.id)}
                           />
@@ -359,7 +359,7 @@ export default function AdminOperationsPage() {
               <div className="flex items-center gap-2.5">
                 <Label className="text-xs font-semibold text-foreground whitespace-nowrap">Set New Status:</Label>
                 <Select.Root value={bulkStatus} onValueChange={setBulkStatus}>
-                  <Select.Trigger className="flex h-9 w-44 items-center justify-between rounded-lg border border-border bg-background px-3 py-1.5 text-xs text-foreground shadow-sm hover:border-border/80 focus:outline-none focus:ring-2 focus:ring-gold/30 transition-colors">
+                  <Select.Trigger className="flex h-9 w-44 items-center justify-between rounded-lg border border-border bg-background px-3 py-1.5 text-xs text-foreground shadow-sm hover:border-border/80 focus:outline-none focus:ring-2 focus:ring-primary/30 transition-colors">
                     <Select.Value />
                     <ChevronDown className="h-4 w-4 opacity-50 ml-1 shrink-0 text-muted-foreground" />
                   </Select.Trigger>
@@ -391,7 +391,7 @@ export default function AdminOperationsPage() {
           <Card className="border border-border shadow-sm">
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-lg">
-                <div className="p-2 rounded-lg bg-gold/10 text-gold">
+                <div className="p-2 rounded-lg bg-primary/10 text-primary">
                   <Download className="h-5 w-5" />
                 </div>
                 Data Export
@@ -410,7 +410,7 @@ export default function AdminOperationsPage() {
                 {exportBusy === "rooms" ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
                 ) : (
-                  <Download className="h-3.5 w-3.5 text-gold" />
+                  <Download className="h-3.5 w-3.5 text-primary" />
                 )}
                 Export Rooms (CSV)
               </Button>
@@ -423,7 +423,7 @@ export default function AdminOperationsPage() {
                 {exportBusy === "users" ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
                 ) : (
-                  <Download className="h-3.5 w-3.5 text-gold" />
+                  <Download className="h-3.5 w-3.5 text-primary" />
                 )}
                 Export Users (CSV)
               </Button>
@@ -443,14 +443,14 @@ export default function AdminOperationsPage() {
                 Emergency Override
               </CardTitle>
               <CardDescription>
-                Force a single room status immediately for maintenance or emergency drills.
+                Force a single room status immediately for maintenance or emergency.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-1.5">
                 <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Select Target Room</Label>
                 <Select.Root value={emergencyRoomId} onValueChange={setEmergencyRoomId}>
-                  <Select.Trigger className="flex h-9 w-full items-center justify-between rounded-lg border border-border bg-background px-3 py-1.5 text-xs text-foreground shadow-sm hover:border-border/80 focus:outline-none focus:ring-2 focus:ring-gold/30 transition-colors">
+                  <Select.Trigger className="flex h-9 w-full items-center justify-between rounded-lg border border-border bg-background px-3 py-1.5 text-xs text-foreground shadow-sm hover:border-border/80 focus:outline-none focus:ring-2 focus:ring-primary/30 transition-colors">
                     <Select.Value placeholder="Select a room…" />
                     <ChevronDown className="h-4 w-4 opacity-50 ml-2 shrink-0 text-muted-foreground" />
                   </Select.Trigger>
@@ -474,7 +474,7 @@ export default function AdminOperationsPage() {
               <div className="space-y-1.5">
                 <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Override Status To</Label>
                 <Select.Root value={emergencyStatus} onValueChange={setEmergencyStatus}>
-                  <Select.Trigger className="flex h-9 w-full items-center justify-between rounded-lg border border-border bg-background px-3 py-1.5 text-xs text-foreground shadow-sm hover:border-border/80 focus:outline-none focus:ring-2 focus:ring-gold/30 transition-colors">
+                  <Select.Trigger className="flex h-9 w-full items-center justify-between rounded-lg border border-border bg-background px-3 py-1.5 text-xs text-foreground shadow-sm hover:border-border/80 focus:outline-none focus:ring-2 focus:ring-primary/30 transition-colors">
                     <Select.Value />
                     <ChevronDown className="h-4 w-4 opacity-50 ml-2 shrink-0 text-muted-foreground" />
                   </Select.Trigger>
@@ -524,7 +524,7 @@ export default function AdminOperationsPage() {
           <Card className="border border-border shadow-sm">
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-lg">
-                <div className="p-2 rounded-lg bg-gold/10 text-gold">
+                <div className="p-2 rounded-lg bg-primary/10 text-primary">
                   <Megaphone className="h-5 w-5" />
                 </div>
                 System Announcement

@@ -1,9 +1,35 @@
-import { doc, getDoc, onSnapshot, collection, getDocs, query, orderBy, limit, setDoc } from "firebase/firestore";
+import { doc, getDoc, onSnapshot, collection, getDocs, query, orderBy, limit, setDoc, addDoc } from "firebase/firestore";
 import { db } from "@/firebase/firebase.config";
 
 const HEALTH_DOC_ID = "metrics";
 const HEALTH_COLLECTION = "system_health";
 const ERROR_LOGS_COLLECTION = "error_logs";
+
+// Honest fallback: only mark the database as reachable (reading this doc proves
+// connectivity). Metrics that cannot be computed client-side stay undefined so
+// the UI shows "—" instead of a fabricated number.
+const DEFAULT_HEALTH = {
+  databaseStatus: "healthy",
+  apiLatency: null,
+  activeSessions: null,
+  uptime: null,
+  lastUpdated: null,
+};
+
+/**
+ * Field names that are only ever seeded and never genuinely measured. Older
+ * docs may still contain fabricated values we seeded before; strip them so the
+ * UI shows "—" instead of a misleading number.
+ */
+const UNTRUSTED_FIELDS = new Set(["apiLatency", "activeSessions", "uptime"]);
+
+function sanitizeHealth(data) {
+  const out = { ...data };
+  for (const field of UNTRUSTED_FIELDS) {
+    if (field in out) out[field] = null;
+  }
+  return out;
+}
 
 /**
  * Get system health metrics
@@ -15,27 +41,15 @@ export async function getSystemHealth() {
     const docSnap = await getDoc(docRef);
     
     if (docSnap.exists()) {
-      return docSnap.data();
+      return sanitizeHealth(docSnap.data());
     }
     
     // Return default health status if no data exists
-    return {
-      databaseStatus: "healthy",
-      apiLatency: 45,
-      activeSessions: 0,
-      uptime: "99.9%",
-      lastUpdated: new Date().toISOString(),
-    };
+    return { ...DEFAULT_HEALTH };
   } catch (error) {
     console.error("Error fetching system health:", error);
-    // On error, still return healthy defaults so dashboard looks good
-    return {
-      databaseStatus: "healthy",
-      apiLatency: 45,
-      activeSessions: 0,
-      uptime: "99.9%",
-      lastUpdated: new Date().toISOString(),
-    };
+    // On error, still return the honest fallback so the dashboard stays usable
+    return DEFAULT_HEALTH;
   }
 }
 
@@ -49,13 +63,15 @@ export async function initializeSystemHealth() {
     const docSnap = await getDoc(docRef);
     
     if (!docSnap.exists()) {
-      await setDoc(docRef, {
-        databaseStatus: "healthy",
-        apiLatency: 45,
-        activeSessions: 0,
-        uptime: "99.9%",
-        lastUpdated: new Date().toISOString(),
-      });
+      await setDoc(docRef, DEFAULT_HEALTH);
+    } else {
+      // Overwrite stale seeded fields (e.g. fake uptime written before we
+      // made the defaults honest) so real-time reads no longer surface them.
+      const patches = {};
+      for (const field of UNTRUSTED_FIELDS) {
+        if (docSnap.data()[field] != null) patches[field] = null;
+      }
+      if (Object.keys(patches).length) await setDoc(docRef, { ...docSnap.data(), ...patches });
     }
   } catch (error) {
     console.error("Error initializing system health:", error);
@@ -74,25 +90,19 @@ export function subscribeToSystemHealth(callback) {
     docRef,
     (docSnap) => {
       if (docSnap.exists()) {
-        callback(docSnap.data());
+        callback(sanitizeHealth(docSnap.data()));
       } else {
         // Default values if no data
-        callback({
-          databaseStatus: "healthy",
-          apiLatency: 0,
-          activeSessions: 0,
-          uptime: "99.9%",
-          lastUpdated: new Date().toISOString(),
-        });
+        callback({ ...DEFAULT_HEALTH });
       }
     },
     (error) => {
       console.error("Error subscribing to system health:", error);
       callback({
         databaseStatus: "error",
-        apiLatency: 0,
-        activeSessions: 0,
-        uptime: "unknown",
+        apiLatency: null,
+        activeSessions: null,
+        uptime: null,
         lastUpdated: new Date().toISOString(),
       });
     }
@@ -132,9 +142,13 @@ export async function getRecentErrorLogs(limitCount = 10) {
  */
 export async function logError({ message, stack, component, userId }) {
   try {
-    // This would require adding the error_logs collection to Firestore
-    // For now, just log to console
-    console.error("Error logged:", { message, stack, component, userId, timestamp: new Date().toISOString() });
+    await addDoc(collection(db, ERROR_LOGS_COLLECTION), {
+      message,
+      stack: stack || "",
+      component: component || "",
+      userId: userId || "",
+      timestamp: new Date().toISOString(),
+    });
   } catch (error) {
     console.error("Failed to log error:", error);
   }

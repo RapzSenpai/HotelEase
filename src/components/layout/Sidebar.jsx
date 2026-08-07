@@ -63,7 +63,6 @@ const FO_LINKS = [
     group: "Revenue Management",
     items: [
       { to: "/fo/payments", label: "Payments", icon: CreditCard },
-      { to: "/fo/room-rates", label: "Room Rates", icon: DollarSign },
       {
         to: "/fo/bookings",
         label: "Bookings",
@@ -98,6 +97,7 @@ const ADMIN_LINKS = [
         icon: Building2,
         notification: { type: "dot", key: "hasDirtyRooms" },
       },
+      { to: "/admin/room-rates", label: "Room Rates", icon: DollarSign },
     ],
   },
   {

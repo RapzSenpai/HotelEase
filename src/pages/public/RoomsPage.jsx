@@ -147,8 +147,6 @@ const RoomCard = memo(function RoomCard({
     ? `?checkIn=${checkIn}&checkOut=${checkOut}`
     : "";
 
-  const bookingDisabled = availabilityChecked && !checkedAvailable;
-
   // Determine availability display
   const roomStatus = room.status || "Available";
   const isAvailable = availabilityChecked ? checkedAvailable : roomStatus === "Available";
@@ -270,27 +268,11 @@ const RoomCard = memo(function RoomCard({
         <div className="flex gap-3 pt-1 mt-auto">
           <Button
             asChild
-            variant="outline"
+            variant="default"
             className="flex-1"
           >
             <NavLink to={`/rooms/${room.id}${dateParams}`}>
-              View Details
-            </NavLink>
-          </Button>
-          <Button
-            asChild
-            variant="default"
-            className="flex-1"
-            disabled={bookingDisabled}
-          >
-            <NavLink
-              to={`/booking/${room.id}${dateParams}`}
-              tabIndex={bookingDisabled ? -1 : undefined}
-              onClick={bookingDisabled ? (e) => e.preventDefault() : undefined}
-              aria-disabled={bookingDisabled}
-              className={bookingDisabled ? "pointer-events-none opacity-50" : ""}
-            >
-              Book Now
+              View Details &amp; Book
             </NavLink>
           </Button>
         </div>

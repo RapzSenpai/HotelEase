@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { MapPin, Mail, Phone, Clock3, Send } from "lucide-react";
 import { toast } from "sonner";
@@ -28,6 +28,9 @@ export default function ContactPage() {
   const { user } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [cooldown, setCooldown] = useState(0);
+  const cooldownTimer = useRef(null);
+
+  useEffect(() => () => clearInterval(cooldownTimer.current), []);
   const { register, handleSubmit, formState: { errors }, reset, control: formControl } = useForm({
     defaultValues: {
       name: "",
@@ -60,14 +63,8 @@ export default function ContactPage() {
       toast.success("Message sent! We'll get back to you shortly.");
       reset();
       setCooldown(COOLDOWN_SECONDS);
-      const interval = setInterval(() => {
-        setCooldown((prev) => {
-          if (prev <= 1) {
-            clearInterval(interval);
-            return 0;
-          }
-          return prev - 1;
-        });
+      cooldownTimer.current = setInterval(() => {
+        setCooldown((prev) => Math.max(0, prev - 1));
       }, 1000);
     } catch (e) {
       toast.error(mapFirebaseError(e) || "Failed to send message.");

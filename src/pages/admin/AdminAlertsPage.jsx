@@ -158,7 +158,7 @@ export default function AdminAlertsPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div className="space-y-1.5">
         <h1 className="font-playfair text-4xl font-semibold tracking-tight">Alerts</h1>
         <p className="text-foreground/60 max-w-lg">
@@ -173,26 +173,37 @@ export default function AdminAlertsPage() {
       )}
 
       {/* ── Summary cards ── */}
-      <div className="grid gap-4 sm:grid-cols-3">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-sm text-foreground/60">Unresolved</div>
-            <div className="mt-1 text-3xl font-semibold">{unresolvedCount}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-sm text-foreground/60">Critical</div>
-            <div className="mt-1 text-3xl font-semibold text-destructive">{criticalCount}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-sm text-foreground/60">Total</div>
-            <div className="mt-1 text-3xl font-semibold">{alerts.length}</div>
-          </CardContent>
-        </Card>
-      </div>
+      <Card className="overflow-hidden">
+        <div className="grid divide-y divide-border sm:grid-cols-3 sm:divide-y-0 sm:divide-x">
+          <div className="flex items-center gap-3 px-4 py-4">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <AlertTriangle className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <div className="text-xs text-foreground/50">Unresolved</div>
+              <div className="text-xl font-semibold leading-tight">{unresolvedCount}</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 px-4 py-4">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-destructive/10 text-destructive">
+              <AlertCircle className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <div className="text-xs text-foreground/50">Critical</div>
+              <div className="text-xl font-semibold leading-tight text-destructive">{criticalCount}</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 px-4 py-4">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <Bell className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <div className="text-xs text-foreground/50">Total</div>
+              <div className="text-xl font-semibold leading-tight">{alerts.length}</div>
+            </div>
+          </div>
+        </div>
+      </Card>
 
       <Card>
         <CardHeader className="flex flex-row items-start justify-between gap-4">

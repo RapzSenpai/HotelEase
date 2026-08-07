@@ -71,7 +71,8 @@ service cloud.firestore {
                        (!isAnonymous() && isOwner(uid)) ||
                        (!isAnonymous() && resource.data.role == 'fo');
       allow create: if isOwner(uid) && !isAnonymous() && request.resource.data.role == 'guest';
-      allow update: if (isOwner(uid) && !isAnonymous() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['fullName', 'email', 'phone', 'photoUrl', 'updatedAt', 'lastLoginAt', 'lastLoginIp', 'isOnline', 'lastSeenAt', 'sessions', 'lastLoginDevice', 'revokedSessions', 'currentSessionId', 'lastSessionActiveAt', 'activeSessionId', 'sessionRevokeTimestamp', 'emailVerified', 'verifiedAt', 'verificationCodeHash', 'verificationExpiresAt', 'verificationAttempts', 'verificationResendAt'])) || isProdAdmin();
+      allow update: if (isOwner(uid) && !isAnonymous() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['fullName', 'email', 'phone', 'photoUrl', 'updatedAt', 'lastLoginAt', 'lastLoginIp', 'isOnline', 'lastSeenAt', 'sessions', 'lastLoginDevice', 'revokedSessions', 'currentSessionId', 'lastSessionActiveAt', 'activeSessionId', 'sessionRevokeTimestamp', 'emailVerified', 'verifiedAt', 'verificationCodeHash', 'verificationExpiresAt', 'verificationAttempts', 'verificationResendAt'])) || isProdAdmin() ||
+                      (isProdFOOrAdmin() && !isAnonymous() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['cancellationCount', 'updatedAt']));
       allow delete: if isProdAdmin() && !isAnonymous();
 
       // Favorites subcollection - users can manage their own favorites
@@ -168,9 +169,15 @@ service cloud.firestore {
 
     match /training_guests/{uid} {
       allow read: if isOwner(uid) || isProdFOOrAdmin() || isTrainingFOOrAdmin();
-      // Allow trainees to create profile, and Prod staff to seed demo users
-      allow create: if isOwner(uid) || isProdFOOrAdmin(); 
-      allow update: if isOwner(uid) || isProdFOOrAdmin() || isTrainingFOOrAdmin();
+      // Allow trainees to create their own profile (must be a guest; staff may seed demo users).
+      // Mirrors the prod /users rule so a trainee cannot self-grant an admin/fo role.
+      allow create: if isOwner(uid) && !isAnonymous() && request.resource.data.role == 'guest';
+      // Trainees may edit only their own profile fields (never their role).
+      allow update: if (isProdFOOrAdmin() || isTrainingFOOrAdmin()) ||
+                     (isOwner(uid) && !isAnonymous() &&
+                      request.resource.data.diff(resource.data).affectedKeys().hasOnly(
+                        ['fullName', 'email', 'phone', 'photoUrl', 'updatedAt', 'lastLoginAt',
+                         'lastLoginIp', 'isOnline', 'lastSeenAt', 'emailVerified', 'verifiedAt']));
       allow delete: if isProdFOOrAdmin() || isTrainingFOOrAdmin();
     }
     

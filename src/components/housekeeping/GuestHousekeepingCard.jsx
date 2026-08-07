@@ -141,6 +141,10 @@ export default function GuestHousekeepingCard({ booking, room, trainingMode, use
   const latestPhotoLog = logs.find((l) => Array.isArray(l.photoUrls) && l.photoUrls.length > 0);
   const photoUrls = latestPhotoLog?.photoUrls || [];
 
+  const cleaningCompleted = logs.some((l) =>
+    ["Pending Approval", "Available"].includes(l.toStatus)
+  );
+
   return (
     <Card>
       <CardHeader className="flex-row items-center justify-between gap-4 space-y-0 py-4">
@@ -198,10 +202,12 @@ export default function GuestHousekeepingCard({ booking, room, trainingMode, use
           </div>
         )}
 
-        {photoUrls.length > 0 && (
+        {(photoUrls.length > 0 || (cleaningCompleted && !reviewSubmitted)) && (
           <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3">
             <p className="text-xs text-foreground/60">
-              Housekeeping completed — view cleaning photos.
+              {photoUrls.length > 0
+                ? "Housekeeping completed — view cleaning photos or rate cleanliness."
+                : "Housekeeping completed — how was the cleaning?"}
             </p>
             <div className="flex items-center gap-1.5">
               {!reviewSubmitted && (
@@ -214,14 +220,16 @@ export default function GuestHousekeepingCard({ booking, room, trainingMode, use
                   Rate Cleanliness
                 </Button>
               )}
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-8 text-xs"
-                onClick={() => setPhotosOpen(true)}
-              >
-                <ImageIcon className="mr-1 h-3.5 w-3.5" /> See Photos
-              </Button>
+              {photoUrls.length > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-xs"
+                  onClick={() => setPhotosOpen(true)}
+                >
+                  <ImageIcon className="mr-1 h-3.5 w-3.5" /> See Photos
+                </Button>
+              )}
             </div>
           </div>
         )}

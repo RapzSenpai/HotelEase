@@ -1,0 +1,59 @@
+bookingsService.js:856  POST https://firestore.googleapis.com/v1/projects/hotelease-9e3a0/databases/(default)/documents:commit?key=AIzaSyDqlcREgKDlwSQfJZsFkJP2vl9AkPc8dbc 403 (Forbidden)
+h.ea @ firebase_firestore.js?v=bf704cb0:1856
+(anonymous) @ firebase_firestore.js?v=bf704cb0:13896
+zo @ firebase_firestore.js?v=bf704cb0:13859
+Wo @ firebase_firestore.js?v=bf704cb0:13738
+(anonymous) @ firebase_firestore.js?v=bf704cb0:14441
+Promise.then
+Wo @ firebase_firestore.js?v=bf704cb0:14441
+__PRIVATE_invokeCommitRpc @ firebase_firestore.js?v=bf704cb0:16492
+commit @ firebase_firestore.js?v=bf704cb0:16493
+(anonymous) @ firebase_firestore.js?v=bf704cb0:16559
+(anonymous) @ firebase_firestore.js?v=bf704cb0:17311
+(anonymous) @ firebase_firestore.js?v=bf704cb0:17331
+Promise.then
+cc @ firebase_firestore.js?v=bf704cb0:17331
+enqueue @ firebase_firestore.js?v=bf704cb0:17311
+enqueueAndForget @ firebase_firestore.js?v=bf704cb0:17296
+(anonymous) @ firebase_firestore.js?v=bf704cb0:16559
+Promise.then
+(anonymous) @ firebase_firestore.js?v=bf704cb0:16558
+(anonymous) @ firebase_firestore.js?v=bf704cb0:14100
+(anonymous) @ firebase_firestore.js?v=bf704cb0:14840
+(anonymous) @ firebase_firestore.js?v=bf704cb0:17311
+(anonymous) @ firebase_firestore.js?v=bf704cb0:17331
+Promise.then
+cc @ firebase_firestore.js?v=bf704cb0:17331
+enqueue @ firebase_firestore.js?v=bf704cb0:17311
+enqueueAndForget @ firebase_firestore.js?v=bf704cb0:17296
+handleDelayElapsed @ firebase_firestore.js?v=bf704cb0:14840
+(anonymous) @ firebase_firestore.js?v=bf704cb0:14822
+setTimeout
+start @ firebase_firestore.js?v=bf704cb0:14822
+createAndSchedule @ firebase_firestore.js?v=bf704cb0:14816
+enqueueAfterDelay @ firebase_firestore.js?v=bf704cb0:17339
+p_ @ firebase_firestore.js?v=bf704cb0:14100
+Ju @ firebase_firestore.js?v=bf704cb0:16556
+ju @ firebase_firestore.js?v=bf704cb0:16553
+(anonymous) @ firebase_firestore.js?v=bf704cb0:16836
+await in (anonymous)
+(anonymous) @ firebase_firestore.js?v=bf704cb0:17311
+(anonymous) @ firebase_firestore.js?v=bf704cb0:17331
+Promise.then
+cc @ firebase_firestore.js?v=bf704cb0:17331
+enqueue @ firebase_firestore.js?v=bf704cb0:17311
+enqueueAndForget @ firebase_firestore.js?v=bf704cb0:17296
+__PRIVATE_firestoreClientTransaction @ firebase_firestore.js?v=bf704cb0:16834
+runTransaction @ firebase_firestore.js?v=bf704cb0:20048
+(anonymous) @ bookingsService.js:856
+(anonymous) @ FoCancellationsPage.jsx:230
+(anonymous) @ FoCancellationsPage.jsx:308
+executeDispatch @ react-dom_client.js?v=bf704cb0:9141
+runWithFiberInDEV @ react-dom_client.js?v=bf704cb0:851
+processDispatchQueue @ react-dom_client.js?v=bf704cb0:9167
+(anonymous) @ react-dom_client.js?v=bf704cb0:9454
+batchedUpdates$1 @ react-dom_client.js?v=bf704cb0:2044
+dispatchEventForPluginEventSystem @ react-dom_client.js?v=bf704cb0:9240
+dispatchEvent @ react-dom_client.js?v=bf704cb0:11319
+dispatchDiscreteEvent @ react-dom_client.js?v=bf704cb0:11301
+client:510 [2026-08-07T18:10:09.830Z]  @firebase/firestore: Firestore (12.11.0): RestConnection RPC 'Commit' 0x29889372 failed with error:  {"code":"permission-denied","name":"FirebaseError"} url:  https://firestore.googleapis.com/v1/projects/hotelease-9e3a0/databases/(default)/documents:commit?key=AIzaSyDqlcREgKDlwSQfJZsFkJP2vl9AkPc8dbc request: {"writes":[{"update":{"name":"projects/hotelease-9e3a0/databases/(default)/documents/users/Tg1VZe5IybZq04GpPDNMWPUFlt42","fields":{"cancellationCount":{"integerValue":"1"}}},"updateMask":{"fieldPaths":["cancellationCount"]},"updateTransforms":[{"fieldPath":"updatedAt","setToServerValue":"REQUEST_TIME"}],"currentDocument":{"updateTime":"2026-08-07T18:00:11.622537000Z"}},{"update":{"name":"projects/hotelease-9e3a0/databases/(default)/documents/rooms/dYCoOXeVbepogV2cYs0M","fields":{"status":{"stringValue":"Available"}}},"updateMask":{"fieldPaths":["status"]},"updateTransforms":[{"fieldPath":"updatedAt","setToServerValue":"REQUEST_TIME"},{"fieldPath":"statusChangedAt","setToServerValue":"REQUEST_TIME"}],"currentDocument":{"updateTime":"2026-08-07T17:59:49.970442000Z"}},{"update":{"name":"projects/hotelease-9e3a0/databases/(default)/documents/bookings/MPax3dndzCZjCt2osm1u","fields":{"status":{"stringValue":"Cancelled"}}},"updateMask":{"fieldPaths":["status"]},"updateTransforms":[{"fieldPath":"updatedAt","setToServerValue":"REQUEST_TIME"}],"currentDocument":{"updateTime":"2026-08-07T18:00:08.991382000Z"}}]}

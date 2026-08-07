@@ -245,10 +245,10 @@ function BookingCard({ booking, room, trainingMode, userProfile, onCancelled }) 
       <button
         type="button"
         onClick={handleExpand}
-        className="w-full text-left p-4 flex items-start justify-between gap-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 rounded-t-xl"
+        className="w-full text-left p-3.5 flex items-start justify-between gap-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 rounded-t-xl"
         aria-expanded={expanded}
       >
-        <div className="space-y-1 min-w-0">
+        <div className="space-y-0.5 min-w-0">
           {/* Room + booking ID */}
           <div className="flex flex-wrap items-center gap-2">
             <BedDouble className="h-4 w-4 shrink-0 text-primary" />
@@ -272,7 +272,7 @@ function BookingCard({ booking, room, trainingMode, userProfile, onCancelled }) 
         </div>
 
         {/* Right side: status + amount + chevron */}
-        <div className="flex flex-col items-end gap-2 shrink-0">
+        <div className="flex flex-col items-end gap-1 shrink-0">
           <Badge variant={STATUS_VARIANT[status] ?? "default"}>{status}</Badge>
           <div className="text-sm font-semibold">
             PHP {total.toLocaleString()}
@@ -289,9 +289,9 @@ function BookingCard({ booking, room, trainingMode, userProfile, onCancelled }) 
 
       {/* ── Expanded detail panel ── */}
       {expanded && (
-        <div className="border-t border-border p-4 space-y-4">
+        <div className="border-t border-border p-3.5 space-y-3">
           {/* ── Info grid ── */}
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 text-sm">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 text-sm">
             <div className="space-y-0.5">
               <p className="text-xs text-foreground/50 uppercase tracking-wide">
                 Check-in
@@ -348,7 +348,7 @@ function BookingCard({ booking, room, trainingMode, userProfile, onCancelled }) 
           ) : null}
 
           {/* ── Payment folio ── */}
-          <div className="rounded-lg border border-border bg-background p-3 space-y-2">
+          <div className="rounded-lg border border-border bg-background p-2.5 space-y-2">
             <div className="flex items-center gap-1.5">
               <CreditCard className="h-4 w-4 text-foreground/50" />
               <span className="text-sm font-semibold">Payment Folio</span>
@@ -436,7 +436,7 @@ function BookingCard({ booking, room, trainingMode, userProfile, onCancelled }) 
           {/* ── Payment Proof Upload (Awaiting Payment status) ── */}
           {/* Phase 17.3: Only show upload UI for GCash and Bank Transfer methods */}
           {status === "Awaiting Payment" && PROOF_REQUIRED_METHODS.includes(booking.paymentMethod) && (
-            <div className="rounded-lg border border-warning/30 bg-warning/5 p-4 space-y-3">
+            <div className="rounded-lg border border-warning/30 bg-warning/5 p-3 space-y-3">
               <div className="flex items-center gap-2 text-warning">
                 <Clock className="h-4 w-4" />
                 <span className="text-sm font-semibold">Payment Proof Required</span>
@@ -527,7 +527,7 @@ function BookingCard({ booking, room, trainingMode, userProfile, onCancelled }) 
 
           {/* ── Payment Proof Uploaded (Pending status) ── */}
           {status === "Pending" && booking.paymentProofUrl && (
-            <div className="rounded-lg border border-success/30 bg-success/5 p-4 space-y-2">
+            <div className="rounded-lg border border-success/30 bg-success/5 p-3 space-y-2">
               <div className="flex items-center gap-2 text-success">
                 <CheckCircle2 className="h-4 w-4" />
                 <span className="text-sm font-semibold">Payment Proof Submitted</span>

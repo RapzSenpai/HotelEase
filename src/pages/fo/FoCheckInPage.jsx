@@ -535,7 +535,7 @@ export default function FoCheckInPage() {
                           {selectedBooking.paymentProofUrl && (
                             <button
                               type="button"
-                              onClick={() => window.open(selectedBooking.paymentProofUrl, '_blank')}
+                              onClick={() => window.open(selectedBooking.paymentProofUrl, '_blank', 'noopener,noreferrer')}
                               className="shrink-0 text-xs text-primary hover:underline"
                             >
                               View Proof

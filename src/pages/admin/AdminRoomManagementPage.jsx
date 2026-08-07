@@ -16,7 +16,7 @@ import {
 import {
   Upload, Plus, Edit, Trash2, BedDouble, Layers, Search,
   X, SlidersHorizontal, ArrowUpDown, LayoutGrid, List,
-  ChevronDown, Image,
+  ChevronDown, Image, Users, CalendarClock, Sparkles, Wrench, Check,
 } from "lucide-react";
 import RoomStatusBadge from "@/components/rooms/RoomStatusBadge";
 import { SkeletonCard } from "@/components/ui/skeleton";
@@ -924,31 +924,71 @@ export default function AdminRoomManagementPage() {
       </div>
 
       {/* ── Stats Bar ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-        {[
-          { label: "Total", value: stats.total, color: "bg-foreground/5 text-foreground/70 border-border/50" },
-          { label: "Available", value: stats.available, color: "bg-success/10 text-success border-success/20" },
-          { label: "Occupied", value: stats.occupied, color: "bg-warning/10 text-warning border-warning/20" },
-          { label: "Reserved", value: stats.reserved, color: "bg-info/10 text-info border-info/20" },
-          { label: "Cleaning", value: stats.cleaning, color: "bg-primary/10 text-primary border-primary/20" },
-          { label: "Out of Order", value: stats.outOfOrder, color: "bg-destructive/10 text-destructive border-destructive/20" },
-        ].map((s) => (
-          <div
-            key={s.label}
-            className={`rounded-xl border px-4 py-3 text-center ${s.color}`}
-          >
-            <p className="text-2xl font-bold font-playfair">{s.value}</p>
-            <p className="text-[10px] font-semibold uppercase tracking-wider opacity-70">{s.label}</p>
+      <Card className="overflow-hidden">
+        <div className="grid divide-y divide-border sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 xl:divide-y-0 xl:divide-x">
+          <div className="flex items-center gap-3 p-4">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <BedDouble className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <div className="text-xs text-foreground/50">Total Rooms</div>
+              <div className="text-lg font-semibold leading-tight">{stats.total}</div>
+            </div>
           </div>
-        ))}
-      </div>
+          <div className="flex items-center gap-3 px-4 py-4">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-success/10 text-success">
+              <Check className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <div className="text-xs text-foreground/50">Available</div>
+              <div className="text-lg font-semibold leading-tight">{stats.available}</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 px-4 py-4">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-warning/10 text-warning">
+              <Users className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <div className="text-xs text-foreground/50">Occupied</div>
+              <div className="text-lg font-semibold leading-tight">{stats.occupied}</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 px-4 py-4">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-info/10 text-info">
+              <CalendarClock className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <div className="text-xs text-foreground/50">Reserved</div>
+              <div className="text-lg font-semibold leading-tight">{stats.reserved}</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 px-4 py-4">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-yellow-500/10 text-primary">
+              <Sparkles className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <div className="text-xs text-foreground/50">Cleaning</div>
+              <div className="text-lg font-semibold leading-tight">{stats.cleaning}</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 px-4 py-4">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-destructive/10 text-destructive">
+              <Wrench className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <div className="text-xs text-foreground/50">Out of Order</div>
+              <div className="text-lg font-semibold leading-tight">{stats.outOfOrder}</div>
+            </div>
+          </div>
+        </div>
+      </Card>
 
       {/* ── Search + Filter Bar ── */}
       <div className="flex flex-col gap-3">
         <div className="flex flex-col sm:flex-row gap-3">
           {/* Search */}
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-foreground/40" />
+          <div className="relative flex-1 group">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-foreground/40 group-focus-within:text-primary transition-colors" />
             <Input
               placeholder="Search by name, room #, or type..."
               value={searchQuery}
@@ -992,7 +1032,7 @@ export default function AdminRoomManagementPage() {
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="h-8 rounded-lg border border-border bg-background px-2.5 text-xs font-medium text-foreground/70 focus:outline-none focus:ring-2 focus:ring-primary/40"
+            className="h-9 rounded-lg border border-border bg-background px-2.5 text-xs font-medium text-foreground/70 focus:outline-none focus:ring-2 focus:ring-ring/50"
           >
             <option value="all">All Status</option>
             {STATUS_OPTIONS.map((s) => (
@@ -1004,7 +1044,7 @@ export default function AdminRoomManagementPage() {
           <select
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value)}
-            className="h-8 rounded-lg border border-border bg-background px-2.5 text-xs font-medium text-foreground/70 focus:outline-none focus:ring-2 focus:ring-primary/40"
+            className="h-9 rounded-lg border border-border bg-background px-2.5 text-xs font-medium text-foreground/70 focus:outline-none focus:ring-2 focus:ring-ring/50"
           >
             <option value="all">All Types</option>
             {existingTypes.map((t) => (
@@ -1016,7 +1056,7 @@ export default function AdminRoomManagementPage() {
           <select
             value={floorFilter}
             onChange={(e) => setFloorFilter(e.target.value)}
-            className="h-8 rounded-lg border border-border bg-background px-2.5 text-xs font-medium text-foreground/70 focus:outline-none focus:ring-2 focus:ring-primary/40"
+            className="h-9 rounded-lg border border-border bg-background px-2.5 text-xs font-medium text-foreground/70 focus:outline-none focus:ring-2 focus:ring-ring/50"
           >
             <option value="all">All Floors</option>
             {existingFloors.map((f) => (
@@ -1030,7 +1070,7 @@ export default function AdminRoomManagementPage() {
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value)}
-              className="h-8 rounded-lg border border-border bg-background px-2.5 text-xs font-medium text-foreground/70 focus:outline-none focus:ring-2 focus:ring-primary/40"
+              className="h-9 rounded-lg border border-border bg-background px-2.5 text-xs font-medium text-foreground/70 focus:outline-none focus:ring-2 focus:ring-ring/50"
             >
               {SORT_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>{o.label}</option>
@@ -1195,10 +1235,10 @@ export default function AdminRoomManagementPage() {
             return (
               <div
                 key={r.id}
-                className={`rounded-xl border border-border overflow-hidden transition-all ${
+                className={`rounded-xl border border-border overflow-hidden ${
                   r.isActive === false
                     ? "bg-muted/5 opacity-60"
-                    : "bg-background shadow-sm hover:shadow-md"
+                    : "bg-background shadow-sm"
                 }`}
               >
                 {/* Photo */}
@@ -1224,11 +1264,11 @@ export default function AdminRoomManagementPage() {
                     </span>
                   </div>
 
-                  <div className="flex flex-wrap gap-1.5 text-xs text-foreground/50">
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-foreground/50">
                     <span className="inline-flex items-center gap-1">
                       <Layers className="h-3 w-3" /> Floor {r.floor || "—"}
                     </span>
-                    <span>·</span>
+                    <span aria-hidden>·</span>
                     <span>{r.type || "—"}</span>
                   </div>
 
@@ -1238,7 +1278,7 @@ export default function AdminRoomManagementPage() {
                     <Badge variant="outline" className="text-foreground/40 bg-muted/20 border-border/50 text-xs">Archived</Badge>
                   )}
 
-                  <div className="flex gap-2 pt-1">
+                  <div className="flex gap-2 pt-1.5 border-t border-border/50">
                     <Button
                       variant="outline"
                       size="sm"

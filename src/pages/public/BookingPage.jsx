@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import RequiredIndicator from "@/components/common/RequiredIndicator";
+import TermsDialog from "@/components/common/TermsDialog";
 import { createBooking, getAvailableRooms, uploadPaymentProof } from "@/services/bookingsService";
 import { trackEvent, GA_EVENTS } from "@/services/gaService";
 import { mapFirebaseError } from "@/lib/errors";
@@ -123,6 +124,8 @@ export default function BookingPage() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState(null);
   const [honeypot, setHoneypot] = useState("");
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [termsOpen, setTermsOpen] = useState(false);
 
   // Step 3
   const [bookingId, setBookingId] = useState(null);
@@ -200,6 +203,7 @@ export default function BookingPage() {
   const handleBookNow = useCallback(async () => {
     setSubmitError(null);
     if (honeypot) return; // Bot detected
+    if (!termsAccepted) { setSubmitError("Please agree to the Terms & Conditions to continue."); return; }
     if (!user?.uid) { setSubmitError("You must be logged in to book."); return; }
     if (!room) { setSubmitError("Room not found."); return; }
     if (!resolvedRoomId) { setSubmitError("Room ID is missing. Please reload the page."); return; }
@@ -257,7 +261,7 @@ export default function BookingPage() {
     } finally {
       setSubmitting(false);
     }
-  }, [user, room, resolvedRoomId, roomActive, bookable, checkIn, checkOut, paxCount, pricing, roomCapacity, specialRequests, trainingMode, totalCost, paymentMethod, paymentType, arrivalTime, countryCode, honeypot, leadGuestEmail, leadGuestName, phoneNumber]);
+  }, [user, room, resolvedRoomId, roomActive, bookable, checkIn, checkOut, paxCount, pricing, roomCapacity, specialRequests, trainingMode, totalCost, paymentMethod, paymentType, arrivalTime, countryCode, honeypot, termsAccepted, leadGuestEmail, leadGuestName, phoneNumber]);
 
   // Phase 10/11: exact signature preserved — only "GCash" arg replaced by paymentMethod
   async function handleUploadProof() {
@@ -556,6 +560,29 @@ export default function BookingPage() {
               {submitError && (
                 <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-foreground">{submitError}</div>
               )}
+              {/* Terms & Conditions agreement */}
+              <div className="space-y-2 rounded-lg border border-border/40 bg-muted/10 p-3">
+                <label className="flex items-start gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={termsAccepted}
+                    onChange={(e) => setTermsAccepted(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 shrink-0 accent-primary"
+                  />
+                  <span className="text-sm text-foreground/80">
+                    By checking this box, I confirm that I have read and agree to the
+                    {" "}
+                    <button
+                      type="button"
+                      onClick={(e) => { e.preventDefault(); setTermsOpen(true); }}
+                      className="inline underline underline-offset-2 text-primary hover:text-primary/80 transition-colors"
+                    >
+                      Terms &amp; Conditions
+                    </button>
+                    .
+                  </span>
+                </label>
+              </div>
               <div className="flex flex-wrap gap-2 pt-1">
                 <Button type="button" variant="outline" onClick={() => { setSubmitError(null); setStep(1); }} disabled={submitting}>
                   <ChevronLeft className="mr-1.5 h-4 w-4" /> Back
@@ -799,6 +826,8 @@ export default function BookingPage() {
           </div>
         </div>
       )}
+      {/* Terms & Conditions overlay */}
+      <TermsDialog open={termsOpen} onOpenChange={setTermsOpen} extraPolicy={room?.policies} />
     </div>
   );
 }

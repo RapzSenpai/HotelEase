@@ -10,7 +10,8 @@ import { listUsers } from "@/services/userService";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Check, X, Image as ImageIcon, ChevronDown } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Check, X, Search, Image as ImageIcon, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -334,6 +335,125 @@ function BookingCard({
   );
 }
 
+// ─── History Row (compact, for past bookings) ────────────────────────────────
+
+function HistoryRow({ booking, roomLabel, guestName }) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <div className="rounded-lg border border-border bg-background">
+      {/* Collapsed row */}
+      <div className="flex items-center gap-3 px-3 py-2.5">
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="flex flex-1 items-center gap-3 text-left min-w-0"
+          aria-expanded={expanded}
+          aria-label={expanded ? "Hide booking details" : "Show booking details"}
+        >
+          <Badge variant={STATUS_VARIANT[booking.status] || "default"} className="shrink-0">
+            {booking.status}
+          </Badge>
+          <span className="truncate text-sm font-medium text-foreground">
+            {guestName || booking.guestName || booking.guestId || "—"}
+          </span>
+        </button>
+
+        <span className="hidden sm:block shrink-0 text-sm text-foreground/70 truncate max-w-48">
+          {roomLabel}
+        </span>
+        <span className="hidden md:block shrink-0 text-xs text-foreground/50 tabular-nums">
+          {formatDate(booking.checkInDate)} → {formatDate(booking.checkOutDate)}
+        </span>
+        <span className="shrink-0 text-sm font-semibold text-foreground tabular-nums">
+          {formatCurrency(booking.totalCost)}
+        </span>
+        <ChevronDown
+          className={`h-4 w-4 shrink-0 text-foreground/50 transition-transform ${
+            expanded ? "rotate-180" : ""
+          }`}
+        />
+      </div>
+
+      {/* Expanded details */}
+      {expanded && (
+        <div className="border-t border-dashed border-border/60 px-3 py-3 space-y-2 text-sm">
+          <div className="flex flex-wrap gap-x-5 gap-y-2 text-foreground/70">
+            <span className="text-xs text-foreground/50">
+              Room: <span className="font-medium text-foreground/80">{roomLabel}</span>
+            </span>
+            <span className="text-xs text-foreground/50">
+              Check-in:{" "}
+              <span className="font-medium text-foreground/80">{formatDate(booking.checkInDate)}</span>
+            </span>
+            <span className="text-xs text-foreground/50">
+              Check-out:{" "}
+              <span className="font-medium text-foreground/80">{formatDate(booking.checkOutDate)}</span>
+            </span>
+            {booking.nights != null && (
+              <span className="text-xs text-foreground/50">
+                Nights: <span className="font-medium text-foreground/80">{booking.nights}</span>
+              </span>
+            )}
+            {booking.paxCount != null && (
+              <span className="text-xs text-foreground/50">
+                Pax: <span className="font-medium text-foreground/80">{booking.paxCount}</span>
+              </span>
+            )}
+          </div>
+
+          {(booking.leadGuestEmail || booking.leadGuestPhone) && (
+            <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-foreground/50">
+              {booking.leadGuestEmail && <span>{booking.leadGuestEmail}</span>}
+              {booking.leadGuestPhone && <span>{booking.leadGuestPhone}</span>}
+            </div>
+          )}
+
+          <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-foreground/50">
+            {booking.paymentMethod && (
+              <span>
+                Method:{" "}
+                <span className="font-medium text-foreground/80">{booking.paymentMethod}</span>
+              </span>
+            )}
+            {booking.paymentType && (
+              <span>
+                Payment:{" "}
+                <span className="font-medium text-foreground/80">{booking.paymentType}</span>
+              </span>
+            )}
+            {booking.bookingType && (
+              <span>
+                Type:{" "}
+                <span className="font-medium text-foreground/80">{booking.bookingType}</span>
+              </span>
+            )}
+            {booking.arrivalTime && (
+              <span>
+                Est. Arrival:{" "}
+                <span className="font-medium text-foreground/80">{booking.arrivalTime}</span>
+              </span>
+            )}
+          </div>
+
+          {booking.specialRequests && (
+            <p className="text-xs text-foreground/55">
+              <span className="font-medium text-foreground/80">Requests:</span>{" "}
+              {booking.specialRequests}
+            </p>
+          )}
+          {booking.status === "Cancelled" && booking.rejectionReason && (
+            <p className="rounded bg-destructive/5 px-2.5 py-1.5 text-xs text-foreground/70">
+              <span className="font-medium text-foreground/80">Rejection reason:</span>{" "}
+              {booking.rejectionReason}
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function FoBookingsPage() {
@@ -347,6 +467,7 @@ export default function FoBookingsPage() {
   const [rejecting, setRejecting] = useState(null); // { bookingId, reason }
   const [actionLoading, setActionLoading] = useState(null); // bookingId currently acting on
   const [showPastBookings, setShowPastBookings] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   // ── Fetch rooms and guests for name mapping ──
   useEffect(() => {
@@ -396,25 +517,45 @@ export default function FoBookingsPage() {
 
 
   // ── Filtered list ──
-  const filtered =
-    activeTab === "All"
-      ? bookings
-      : bookings.filter((b) => b.status === activeTab);
+  const filtered = bookings.filter(
+    (b) => (activeTab === "All" || b.status === activeTab) && matchesSearch(b),
+  );
 
   // ── Active vs Past split (for "All" tab) ──
   const activeBookings = useMemo(
-    () => bookings.filter((b) => ACTIVE_STATUSES.has(b.status)),
-    [bookings],
+    () => bookings.filter((b) => ACTIVE_STATUSES.has(b.status) && matchesSearch(b)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [bookings, searchQuery, guestsMap, roomsMap],
   );
   const pastBookings = useMemo(
-    () => bookings.filter((b) => !ACTIVE_STATUSES.has(b.status)),
-    [bookings],
+    () =>
+      bookings.filter(
+        (b) => !ACTIVE_STATUSES.has(b.status) && matchesSearch(b),
+      ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [bookings, searchQuery, guestsMap, roomsMap],
   );
 
   // ── Tab badge counts ──
   function countForTab(tab) {
     if (tab === "All") return bookings.length;
     return bookings.filter((b) => b.status === tab).length;
+  }
+
+  // ── Search filter ──
+  function matchesSearch(booking) {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return true;
+    const guestName = guestsMap[booking.guestId] || booking.guestName || "";
+    const roomLabel = roomsMap[booking.roomId] || booking.roomId || "";
+    return (
+      String(guestName).toLowerCase().includes(q) ||
+      String(booking.guestId || "").toLowerCase().includes(q) ||
+      String(booking.leadGuestEmail || "").toLowerCase().includes(q) ||
+      String(booking.leadGuestPhone || "").toLowerCase().includes(q) ||
+      String(booking.id || "").toLowerCase().includes(q) ||
+      String(roomLabel).toLowerCase().includes(q)
+    );
   }
 
   // ── Action handlers ──
@@ -463,11 +604,24 @@ export default function FoBookingsPage() {
     <div className="space-y-6">
 
       {/* ── Header ── */}
-      <div>
-        <h1 className="font-playfair text-3xl font-semibold">Bookings</h1>
-        <p className="mt-1 text-sm text-foreground/70">
-          Manage and respond to guest booking requests in real-time.
-        </p>
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="font-playfair text-3xl font-semibold">Bookings</h1>
+          <p className="mt-1 text-sm text-foreground/70">
+            Manage and respond to guest booking requests in real-time.
+          </p>
+        </div>
+        <div className="relative w-full sm:w-72 group">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-foreground/40 pointer-events-none group-focus-within:text-primary transition-colors" />
+          <Input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search guest, room, booking ID…"
+            className="pl-9 border-border bg-background text-sm"
+            aria-label="Search bookings"
+          />
+        </div>
       </div>
 
       {/* ── Filter Tabs ── */}
@@ -507,7 +661,9 @@ export default function FoBookingsPage() {
         </div>
       ) : filtered.length === 0 ? (
         <div className="rounded-xl border border-border bg-background p-12 text-center text-sm text-foreground/50">
-          No bookings found.
+          {searchQuery.trim()
+            ? "No bookings match your search."
+            : "No bookings found."}
         </div>
       ) : (
         <div className="space-y-3">
@@ -564,23 +720,12 @@ export default function FoBookingsPage() {
                   </div>
                   {showPastBookings && pastBookings.map((booking) => {
                     const roomLabel = roomsMap[booking.roomId] || booking.roomId || "—";
-                    const isActing = actionLoading === booking.id;
-                    const isRejectingThis = rejecting?.bookingId === booking.id;
-
                     return (
-                      <BookingCard
+                      <HistoryRow
                         key={booking.id}
                         booking={booking}
                         roomLabel={roomLabel}
                         guestName={guestsMap[booking.guestId]}
-                        isActing={isActing}
-                        isRejectingThis={isRejectingThis}
-                        rejectReason={isRejectingThis ? rejecting.reason : ""}
-                        onApprove={() => handleApprove(booking.id)}
-                        onOpenReject={() => handleOpenReject(booking.id)}
-                        onCancelReject={handleCancelReject}
-                        onRejectReasonChange={handleRejectReasonChange}
-                        onSubmitReject={handleSubmitReject}
                       />
                     );
                   })}
@@ -590,28 +735,42 @@ export default function FoBookingsPage() {
           ) : (
             /* ── When viewing a specific status: show all filtered ── */
             <div className="space-y-3">
-              {filtered.map((booking) => {
-                const roomLabel = roomsMap[booking.roomId] || booking.roomId || "—";
-                const isActing = actionLoading === booking.id;
-                const isRejectingThis = rejecting?.bookingId === booking.id;
+              {ACTIVE_STATUSES.has(activeTab) ? (
+                filtered.map((booking) => {
+                  const roomLabel = roomsMap[booking.roomId] || booking.roomId || "—";
+                  const isActing = actionLoading === booking.id;
+                  const isRejectingThis = rejecting?.bookingId === booking.id;
 
-                return (
-                  <BookingCard
-                    key={booking.id}
-                    booking={booking}
-                    roomLabel={roomLabel}
-                    guestName={guestsMap[booking.guestId]}
-                    isActing={isActing}
-                    isRejectingThis={isRejectingThis}
-                    rejectReason={isRejectingThis ? rejecting.reason : ""}
-                    onApprove={() => handleApprove(booking.id)}
-                    onOpenReject={() => handleOpenReject(booking.id)}
-                    onCancelReject={handleCancelReject}
-                    onRejectReasonChange={handleRejectReasonChange}
-                    onSubmitReject={handleSubmitReject}
-                  />
-                );
-              })}
+                  return (
+                    <BookingCard
+                      key={booking.id}
+                      booking={booking}
+                      roomLabel={roomLabel}
+                      guestName={guestsMap[booking.guestId]}
+                      isActing={isActing}
+                      isRejectingThis={isRejectingThis}
+                      rejectReason={isRejectingThis ? rejecting.reason : ""}
+                      onApprove={() => handleApprove(booking.id)}
+                      onOpenReject={() => handleOpenReject(booking.id)}
+                      onCancelReject={handleCancelReject}
+                      onRejectReasonChange={handleRejectReasonChange}
+                      onSubmitReject={handleSubmitReject}
+                    />
+                  );
+                })
+              ) : (
+                filtered.map((booking) => {
+                  const roomLabel = roomsMap[booking.roomId] || booking.roomId || "—";
+                  return (
+                    <HistoryRow
+                      key={booking.id}
+                      booking={booking}
+                      roomLabel={roomLabel}
+                      guestName={guestsMap[booking.guestId]}
+                    />
+                  );
+                })
+              )}
             </div>
           )}
         </div>

@@ -182,16 +182,16 @@ export default function AdminUserManagementPage() {
         </div>
         <div className="flex items-center gap-3">
           <div className="relative group">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground/40 group-focus-within:text-primary transition-colors" />
             <input
               type="text"
               placeholder="Search users..."
-              className="pl-10 pr-4 py-2 bg-background border border-border rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 w-full md:w-64 transition-all"
+              className="pl-9 pr-4 h-10 bg-background border border-border rounded-lg text-sm text-foreground placeholder:text-foreground/40 focus:outline-none focus:ring-0 focus-visible:ring-3 focus-visible:ring-ring/50 w-full md:w-64 transition-colors"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
-          <div className="bg-gold/10 text-gold border border-gold/20 px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap">
+          <div className="bg-primary/10 text-primary border border-primary/20 px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap">
             {users.length} Users
           </div>
         </div>
@@ -264,7 +264,7 @@ export default function AdminUserManagementPage() {
                         <TableCell>
                           <div className="flex flex-col">
                             <span className="font-medium text-sm text-foreground flex items-center">
-                              {u.fullName || "Unnamed User"} {isSelf && <span className="text-[10px] bg-gold/10 text-gold px-1.5 py-0.5 rounded font-medium ml-2">You</span>}
+                              {u.fullName || "Unnamed User"} {isSelf && <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded font-medium ml-2">You</span>}
                             </span>
                             <span className="text-xs text-muted-foreground flex items-center gap-1.5 mt-0.5">
                               <Mail className="w-3 h-3 opacity-70" />

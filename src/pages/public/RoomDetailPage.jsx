@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import RequiredIndicator from "@/components/common/RequiredIndicator";
+import TermsDialog from "@/components/common/TermsDialog";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -49,7 +50,6 @@ import {
   ShieldCheck,
   Star,
   AlertTriangle,
-  XCircle,
   SlidersHorizontal,
 } from "lucide-react";
 
@@ -321,6 +321,9 @@ export default function RoomDetailPage() {
   // --- policies expand state ---
   const [policiesExpanded, setPoliciesExpanded] = useState(false);
 
+  // --- login prompt overlay state ---
+  const [loginPromptOpen, setLoginPromptOpen] = useState(false);
+
   // --- book now state ---
   const [bookNowLoading, setBookNowLoading] = useState(false);
   const [bookNowError, setBookNowError] = useState(null);
@@ -496,6 +499,15 @@ export default function RoomDetailPage() {
   // ---- RENO-2: defensive Book Now — re-validates availability before navigating ----
   const handleBookNow = useCallback(async () => {
     if (!datesSelected || !room) return;
+
+    // Guests must be signed in to book. Show a login prompt overlay instead of
+    // letting the availability query hit Firestore (which would surface a raw
+    // permission error) or growing the floating bar with inline text/links.
+    if (!user?.uid) {
+      setLoginPromptOpen(true);
+      return;
+    }
+
     setBookNowLoading(true);
     setBookNowError(null);
     try {
@@ -514,7 +526,7 @@ export default function RoomDetailPage() {
     } finally {
       setBookNowLoading(false);
     }
-  }, [datesSelected, room, checkIn, checkOut, trainingMode, roomId, navigate]);
+  }, [datesSelected, room, checkIn, checkOut, trainingMode, roomId, navigate, user?.uid]);
 
   // ---- derived ----
   const roomActive = isRoomActive(room);
@@ -645,25 +657,37 @@ export default function RoomDetailPage() {
 
                 {/* Room Header */}
                 <div className="space-y-3">
-                  <div className="flex flex-wrap items-center gap-2 text-xs text-foreground/50 uppercase tracking-[0.15em] font-medium">
-                    {room.type && <span>{room.type}</span>}
-                    {room.type && room.roomNumber && <span className="text-foreground/25">·</span>}
-                    {room.roomNumber && <span>Room #{room.roomNumber}</span>}
-                    {room.floor && <span className="text-foreground/25">·</span>}
-                    {room.floor && <span>Floor {room.floor}</span>}
-                  </div>
-                  <h1 className="font-playfair text-3xl md:text-4xl font-bold tracking-tight text-foreground">
-                    {room.name || room.type || "Room"}
-                  </h1>
-                  {avgRating && (
-                    <div className="flex items-center gap-1.5">
-                      <Star className="h-4 w-4 fill-primary text-primary" />
-                      <span className="text-sm font-semibold text-foreground">{avgRating}</span>
-                      <span className="text-xs text-foreground/50">
-                        ({reviews.length} review{reviews.length !== 1 ? "s" : ""})
-                      </span>
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="space-y-3">
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-foreground/50 uppercase tracking-[0.15em] font-medium">
+                        {room.type && <span>{room.type}</span>}
+                        {room.type && room.roomNumber && <span className="text-foreground/25">·</span>}
+                        {room.roomNumber && <span>Room #{room.roomNumber}</span>}
+                        {room.floor && <span className="text-foreground/25">·</span>}
+                        {room.floor && <span>Floor {room.floor}</span>}
+                      </div>
+                      <h1 className="font-playfair text-3xl md:text-4xl font-bold tracking-tight text-foreground">
+                        {room.name || room.type || "Room"}
+                      </h1>
+                      {avgRating && (
+                        <div className="flex items-center gap-1.5">
+                          <Star className="h-4 w-4 fill-primary text-primary" />
+                          <span className="text-sm font-semibold text-foreground">{avgRating}</span>
+                          <span className="text-xs text-foreground/50">
+                            ({reviews.length} review{reviews.length !== 1 ? "s" : ""})
+                          </span>
+                        </div>
+                      )}
                     </div>
-                  )}
+                    <button
+                      type="button"
+                      onClick={() => setPoliciesExpanded(true)}
+                      className="inline-flex items-center gap-1.5 text-xs text-foreground/45 hover:text-foreground/80 underline underline-offset-2 transition-colors shrink-0"
+                    >
+                      <ShieldCheck className="h-3.5 w-3.5 text-foreground/50" />
+                      Terms &amp; Conditions
+                    </button>
+                  </div>
                 </div>
 
                 {/* Guest Capacity Badge */}
@@ -674,10 +698,15 @@ export default function RoomDetailPage() {
                       <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary shrink-0">
                         <Users className="h-4 w-4" />
                       </div>
-                      <div className="min-w-0 text-sm">
-                        <span className="font-semibold text-foreground">Guest Capacity:</span>{" "}
-                        <span className="text-foreground/85 font-medium">Up to {cap.maxPax} guests</span>{" "}
-                        <span className="text-foreground/50 text-xs font-normal">({cap.basePax} included in rate{cap.extraPaxFee > 0 ? `, +₱${cap.extraPaxFee.toLocaleString()}/night per extra guest` : ""})</span>
+                      <div className="min-w-0 flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-sm">
+                        <span className="font-semibold text-foreground">Guest Capacity</span>
+                        <span className="text-foreground/85 font-medium">Up to {cap.maxPax} guests</span>
+                        <span className="text-foreground/50 text-xs font-normal">
+                          {cap.basePax} included
+                          {cap.extraPaxFee > 0
+                            ? ` · +₱${cap.extraPaxFee.toLocaleString()}/night per extra guest`
+                            : ""}
+                        </span>
                       </div>
                     </div>
                   );
@@ -937,27 +966,35 @@ export default function RoomDetailPage() {
         </DialogContent>
       </Dialog>
 
-      {/* ── POLICIES OVERLAY (Dialog) ── */}
-      {room?.policies && (
-        <Dialog open={policiesExpanded} onOpenChange={setPoliciesExpanded}>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle className="font-playfair text-xl flex items-center gap-2">
-                <XCircle className="h-5 w-5 text-destructive" />
-                Cancel Policy
-              </DialogTitle>
-              <DialogDescription>
-                Please review the cancellation terms for this room
-              </DialogDescription>
-            </DialogHeader>
-            <div className="rounded-xl border border-border/40 bg-background p-4">
-              <p className="text-sm text-foreground/75 leading-relaxed whitespace-pre-line">
-                {room.policies}
-              </p>
-            </div>
-          </DialogContent>
-        </Dialog>
-      )}
+      {/* ── LOGIN PROMPT OVERLAY (Dialog) ── */}
+      <Dialog open={loginPromptOpen} onOpenChange={setLoginPromptOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-playfair text-xl text-center">
+              Log in to book this room
+            </DialogTitle>
+            <DialogDescription className="text-center">
+              You need an account to complete a booking. Log in or create one to
+              continue with your selected dates.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-2">
+            <Button asChild variant="default" className="w-full">
+              <NavLink to="/login">Log In</NavLink>
+            </Button>
+            <Button asChild variant="outline" className="w-full">
+              <NavLink to="/register">Create Account</NavLink>
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+            {/* ── TERMS & CONDITIONS OVERLAY (shared Dialog) ── */}
+      <TermsDialog
+        open={policiesExpanded}
+        onOpenChange={setPoliciesExpanded}
+        extraPolicy={room?.policies}
+      />
 
       {/* ── STICKY BOTTOM BAR ── */}
       {!loading && room && (
@@ -1036,13 +1073,13 @@ export default function RoomDetailPage() {
               )}
 
               {/* Book Now button */}
-              <div className="flex flex-col items-end gap-1 shrink-0">
+              <div className="flex items-center justify-end shrink-0">
                 {!roomActive ? (
-                  <Button variant="default" disabled className="min-w-36">
+                  <Button variant="default" disabled className="min-w-40">
                     No Longer Available
                   </Button>
                 ) : !datesSelected ? (
-                  <Button variant="default" disabled className="min-w-36">
+                  <Button variant="default" disabled className="min-w-40">
                     Select Dates to Book
                   </Button>
                 ) : (
@@ -1050,26 +1087,19 @@ export default function RoomDetailPage() {
                     variant="default"
                     onClick={handleBookNow}
                     disabled={bookNowLoading}
-                    className="min-w-36"
+                    className="min-w-40"
                   >
                     {bookNowLoading ? "Checking…" : "Book Now"}
                   </Button>
                 )}
-                {bookNowError && (
-                  <p className="text-xs text-destructive max-w-xs text-right">{bookNowError}</p>
-                )}
-                {room.policies && (
-                  <button
-                    type="button"
-                    onClick={() => setPoliciesExpanded(true)}
-                    className="text-xs text-foreground/45 hover:text-foreground/70 underline underline-offset-2 transition-colors"
-                  >
-                    Cancel Policy
-                  </button>
-                )}
               </div>
 
             </div>
+
+            {/* Availability errors — kept on their own quiet row so the bar stays flat */}
+            {bookNowError && (
+              <p className="mt-2 text-right text-xs text-destructive">{bookNowError}</p>
+            )}
           </div>
         </div>
       )}

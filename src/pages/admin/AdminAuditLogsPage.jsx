@@ -200,11 +200,11 @@ export default function AdminAuditLogsPage() {
             <div className="relative group flex-1">
               <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 block">Search Logs</Label>
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground/40 group-focus-within:text-primary transition-colors" />
                 <Input
                   type="text"
                   placeholder="Search by email, role, target ID, or description..."
-                  className="pl-10 h-10 border-border focus:ring-primary/40"
+                  className="pl-9 h-10 border-border"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />

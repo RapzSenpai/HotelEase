@@ -111,10 +111,9 @@ function FavoriteRoomCard({ room, favorite, onRemove }) {
             variant="default"
             size="sm"
             className="flex-1"
-            disabled={!isAvailable}
           >
-            <NavLink to={`/booking/${room.id}`}>
-              Book Now
+            <NavLink to={`/rooms/${room.id}`}>
+              View Details &amp; Book
             </NavLink>
           </Button>
           <Button

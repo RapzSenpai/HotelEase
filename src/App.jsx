@@ -33,7 +33,6 @@ const FoCheckOutPage = lazy(() => import("@/pages/fo/FoCheckOutPage"));
 const FoHousekeepingPage = lazy(() => import("@/pages/fo/FoHousekeepingPage"));
 const FoPaymentsPage = lazy(() => import("@/pages/fo/FoPaymentsPage"));
 const FoAnnouncementsPage = lazy(() => import("@/pages/fo/FoAnnouncementsPage"));
-const FoRoomRatesPage = lazy(() => import("@/pages/fo/FoRoomRatesPage"));
 const FoBookingsPage = lazy(() => import("@/pages/fo/FoBookingsPage"));
 const MessagesPage = lazy(() => import("@/pages/fo/MessagesPage"));
 const FoTestimonialsPage = lazy(() => import("@/pages/fo/FoTestimonialsPage"));
@@ -44,6 +43,7 @@ const AdminAnalyticsPage = lazy(() => import("@/pages/admin/AdminAnalyticsPage")
 const AdminOperationsPage = lazy(() => import("@/pages/admin/AdminOperationsPage"));
 const AdminUserManagementPage = lazy(() => import("@/pages/admin/AdminUserManagementPage"));
 const AdminRoomManagementPage = lazy(() => import("@/pages/admin/AdminRoomManagementPage"));
+const AdminRoomRatesPage = lazy(() => import("@/pages/admin/AdminRoomRatesPage"));
 const AdminSystemSettingsPage = lazy(() => import("@/pages/admin/AdminSystemSettingsPage"));
 const AdminSystemHealthPage = lazy(() => import("@/pages/admin/AdminSystemHealthPage"));
 const AdminPerformancePage = lazy(() => import("@/pages/admin/AdminPerformancePage"));
@@ -259,16 +259,6 @@ export default function App() {
           }
         />
         <Route
-          path="/fo/room-rates"
-          element={
-            <MaintenanceRoute>
-              <PrivateRoute allowedRoles={["fo"]}>
-                <SuspenseWrapper><FoRoomRatesPage /></SuspenseWrapper>
-              </PrivateRoute>
-            </MaintenanceRoute>
-          }
-        />
-        <Route
           path="/fo/bookings"
           element={
             <MaintenanceRoute>
@@ -319,6 +309,14 @@ export default function App() {
           element={
             <PrivateRoute allowedRoles={["admin"]}>
               <SuspenseWrapper><AdminRoomManagementPage /></SuspenseWrapper>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/admin/room-rates"
+          element={
+            <PrivateRoute allowedRoles={["admin"]}>
+              <SuspenseWrapper><AdminRoomRatesPage /></SuspenseWrapper>
             </PrivateRoute>
           }
         />

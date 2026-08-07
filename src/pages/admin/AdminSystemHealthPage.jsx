@@ -1,5 +1,11 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardContent,
+} from "@/components/ui/card";
 import { subscribeToSystemHealth, getRecentErrorLogs, initializeSystemHealth } from "@/services/healthService";
 import {
   summarizeSamples,
@@ -8,11 +14,9 @@ import {
 import { 
   Database, 
   Activity, 
-  Clock, 
   Server, 
   AlertTriangle, 
   CheckCircle, 
-  XCircle,
   RefreshCw,
   Zap,
   Shield
@@ -75,19 +79,6 @@ export default function AdminSystemHealthPage() {
     setRefreshing(false);
   }
 
-  function getStatusIcon(status) {
-    switch (status) {
-      case "healthy":
-        return <CheckCircle className="h-5 w-5 text-green-600" />;
-      case "warning":
-        return <AlertTriangle className="h-5 w-5 text-yellow-600" />;
-      case "error":
-        return <XCircle className="h-5 w-5 text-destructive" />;
-      default:
-        return <Activity className="h-5 w-5 text-muted-foreground" />;
-    }
-  }
-
   function getStatusColor(status) {
     switch (status) {
       case "healthy":
@@ -120,119 +111,107 @@ export default function AdminSystemHealthPage() {
   }
 
   return (
-    <div className="space-y-8 max-w-7xl mx-auto">
+    <div className="space-y-4 max-w-7xl mx-auto">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="space-y-1">
           <h1 className="font-playfair text-4xl font-bold tracking-tight">System Health</h1>
-          <p className="text-muted-foreground text-lg">
+          <p className="text-muted-foreground">
             Real-time monitoring of system performance and status.
           </p>
         </div>
-        <Button 
-          variant="outline" 
-          onClick={handleRefresh} 
+        <Button
+          variant="outline"
+          onClick={handleRefresh}
           disabled={refreshing}
-          className="rounded-full px-6 gap-2 border-gold/30 hover:bg-gold/10"
         >
-          <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+          <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
           {refreshing ? "Refreshing..." : "Refresh"}
         </Button>
       </div>
 
-      {/* Health Status Cards */}
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-        {/* Database Status */}
-        <div className="rounded-2xl border border-border bg-card p-6 shadow-sm hover:shadow-md transition-all">
-          <div className="flex items-center gap-4 mb-4">
-            <div className="p-3 rounded-xl bg-blue-500/10 text-blue-600">
-              <Database className="w-6 h-6" />
+      <Card className="overflow-hidden">
+        <div className="grid divide-y divide-border sm:grid-cols-2 lg:grid-cols-4 lg:divide-x lg:divide-y-0">
+          {/* Database Status */}
+          <div className="flex items-center gap-3 px-4 py-4">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <Database className="h-5 w-5" />
             </div>
-            <div className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Database</div>
+            <div className="min-w-0">
+              <div className="text-xs text-foreground/50">Database</div>
+              <div className={`text-lg font-semibold leading-tight capitalize ${getStatusColor(
+                realConnectivity?.connected === false ? "error"
+                  : realConnectivity?.connected ? "healthy"
+                  : health?.databaseStatus || "default"
+              ).split(' ')[0]}`}>
+                {realConnectivity?.connected === false
+                  ? "Offline"
+                  : realConnectivity?.connected
+                    ? "Connected"
+                    : health?.databaseStatus || "Unknown"}
+              </div>
+              <div className="truncate text-[11px] text-foreground/50">
+                {realConnectivity?.latency != null ? `${realConnectivity.latency}ms round trip` : "Live check"}
+              </div>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            {realConnectivity?.connected === false ? (
-              getStatusIcon("error")
-            ) : (
-              getStatusIcon(realConnectivity?.connected ? "healthy" : health?.databaseStatus)
-            )}
-            <span className={`text-lg font-semibold capitalize ${getStatusColor(
-              realConnectivity?.connected === false ? "error"
-                : realConnectivity?.connected ? "healthy"
-                : health?.databaseStatus
-            ).split(' ')[0]}`}>
-              {realConnectivity?.connected === false
-                ? "Offline"
-                : realConnectivity?.connected
-                  ? "Connected"
-                  : health?.databaseStatus || "Unknown"}
-            </span>
-          </div>
-          <div className="text-sm text-muted-foreground mt-1">
-            {realConnectivity?.latency != null ? `${realConnectivity.latency}ms round trip` : "Live check"}
-          </div>
-        </div>
 
-        {/* API Latency */}
-        <div className="rounded-2xl border border-border bg-card p-6 shadow-sm hover:shadow-md transition-all">
-          <div className="flex items-center gap-4 mb-4">
-            <div className="p-3 rounded-xl bg-purple-500/10 text-purple-600">
-              <Zap className="w-6 h-6" />
+          {/* API Latency */}
+          <div className="flex items-center gap-3 px-4 py-4">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <Zap className="h-5 w-5" />
             </div>
-            <div className="text-sm font-bold uppercase tracking-wider text-muted-foreground">API Latency</div>
+            <div className="min-w-0">
+              <div className="text-xs text-foreground/50">API Latency</div>
+              <div className="text-lg font-semibold leading-tight">
+                {realLatency != null || health?.apiLatency != null
+                  ? `${realLatency ?? health?.apiLatency}ms`
+                  : "—"}
+              </div>
+              <div className="truncate text-[11px] text-foreground/50">
+                {realLatency != null ? "From your browser's operations" : "Not measured yet"}
+              </div>
+            </div>
           </div>
-          <div className="text-2xl font-bold">
-            {realLatency ?? health?.apiLatency ?? 0}ms
-          </div>
-          <div className="text-sm text-muted-foreground mt-1">
-            {realLatency != null ? "Measured from your browser's operations" : "Average response time"}
-          </div>
-        </div>
 
-        {/* Active Sessions */}
-        <div className="rounded-2xl border border-border bg-card p-6 shadow-sm hover:shadow-md transition-all">
-          <div className="flex items-center gap-4 mb-4">
-            <div className="p-3 rounded-xl bg-green-500/10 text-green-600">
-              <Activity className="w-6 h-6" />
+          {/* Active Sessions */}
+          <div className="flex items-center gap-3 px-4 py-4">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <Activity className="h-5 w-5" />
             </div>
-            <div className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Active Sessions</div>
+            <div className="min-w-0">
+              <div className="text-xs text-foreground/50">Active Sessions</div>
+              <div className="text-lg font-semibold leading-tight">{health?.activeSessions ?? "—"}</div>
+              <div className="truncate text-[11px] text-foreground/50">Currently active</div>
+            </div>
           </div>
-          <div className="text-2xl font-bold">
-            {health?.activeSessions || 0}
-          </div>
-          <div className="text-sm text-muted-foreground mt-1">
-            Currently active
-          </div>
-        </div>
 
-        {/* System Uptime */}
-        <div className="rounded-2xl border border-border bg-card p-6 shadow-sm hover:shadow-md transition-all">
-          <div className="flex items-center gap-4 mb-4">
-            <div className="p-3 rounded-xl bg-gold/10 text-gold">
-              <Server className="w-6 h-6" />
+          {/* System Uptime */}
+          <div className="flex items-center gap-3 px-4 py-4">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <Server className="h-5 w-5" />
             </div>
-            <div className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Uptime</div>
-          </div>
-          <div className="text-2xl font-bold">
-            {health?.uptime || "99.9%"}
-          </div>
-          <div className="text-sm text-muted-foreground mt-1">
-            Last 30 days
+            <div className="min-w-0">
+              <div className="text-xs text-foreground/50">Uptime</div>
+              <div className="text-lg font-semibold leading-tight">{health?.uptime ?? "—"}</div>
+              <div className="truncate text-[11px] text-foreground/50">Last 30 days</div>
+            </div>
           </div>
         </div>
-      </div>
+      </Card>
 
       {/* System Overview */}
-      <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
-        <div className="flex items-center gap-2 mb-6">
-          <Shield className="w-5 h-5 text-gold" />
-          <h3 className="font-semibold text-lg">System Overview</h3>
-        </div>
-        
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="space-y-2">
-            <div className="text-sm text-muted-foreground">Last Updated</div>
-            <div className="font-medium">
-              {health?.lastUpdated 
+      <Card className="overflow-hidden">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Shield className="h-5 w-5 text-primary" />
+            System Overview
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="rounded-lg border border-border p-3">
+            <div className="text-[11px] text-foreground/50">Last Updated</div>
+            <div className="mt-0.5 text-sm font-medium">
+              {health?.lastUpdated
                 ? new Date(health.lastUpdated).toLocaleString('en-PH', {
                     month: 'short',
                     day: 'numeric',
@@ -243,74 +222,66 @@ export default function AdminSystemHealthPage() {
                 : "Never"}
             </div>
           </div>
-          
-          <div className="space-y-2">
-            <div className="text-sm text-muted-foreground">Firebase Connection</div>
-            <div className="flex items-center gap-2">
-              <CheckCircle className="h-4 w-4 text-green-600" />
-              <span className="font-medium text-green-600">Connected</span>
+          <div className="rounded-lg border border-border p-3">
+            <div className="text-[11px] text-foreground/50">Firebase Connection</div>
+            <div className="mt-0.5 flex items-center gap-1.5 text-sm font-medium text-green-600">
+              <CheckCircle className="h-4 w-4" /> Connected
             </div>
           </div>
-          
-          <div className="space-y-2">
-            <div className="text-sm text-muted-foreground">Authentication</div>
-            <div className="flex items-center gap-2">
-              <CheckCircle className="h-4 w-4 text-green-600" />
-              <span className="font-medium text-green-600">Operational</span>
+          <div className="rounded-lg border border-border p-3">
+            <div className="text-[11px] text-foreground/50">Authentication</div>
+            <div className="mt-0.5 flex items-center gap-1.5 text-sm font-medium text-green-600">
+              <CheckCircle className="h-4 w-4" /> Operational
             </div>
           </div>
-          
-          <div className="space-y-2">
-            <div className="text-sm text-muted-foreground">Firestore Database</div>
-            <div className="flex items-center gap-2">
-              <CheckCircle className="h-4 w-4 text-green-600" />
-              <span className="font-medium text-green-600">Operational</span>
+          <div className="rounded-lg border border-border p-3">
+            <div className="text-[11px] text-foreground/50">Firestore Database</div>
+            <div className="mt-0.5 flex items-center gap-1.5 text-sm font-medium text-green-600">
+              <CheckCircle className="h-4 w-4" /> Operational
             </div>
           </div>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
 
       {/* Recent Error Logs */}
-      <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-2">
-            <AlertTriangle className="w-5 h-5 text-gold" />
-            <h3 className="font-semibold text-lg">Recent Error Logs</h3>
-          </div>
+      <Card className="overflow-hidden">
+        <CardHeader className="flex flex-row items-center justify-between gap-4">
+          <CardTitle className="flex items-center gap-2">
+            <AlertTriangle className="h-5 w-5 text-primary" />
+            Recent Error Logs
+          </CardTitle>
           <span className="text-sm text-muted-foreground">
-            {errorLogs.length} recent errors
+            {errorLogs.length} recent error(s)
           </span>
-        </div>
-        
-        {errorLogs.length === 0 ? (
-          <div className="text-center py-8 text-muted-foreground">
-            <CheckCircle className="h-12 w-12 mx-auto mb-3 text-green-600 opacity-20" />
-            <p>No recent errors logged</p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {errorLogs.map((log) => (
-              <div key={log.id} className="p-4 rounded-lg bg-destructive/5 border border-destructive/20">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1 space-y-1">
-                    <div className="font-medium text-destructive">{log.message}</div>
-                    {log.component && (
-                      <div className="text-xs text-muted-foreground">
-                        Component: {log.component}
-                      </div>
-                    )}
-                    {log.timestamp && (
-                      <div className="text-xs text-muted-foreground">
-                        {new Date(log.timestamp).toLocaleString()}
-                      </div>
-                    )}
+        </CardHeader>
+        <CardContent>
+          {errorLogs.length === 0 ? (
+            <div className="text-center py-6 text-sm text-muted-foreground">
+              <CheckCircle className="h-8 w-8 mx-auto mb-2 text-green-600 opacity-20" />
+              No recent errors logged
+            </div>
+          ) : (
+            <div className="space-y-2.5">
+              {errorLogs.map((log) => (
+                <div key={log.id} className="p-3 rounded-lg bg-destructive/5 border border-destructive/20">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1 space-y-0.5">
+                      <div className="text-sm font-medium text-destructive">{log.message}</div>
+                      {(log.component || log.timestamp) && (
+                        <div className="text-xs text-muted-foreground">
+                          {log.component ? `Component: ${log.component}` : ""}
+                          {log.component && log.timestamp ? " · " : ""}
+                          {log.timestamp ? new Date(log.timestamp).toLocaleString() : ""}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

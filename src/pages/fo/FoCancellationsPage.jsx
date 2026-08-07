@@ -48,11 +48,11 @@ function CancellationCard({
   onSubmitReject,
 }) {
   return (
-    <div className="rounded-xl border border-border bg-background p-4 shadow-sm transition-shadow hover:shadow-md">
+    <div className="rounded-lg border border-border bg-background p-3">
       {/* ── Top row ── */}
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          <p className="font-medium text-foreground">{guestName || booking.guestName || booking.guestId || "—"}</p>
+          <p className="text-sm font-medium text-foreground">{guestName || booking.guestName || booking.guestId || "—"}</p>
         </div>
         <Badge variant="warning">
           {booking.status}
@@ -60,7 +60,7 @@ function CancellationCard({
       </div>
 
       {/* ── Details grid ── */}
-      <div className="mt-3 grid grid-cols-2 gap-x-6 gap-y-1.5 text-sm sm:grid-cols-4">
+      <div className="mt-2 grid grid-cols-2 gap-x-6 gap-y-1 text-sm sm:grid-cols-4">
         <div>
           <p className="text-xs text-foreground/50">Room</p>
           <p className="font-medium text-foreground">{roomLabel}</p>
@@ -87,8 +87,8 @@ function CancellationCard({
 
       {/* ── Cancellation Reason ── */}
       {booking.cancellationReason && (
-        <div className="mt-3 rounded-lg border border-warning/20 bg-warning/5 px-3 py-2 text-sm text-foreground/80">
-          <p className="text-xs font-medium text-foreground/50 uppercase tracking-wide mb-1">
+        <div className="mt-2 rounded-md border border-warning/20 bg-warning/5 px-3 py-1.5 text-sm text-foreground/80">
+          <p className="text-[10px] font-medium text-foreground/50 uppercase tracking-wide mb-0.5">
             Cancellation Reason
           </p>
           <p>{booking.cancellationReason}</p>
@@ -96,14 +96,14 @@ function CancellationCard({
       )}
 
       {/* ── Requested Date ── */}
-      <p className="mt-2 text-xs text-foreground/55">
+      <p className="mt-1.5 text-xs text-foreground/55">
         <span className="font-medium text-foreground/70">Requested At:</span>{" "}
         {formatDate(booking.cancellationRequestedAt)}
       </p>
 
       {/* ── Pending Actions ── */}
       {!isRejectingThis && (
-        <div className="mt-3 flex flex-wrap gap-2">
+        <div className="mt-2.5 flex flex-wrap gap-2">
           <Button
             size="sm"
             disabled={isActing}
@@ -128,7 +128,7 @@ function CancellationCard({
 
       {/* ── Inline Reject Form ── */}
       {isRejectingThis && (
-        <div className="mt-4 space-y-3 rounded-xl border border-border bg-background p-4 shadow-sm transition-all duration-200">
+        <div className="mt-3 space-y-3 rounded-xl border border-border bg-background p-4 shadow-sm transition-all duration-200">
           <p className="text-sm font-medium text-foreground">
             Rejection Reason{" "}
             <span className="text-xs font-normal text-foreground/50">(required)</span>

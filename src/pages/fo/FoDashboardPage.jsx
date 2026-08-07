@@ -32,48 +32,6 @@ import {
   Search,
 } from "lucide-react";
 
-function StatCard({ label, value, icon, subtitle, variant = "default" }) {
-  const IconComponent = icon;
-  const variants = {
-    success: {
-      container: "bg-success/5 border-success/20 hover:border-success/30",
-      icon: "bg-success/15 text-success border-success/20",
-    },
-    danger: {
-      container: "bg-destructive/5 border-destructive/20 hover:border-destructive/30",
-      icon: "bg-destructive/15 text-destructive border-destructive/20",
-    },
-    reserved: {
-      container: "bg-reserved/5 border-reserved/20 hover:border-reserved/30",
-      icon: "bg-reserved/15 text-reserved border-reserved/20",
-    },
-    info: {
-      container: "bg-info/5 border-info/20 hover:border-info/30",
-      icon: "bg-info/15 text-info border-info/20",
-    },
-    default: {
-      container: "border-border bg-background hover:border-border/80",
-      icon: "bg-muted/50 text-foreground/60 border-transparent",
-    }
-  };
-  const style = variants[variant] || variants.default;
-
-  return (
-    <div className={`rounded-xl border p-5 space-y-3 transition-all hover:shadow-sm ${style.container}`}>
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-sm font-medium text-foreground/65">{label}</p>
-        <div className={`rounded-lg border p-2 ${style.icon}`}>
-          <IconComponent className="h-4 w-4" />
-        </div>
-      </div>
-      <p className="text-3xl font-bold tracking-tight text-foreground">{value}</p>
-      {subtitle ? (
-        <p className="text-xs text-foreground/50">{subtitle}</p>
-      ) : null}
-    </div>
-  );
-}
-
 const STATUS_FILTERS = [
   { id: "all", label: "All Rooms" },
   { id: "Available", label: "Available" },
@@ -409,35 +367,49 @@ export default function FoDashboardPage() {
 
       {!loading && (
         <>
-          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-            <StatCard
-              label="Available"
-              value={statCounts.available}
-              icon={BedDouble}
-              variant="success"
-            />
-            <StatCard
-              label="Occupied"
-              value={statCounts.occupied}
-              icon={Users}
-              subtitle={`${timeMetrics.occupancyRate}% occupancy`}
-              variant="danger"
-            />
-            <StatCard
-              label="Reserved"
-              value={statCounts.reserved}
-              icon={Clock}
-              variant="reserved"
-            />
-            <StatCard
-              label="Housekeeping"
-              value={statCounts.housekeeping}
-              icon={Wrench}
-              variant="info"
-            />
-          </div>
+          <Card className="overflow-hidden">
+            <div className="grid divide-y divide-border grid-cols-2 lg:grid-cols-4 lg:divide-x lg:divide-y-0">
+              <div className="flex items-center gap-3 p-3.5">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-success/15 text-success">
+                  <BedDouble className="h-4 w-4" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[11px] text-foreground/50">Available</p>
+                  <p className="text-lg font-semibold leading-tight">{statCounts.available}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 p-3.5">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-destructive/15 text-destructive">
+                  <Users className="h-4 w-4" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[11px] text-foreground/50">Occupied</p>
+                  <p className="text-lg font-semibold leading-tight">{statCounts.occupied}</p>
+                  <p className="truncate text-[10px] text-foreground/50">{timeMetrics.occupancyRate}% occupancy</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 p-3.5">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-reserved/15 text-reserved">
+                  <Clock className="h-4 w-4" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[11px] text-foreground/50">Reserved</p>
+                  <p className="text-lg font-semibold leading-tight">{statCounts.reserved}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 p-3.5">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-info/15 text-info">
+                  <Wrench className="h-4 w-4" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[11px] text-foreground/50">Housekeeping</p>
+                  <p className="text-lg font-semibold leading-tight">{statCounts.housekeeping}</p>
+                </div>
+              </div>
+            </div>
+          </Card>
 
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
             <MetricPill
               label="Occupancy rate"
               value={`${timeMetrics.occupancyRate}%`}
@@ -475,7 +447,7 @@ export default function FoDashboardPage() {
               <input
                 type="text"
                 placeholder="Search rooms..."
-                className="pl-10 pr-4 py-2 bg-background border border-border rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 w-full sm:w-64 transition-all"
+                className="pl-9 pr-3 h-9 w-full sm:w-64 bg-background border border-border rounded-lg text-sm text-foreground placeholder:text-foreground/40 focus:outline-none focus:ring-0 focus-visible:ring-3 focus-visible:ring-ring/50 transition-colors"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />

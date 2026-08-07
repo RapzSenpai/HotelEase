@@ -7,7 +7,6 @@ import {
   CardDescription,
   CardContent,
 } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import {
   Gauge,
   Zap,
@@ -39,22 +38,6 @@ function scoreRingClass(score) {
   if (score >= 85) return "border-success/40 bg-success/10";
   if (score >= 60) return "border-warning/40 bg-warning/10";
   return "border-destructive/40 bg-destructive/10";
-}
-
-function Stat({ icon, label, value, sub, tone = "text-foreground" }) {
-  const Icon = icon;
-  return (
-    <Card>
-      <CardContent className="pt-6">
-        <div className="flex items-center gap-2 text-foreground/60">
-          <Icon className="h-4 w-4" />
-          <span className="text-sm">{label}</span>
-        </div>
-        <div className={`mt-2 text-2xl font-semibold ${tone}`}>{value}</div>
-        {sub ? <div className="mt-1 text-xs text-foreground/50">{sub}</div> : null}
-      </CardContent>
-    </Card>
-  );
 }
 
 function formatMs(ms) {
@@ -127,7 +110,7 @@ export default function AdminPerformancePage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div className="space-y-1.5">
           <h1 className="font-playfair text-4xl font-semibold tracking-tight">
@@ -155,48 +138,77 @@ export default function AdminPerformancePage() {
         </div>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-4">
-        {/* Score */}
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center pt-6 text-center">
+      <Card className="overflow-hidden">
+        <div className="grid divide-y divide-border sm:grid-cols-2 lg:grid-cols-4 lg:divide-x lg:divide-y-0">
+          {/* Score */}
+          <div className="flex items-center gap-3 p-4">
             <div
-              className={`flex h-28 w-28 items-center justify-center rounded-full border-4 ${scoreRingClass(score)}`}
+              className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-full border-4 ${scoreRingClass(score)}`}
             >
-              <span className={`text-3xl font-bold ${scoreColor(score)}`}>{score}</span>
+              <span className={`text-base font-bold ${scoreColor(score)}`}>{score}</span>
             </div>
-            <div className="mt-3 text-sm font-medium">Performance Score</div>
-            <div className="text-xs text-foreground/50">
-              {score >= 85 ? "Excellent" : score >= 60 ? "Fair" : "Needs attention"}
+            <div className="min-w-0">
+              <div className="text-xs text-foreground/50">Performance Score</div>
+              <div className="text-sm font-semibold leading-tight">
+                {score >= 85 ? "Excellent" : score >= 60 ? "Fair" : "Needs attention"}
+              </div>
             </div>
-          </CardContent>
-        </Card>
+          </div>
 
-        <Stat
-          icon={Timer}
-          label="TTFB"
-          value={formatMs(metrics.ttfb)}
-          sub="Time to first byte"
-          tone={metrics.ttfb < 300 ? "text-success" : metrics.ttfb < 800 ? "text-warning" : "text-destructive"}
-        />
-        <Stat
-          icon={Database}
-          label="Firestore"
-          value={connectivity.connected ? "Connected" : "Unknown"}
-          sub={connectivity.latency != null ? `${connectivity.latency}ms round trip` : "Live subscription active"}
-          tone={connectivity.connected ? "text-success" : "text-warning"}
-        />
-        <Stat
-          icon={Gauge}
-          label="Error Rate"
-          value={summary.errorRate ? `${summary.errorRate}%` : "0%"}
-          sub={`${summary.total} sampled operation(s)`}
-          tone={summary.errorRate === 0 ? "text-success" : "text-warning"}
-        />
-      </div>
+          <div className="flex items-center gap-3 px-4 py-4">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <Timer className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <div className="text-xs text-foreground/50">TTFB</div>
+              <div className={`text-lg font-semibold leading-tight ${
+                metrics.ttfb < 300 ? "text-success" : metrics.ttfb < 800 ? "text-warning" : "text-destructive"
+              }`}>
+                {formatMs(metrics.ttfb)}
+              </div>
+              <div className="truncate text-[11px] text-foreground/50">Time to first byte</div>
+            </div>
+          </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
+          <div className="flex items-center gap-3 px-4 py-4">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <Database className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <div className="text-xs text-foreground/50">Firestore</div>
+              <div className={`text-lg font-semibold leading-tight ${
+                connectivity.connected ? "text-success" : "text-warning"
+              }`}>
+                {connectivity.connected ? "Connected" : "Unknown"}
+              </div>
+              <div className="truncate text-[11px] text-foreground/50">
+                {connectivity.latency != null ? `${connectivity.latency}ms round trip` : "Live subscription active"}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 px-4 py-4">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <Gauge className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <div className="text-xs text-foreground/50">Error Rate</div>
+              <div className={`text-lg font-semibold leading-tight ${
+                summary.errorRate === 0 ? "text-success" : "text-warning"
+              }`}>
+                {summary.errorRate ? `${summary.errorRate}%` : "0%"}
+              </div>
+              <div className="truncate text-[11px] text-foreground/50">
+                {summary.total} sampled operation(s)
+              </div>
+            </div>
+          </div>
+        </div>
+      </Card>
+
+      <div className="grid gap-4 lg:grid-cols-2">
         {/* Browser metrics */}
-        <Card>
+        <Card className="h-full">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Gauge className="h-5 w-5 text-primary" />
@@ -206,23 +218,23 @@ export default function AdminPerformancePage() {
               Measured in this browser from the Performance API.
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="rounded-lg border border-border p-3">
-                <div className="text-xs text-foreground/50">Page Load</div>
-                <div className="text-lg font-semibold">{formatMs(metrics.loadComplete)}</div>
+          <CardContent className="space-y-2.5">
+            <div className="grid grid-cols-2 gap-2.5">
+              <div className="rounded-lg border border-border p-2.5">
+                <div className="text-[11px] text-foreground/50">Page Load</div>
+                <div className="text-base font-semibold">{formatMs(metrics.loadComplete)}</div>
               </div>
-              <div className="rounded-lg border border-border p-3">
-                <div className="text-xs text-foreground/50">DOM Ready</div>
-                <div className="text-lg font-semibold">{formatMs(metrics.domContentLoaded)}</div>
+              <div className="rounded-lg border border-border p-2.5">
+                <div className="text-[11px] text-foreground/50">DOM Ready</div>
+                <div className="text-base font-semibold">{formatMs(metrics.domContentLoaded)}</div>
               </div>
-              <div className="rounded-lg border border-border p-3">
-                <div className="text-xs text-foreground/50">Largest Content</div>
-                <div className="text-lg font-semibold">{formatMs(metrics.largestContentfulPaint)}</div>
+              <div className="rounded-lg border border-border p-2.5">
+                <div className="text-[11px] text-foreground/50">Largest Content</div>
+                <div className="text-base font-semibold">{formatMs(metrics.largestContentfulPaint)}</div>
               </div>
-              <div className="rounded-lg border border-border p-3">
-                <div className="text-xs text-foreground/50">Resources</div>
-                <div className="text-lg font-semibold">
+              <div className="rounded-lg border border-border p-2.5">
+                <div className="text-[11px] text-foreground/50">Resources</div>
+                <div className="text-base font-semibold">
                   {metrics.resourceCount ?? "—"}
                   <span className="ml-1 text-xs font-normal text-foreground/50">
                     {metrics.totalResourceBytes != null ? `· ${metrics.totalResourceBytes}KB` : ""}
@@ -239,7 +251,7 @@ export default function AdminPerformancePage() {
         </Card>
 
         {/* Connectivity */}
-        <Card>
+        <Card className="h-full">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Database className="h-5 w-5 text-primary" />
@@ -249,30 +261,36 @@ export default function AdminPerformancePage() {
               Live subscription status + on-demand round-trip probe.
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex items-center gap-2">
-              <Badge
-                className={`border ${
-                  connectivity.connected
-                    ? "border-success/30 bg-success/10 text-success"
-                    : connectivity.connected === null
-                      ? "border-border bg-muted/50 text-foreground/60"
-                      : "border-destructive/30 bg-destructive/10 text-destructive"
-                }`}
-              >
-                {connectivity.connected === null
-                  ? "Checking…"
-                  : connectivity.connected
-                    ? "Connected"
-                    : "Disconnected"}
-              </Badge>
-              {connectivity.latency != null && (
-                <span className="text-sm text-foreground/70">{connectivity.latency}ms</span>
-              )}
+          <CardContent className="space-y-2.5">
+            <div className="grid grid-cols-2 gap-2.5">
+              <div className="rounded-lg border border-border p-2.5">
+                <div className="text-[11px] text-foreground/50">Status</div>
+                <div
+                  className={`text-base font-semibold ${
+                    connectivity.connected === null
+                      ? "text-foreground/60"
+                      : connectivity.connected
+                        ? "text-success"
+                        : "text-destructive"
+                  }`}
+                >
+                  {connectivity.connected === null
+                    ? "Checking…"
+                    : connectivity.connected
+                      ? "Connected"
+                      : "Disconnected"}
+                </div>
+              </div>
+              <div className="rounded-lg border border-border p-2.5">
+                <div className="text-[11px] text-foreground/50">Round Trip</div>
+                <div className="text-base font-semibold">
+                  {connectivity.latency != null ? `${connectivity.latency}ms` : "—"}
+                </div>
+              </div>
             </div>
-            <p className="text-sm text-foreground/60">
-              A live listener on system_health/metrics keeps this indicator real-time.
-              Click “Probe Connection” for a one-shot round-trip measurement.
+            <p className="text-xs text-foreground/60 leading-relaxed">
+              A live listener on <span className="font-mono">system_health/metrics</span> keeps this
+              indicator real-time. Click “Probe Connection” for a one-shot round-trip measurement.
             </p>
           </CardContent>
         </Card>
