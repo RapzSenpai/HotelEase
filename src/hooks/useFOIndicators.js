@@ -10,6 +10,7 @@ export function useFOIndicators({ trainingMode = null, role = null } = {}) {
   const [hasApprovedCheckIns, setHasApprovedCheckIns] = useState(false);
   const [hasDueCheckOuts, setHasDueCheckOuts] = useState(false);
   const [hasDirtyRooms, setHasDirtyRooms] = useState(false);
+  const [dirtyRoomsCount, setDirtyRoomsCount] = useState(0);
   const [pendingTestimonialsCount, setPendingTestimonialsCount] = useState(0);
   const [hasPendingCancellations, setHasPendingCancellations] = useState(false);
 
@@ -68,6 +69,7 @@ export function useFOIndicators({ trainingMode = null, role = null } = {}) {
         ].includes(room.status),
       );
       setHasDirtyRooms(housekeepingRooms.length > 0);
+      setDirtyRoomsCount(housekeepingRooms.length);
     }, { trainingMode });
     unsubscribers.push(unsubDirtyRooms);
 
@@ -99,6 +101,7 @@ export function useFOIndicators({ trainingMode = null, role = null } = {}) {
     hasApprovedCheckIns,
     hasDueCheckOuts,
     hasDirtyRooms,
+    dirtyRoomsCount,
     pendingTestimonialsCount,
     hasPendingCancellations,
   };

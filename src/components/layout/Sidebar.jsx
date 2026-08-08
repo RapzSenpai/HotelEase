@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useFOIndicators } from "@/hooks/useFOIndicators";
@@ -181,7 +181,7 @@ function SidebarNotification({ type, value }) {
 }
 
 export default function Sidebar({ open, onClose }) {
-  const { role, user, trainingMode } = useAuth();
+  const { role, user, trainingMode, logout } = useAuth();
   const location = useLocation();
   const [visitedSections, setVisitedSections] = useState(new Set());
   const [unresolvedAlertsCount, setUnresolvedAlertsCount] = useState(0);
@@ -192,6 +192,7 @@ export default function Sidebar({ open, onClose }) {
     hasApprovedCheckIns,
     hasDueCheckOuts,
     hasDirtyRooms,
+    dirtyRoomsCount,
     pendingTestimonialsCount,
     hasPendingCancellations,
   } = useFOIndicators({ trainingMode, role });
@@ -202,16 +203,28 @@ export default function Sidebar({ open, onClose }) {
     return () => unsub();
   }, [role, trainingMode]);
 
-  const indicators = {
-    pendingBookingsCount,
-    unreadMessagesCount,
-    hasApprovedCheckIns,
-    hasDueCheckOuts,
-    hasDirtyRooms,
-    pendingTestimonialsCount,
-    hasPendingCancellations,
-    unresolvedAlertsCount,
-  };
+  const indicators = useMemo(
+    () => ({
+      pendingBookingsCount,
+      unreadMessagesCount,
+      hasApprovedCheckIns,
+      hasDueCheckOuts,
+      hasDirtyRooms,
+      pendingTestimonialsCount,
+      hasPendingCancellations,
+      unresolvedAlertsCount,
+    }),
+    [
+      pendingBookingsCount,
+      unreadMessagesCount,
+      hasApprovedCheckIns,
+      hasDueCheckOuts,
+      hasDirtyRooms,
+      pendingTestimonialsCount,
+      hasPendingCancellations,
+      unresolvedAlertsCount,
+    ],
+  );
 
   // Only show Messages and Testimonials indicators for Admin role
   const filteredIndicators = role === "admin" ? indicators : {
@@ -221,12 +234,60 @@ export default function Sidebar({ open, onClose }) {
     unresolvedAlertsCount: 0,
   };
 
+// Re-arm dot indicators when a NEW event arrives after the section was last
+// seen. Uses the last seen value/count as a baseline: when the current value
+// exceeds it (e.g. a second room became dirty after one was already dirty,
+// or a fresh check-in/check-out/cancellation appeared), the visited mark is
+// cleared so the dot pings again.
+  const seenBaseline = useRef({});
+  useEffect(() => {
+    const activeGroups = role === "fo" ? FO_LINKS : ADMIN_LINKS;
+    const baseline = seenBaseline.current;
+    const rearmPaths = [];
+
+    for (const group of activeGroups) {
+      for (const link of group.items) {
+        const notif = link.notification;
+        if (!notif || notif.type !== "dot") continue;
+        const key = notif.key;
+        // Use the numeric value so e.g. "hasDirtyRooms" (boolean) can be
+        // compared via the room count to detect a second room getting dirty.
+        const current =
+          key === "hasDirtyRooms" ? dirtyRoomsCount : indicators[key] ? 1 : 0;
+
+        if (location.pathname === link.to) {
+          // Keep the baseline current while on the section so the dot is not
+          // re-armed for events already visible on the page.
+          baseline[key] = current;
+          continue;
+        }
+
+        const currentBaseline = baseline[key];
+        if (current > 0 && currentBaseline !== undefined && current > currentBaseline) {
+          rearmPaths.push(link.to);
+          baseline[key] = current;
+        }
+      }
+    }
+
+    if (rearmPaths.length > 0) {
+      const paths = rearmPaths;
+      queueMicrotask(() => {
+        setVisitedSections((prev) => {
+          const next = new Set(prev);
+          for (const p of paths) next.delete(p);
+          return next;
+        });
+      });
+    }
+  }, [indicators, dirtyRoomsCount, role, location.pathname]);
+
   // Close mobile sidebar on navigation
   useEffect(() => {
     onClose?.();
   }, [location.pathname]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Mark FO section paths as visited (state adjusted during render so we don't
+  // Mark section paths as visited (state adjusted during render so we don't
   // setState synchronously inside an effect).
   const [prevVisitedPath, setPrevVisitedPath] = useState(location.pathname);
   if (prevVisitedPath !== location.pathname) {
@@ -322,6 +383,22 @@ export default function Sidebar({ open, onClose }) {
               </div>
             </div>
           ))}
+
+          {/* Logout — always accessible, incl. mobile drawer */}
+          <div className="mt-4">
+            <div className="h-px bg-border/60 mb-1.5" />
+            <button
+              type="button"
+              onClick={() => {
+                onClose?.();
+                logout().catch(() => {});
+              }}
+              className="flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 w-full text-[13px] text-foreground/60 transition-colors hover:bg-destructive/10 hover:text-destructive hover:font-medium"
+            >
+              <LogOut className="h-4 w-4 shrink-0" />
+              <span className="flex-1 truncate text-left">Logout</span>
+            </button>
+          </div>
         </div>
       </div>
   );

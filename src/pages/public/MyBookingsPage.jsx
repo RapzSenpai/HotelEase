@@ -5,9 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton, SkeletonList } from "@/components/ui/skeleton";
 import { useAuth } from "@/contexts/AuthContext";
-import { listBookingsForUser, cancelBooking, requestCancellation, uploadPaymentProof } from "@/services/bookingsService";
+import { listBookingsForUser, subscribeToUserBookings, cancelBooking, requestCancellation, uploadPaymentProof } from "@/services/bookingsService";
 import { mapFirebaseError } from "@/lib/errors";
-import { listRooms, isRoomActive } from "@/services/roomsService";
+import { subscribeToRooms, isRoomActive } from "@/services/roomsService";
 import { listPaymentsForBooking } from "@/services/paymentsService";
 import { generateReceipt } from "@/services/receiptService";
 import { HOTEL_GCASH_NUMBER, calculatePartialPayment, getPaymentDetails, PROOF_REQUIRED_METHODS } from "@/lib/paymentDetails";
@@ -713,6 +713,12 @@ export default function MyBookingsPage() {
     setShowPastBookings(false);
   }
 
+  function handleStatusSelect(status) {
+    setDropdownStatus(status);
+    setActiveTab("All");
+    setShowPastBookings(false);
+  }
+
   async function refreshBookings() {
     if (!user?.uid) return;
     try {
@@ -724,54 +730,53 @@ export default function MyBookingsPage() {
   }
 
   useEffect(() => {
-    if (!user?.uid) {
-      setBookings([]);
-      setLoading(false);
-      return;
-    }
-
     let isMounted = true;
+    let unsubBookings = null;
+    let unsubRooms = null;
 
-    async function load() {
-      try {
-        setLoading(true);
-        setError(null);
+    async function init() {
+      if (!user?.uid) {
+        setBookings([]);
+        setLoading(false);
+        return;
+      }
 
-        // Lazy-expiry is done by FO/admin (global sweep). Guests can't run it
-        // (rules limit guests to their own bookings), so nothing to do here.
+      setLoading(true);
+      setError(null);
 
-        const [bookingData, roomData] = await Promise.all([
-          listBookingsForUser(user.uid, { trainingMode }),
-          listRooms({ trainingMode }),
-        ]);
+      // Lazy-expiry is done by FO/admin (global sweep). Guests can't run it
+      // (rules limit guests to their own bookings), so nothing to do here.
 
+      // Live subscription so statuses (Pending → Approved → Checked In …)
+      // update immediately without manual refresh.
+      unsubBookings = subscribeToUserBookings(
+        user.uid,
+        (data) => {
+          if (!isMounted) return;
+          setBookings(sortBookings(data));
+          setLoading(false);
+        },
+        { trainingMode },
+      );
+
+      unsubRooms = subscribeToRooms({ trainingMode }, (roomData) => {
         if (!isMounted) return;
-
-        setBookings(sortBookings(bookingData));
-
         const map = {};
         for (const r of roomData) {
           map[r.id] = r;
         }
         setRoomsMap(map);
-      } catch (e) {
-        if (!isMounted) return;
-        setError(mapFirebaseError(e) || "Failed to load your bookings.");
-      } finally {
-        if (isMounted) setLoading(false);
-      }
+      });
     }
 
-    load();
+    init();
+
     return () => {
       isMounted = false;
+      if (unsubBookings) unsubBookings();
+      if (unsubRooms) unsubRooms();
     };
   }, [user?.uid, trainingMode]);
-
-  useEffect(() => {
-    setDropdownStatus("All");
-    setShowPastBookings(false);
-  }, [activeTab]);
 
   // ── Filtering ──────────────────────────────────────────────────────────────
   const filtered = useMemo(() => {
@@ -860,10 +865,7 @@ export default function MyBookingsPage() {
                 {/* All Statuses option */}
                 <button
                   type="button"
-                  onClick={() => {
-                    setDropdownStatus("All");
-                    setActiveTab("All");
-                  }}
+                  onClick={() => handleStatusSelect("All")}
                   className={`w-full text-left rounded-md px-2.5 py-1.5 text-xs transition-colors ${
                     dropdownStatus === "All"
                       ? "bg-primary/15 text-foreground font-medium"
@@ -883,10 +885,7 @@ export default function MyBookingsPage() {
                   <button
                     key={status}
                     type="button"
-                    onClick={() => {
-                      setDropdownStatus(status);
-                      setActiveTab("All");
-                    }}
+                    onClick={() => handleStatusSelect(status)}
                     className={`w-full text-left rounded-md px-2.5 py-1.5 text-xs transition-colors ${
                       dropdownStatus === status
                         ? "bg-primary/15 text-foreground font-medium"
@@ -907,10 +906,7 @@ export default function MyBookingsPage() {
                   <button
                     key={status}
                     type="button"
-                    onClick={() => {
-                      setDropdownStatus(status);
-                      setActiveTab("All");
-                    }}
+                    onClick={() => handleStatusSelect(status)}
                     className={`w-full text-left rounded-md px-2.5 py-1.5 text-xs transition-colors ${
                       dropdownStatus === status
                         ? "bg-primary/15 text-foreground font-medium"

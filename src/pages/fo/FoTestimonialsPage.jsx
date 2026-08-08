@@ -16,6 +16,7 @@ import {
   approveTestimonial,
   deleteTestimonial,
   listAllTestimonials,
+  subscribeToAllTestimonials,
   rejectTestimonial,
 } from "@/services/testimonialsService";
 
@@ -67,7 +68,11 @@ export default function FoTestimonialsPage() {
   }
 
   useEffect(() => {
-    refresh();
+    const unsub = subscribeToAllTestimonials((data) => {
+      setTestimonials(data);
+      setLoading(false);
+    });
+    return unsub;
   }, []);
 
   const pendingCount = useMemo(

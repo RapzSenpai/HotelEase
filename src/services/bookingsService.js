@@ -64,6 +64,26 @@ export async function listBookingsForUser(uid, { trainingMode = null } = {}) {
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
 
+export function subscribeToUserBookings(uid, callback, { trainingMode = null } = {}) {
+  const col = bookingsCollection(trainingMode);
+  const q = query(
+    collection(db, col),
+    where("guestId", "==", uid),
+    orderBy("checkInDate", "desc"),
+  );
+  return onSnapshot(
+    q,
+    (snap) => {
+      const bookings = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      callback(bookings);
+    },
+    (error) => {
+      console.error("[bookingsService] subscribeToUserBookings error:", error);
+      callback([]);
+    },
+  );
+}
+
 export async function listBookingsForRoom(
   roomId,
   { trainingMode = null } = {},

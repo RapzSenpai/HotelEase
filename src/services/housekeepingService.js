@@ -13,7 +13,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/firebase/firebase.config";
 import { getCol } from "@/lib/db-utils";
-import { listUsers } from "./userService";
+import { listFoUsers } from "./userService";
 import { createNotification } from "./notificationService";
 
 function housekeepingLogsCollection(trainingMode) {
@@ -113,7 +113,7 @@ export async function updateRoomStatus({
   }).then(async (result) => {
     if (result.newStatus === "Dirty / Needs Cleaning") {
       try {
-        const foUsers = await listUsers({ trainingMode }).then(users => users.filter(u => u.role === "fo"));
+        const foUsers = await listFoUsers({ trainingMode });
         await Promise.all(foUsers.map(fo => createNotification(fo.id, {
           type: "room_dirty",
           title: "Room Needs Cleaning 🧹",
@@ -210,9 +210,7 @@ export async function requestMidStayHousekeeping({
     };
   }).then(async (result) => {
     try {
-      const foUsers = await listUsers({ trainingMode }).then((users) =>
-        users.filter((u) => u.role === "fo"),
-      );
+      const foUsers = await listFoUsers({ trainingMode });
       await Promise.all(
         foUsers.map((fo) =>
           createNotification(fo.id, {
