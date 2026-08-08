@@ -17,6 +17,7 @@ export default function RegisterPage() {
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [phoneError, setPhoneError] = useState(null);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [confirmTouched, setConfirmTouched] = useState(false);
@@ -53,6 +54,17 @@ export default function RegisterPage() {
       return;
     }
     setPasswordError(null);
+
+    const phoneDigits = phone.replace(/\D/g, "").trim();
+    if (phoneDigits.length > 11) {
+      setPhoneError("Only 11 numbers are allowed. Please enter a valid 11-digit phone number.");
+      return;
+    }
+    if (phoneDigits.length < 11) {
+      setPhoneError("Phone number must be 11 digits (e.g., 0912 345 6789).");
+      return;
+    }
+    setPhoneError(null);
 
     if (confirmPassword !== password) {
       setConfirmTouched(true);
@@ -142,11 +154,22 @@ export default function RegisterPage() {
             type="tel"
             required
             autoComplete="tel"
+            inputMode="numeric"
             placeholder="e.g. 0912 345 6789"
+            maxLength={11}
             value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            className="h-11"
+            onChange={(e) => {
+              const digits = e.target.value.replace(/\D/g, "").slice(0, 11);
+              setPhone(digits);
+              if (phoneError) setPhoneError(null);
+            }}
+            className={`h-11 ${phoneError ? "border-destructive focus-visible:ring-destructive" : ""}`}
           />
+          {phoneError ? (
+            <p className="text-xs text-destructive">{phoneError}</p>
+          ) : (
+            <p className="text-xs text-foreground/45">11-digit mobile number, e.g. 0912 345 6789.</p>
+          )}
         </div>
 
         <div className="space-y-2">

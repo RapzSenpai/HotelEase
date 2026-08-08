@@ -146,7 +146,11 @@ export default function ProfilePage() {
   }
 
   async function handleSavePhone() {
-    const next = phoneDraft.trim();
+    const next = phoneDraft.replace(/\D/g, "").slice(0, 11).trim();
+    if (next.length !== 11) {
+      toast.error("Phone number must be 11 digits (e.g., 0912 345 6789).");
+      return;
+    }
     if (!next || next === (localProfile.phone || "")) {
       setEditingPhone(false);
       return;
@@ -307,8 +311,8 @@ export default function ProfilePage() {
                 <div>
                   <p className="text-xs font-medium uppercase tracking-wide text-foreground/45">Display Name</p>
                   {editingName ? (
-                    <div className="mt-1 flex items-center gap-2">
-                      <Input value={nameDraft} onChange={(e) => setNameDraft(e.target.value)} className="h-9 w-56" autoFocus />
+                    <div className="mt-1 flex flex-wrap items-center gap-2">
+                      <Input value={nameDraft} onChange={(e) => setNameDraft(e.target.value)} className="h-9 w-full sm:w-56" autoFocus />
                       <Button size="sm" onClick={handleSaveName} disabled={savingName}>
                         {savingName ? "Saving…" : "Save"}
                       </Button>
@@ -363,8 +367,8 @@ export default function ProfilePage() {
                   <PhoneIcon className="h-4 w-4" />
                 </span>
                 {editingPhone ? (
-                  <div className="flex items-center gap-2">
-                    <Input value={phoneDraft} onChange={(e) => setPhoneDraft(e.target.value)} placeholder="e.g. 0912 345 6789" className="h-9 w-56" autoFocus />
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Input value={phoneDraft} onChange={(e) => setPhoneDraft(e.target.value.replace(/\D/g, "").slice(0, 11))} placeholder="e.g. 0912 345 6789" maxLength={11} inputMode="numeric" className="h-9 w-full sm:w-56" autoFocus />
                     <Button size="sm" onClick={handleSavePhone} disabled={savingPhone}>
                       {savingPhone ? "Saving…" : "Save"}
                     </Button>
@@ -435,7 +439,7 @@ export default function ProfilePage() {
             ) : summary.count === 0 ? (
               <p className="text-sm text-foreground/50">No bookings yet. Browse rooms to get started.</p>
             ) : (
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="rounded-lg bg-muted/10 p-4 text-center">
                   <p className="text-2xl font-bold tabular-nums">{summary.count}</p>
                   <p className="mt-1 text-xs text-foreground/50">Total bookings</p>

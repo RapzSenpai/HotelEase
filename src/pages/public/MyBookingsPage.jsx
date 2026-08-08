@@ -372,22 +372,22 @@ function BookingCard({ booking, room, trainingMode, userProfile, onCancelled }) 
               </div>
             ) : (
               <div className="grid grid-cols-3 gap-2 text-center">
-                <div className="rounded-md bg-background/80 border border-border px-2 py-2">
+                <div className="rounded-md bg-background/80 border border-border px-1 sm:px-2 py-2 min-w-0">
                   <p className="text-xs text-foreground/50">Total</p>
-                  <p className="text-sm font-semibold">
+                  <p className="text-sm font-semibold break-words">
                     PHP {total.toLocaleString()}
                   </p>
                 </div>
-                <div className="rounded-md bg-background/80 border border-border px-2 py-2">
+                <div className="rounded-md bg-background/80 border border-border px-1 sm:px-2 py-2 min-w-0">
                   <p className="text-xs text-foreground/50">Paid</p>
-                  <p className="text-sm font-semibold text-success">
+                  <p className="text-sm font-semibold text-success break-words">
                     PHP {paid.toLocaleString()}
                   </p>
                 </div>
-                <div className="rounded-md bg-background/80 border border-border px-2 py-2">
+                <div className="rounded-md bg-background/80 border border-border px-1 sm:px-2 py-2 min-w-0">
                   <p className="text-xs text-foreground/50">Balance</p>
                   <p
-                    className={`text-sm font-semibold ${balance > 0 ? "text-destructive" : "text-success"}`}
+                    className={`text-sm font-semibold break-words ${balance > 0 ? "text-destructive" : "text-success"}`}
                   >
                     PHP {balance.toLocaleString()}
                   </p>
@@ -416,14 +416,14 @@ function BookingCard({ booking, room, trainingMode, userProfile, onCancelled }) 
                   return (
                     <div
                       key={p.id}
-                      className="flex items-center justify-between text-xs text-foreground/70 border-t border-border/50 pt-1"
+                      className="flex items-center justify-between gap-3 text-xs text-foreground/70 border-t border-border/50 pt-1"
                     >
-                      <span>
+                      <span className="min-w-0 truncate">
                         PHP {Number(p.amount ?? 0).toLocaleString()} ·{" "}
                         {p.method || "—"}
                         {ref ? ` · ${ref}` : ""}
                       </span>
-                      <span className="text-foreground/40">
+                      <span className="shrink-0 text-foreground/40">
                         {formatDateTime(p.createdAt)}
                       </span>
                     </div>

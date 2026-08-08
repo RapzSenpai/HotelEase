@@ -80,7 +80,7 @@ export default function HousekeepingPhotoUpload({
             <button
               type="button"
               onClick={() => removePhoto(url)}
-              className="absolute -right-1 -top-1 rounded-full bg-destructive p-0.5 text-white opacity-0 transition-opacity group-hover:opacity-100"
+              className="absolute -right-1 -top-1 rounded-full bg-destructive p-0.5 text-white opacity-100 sm:opacity-0 transition-opacity group-hover:opacity-100"
               aria-label="Remove photo"
             >
               <X className="h-2.5 w-2.5" />

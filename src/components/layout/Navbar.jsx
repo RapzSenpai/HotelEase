@@ -2,7 +2,7 @@ import { useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
-import { User, Menu, X, BedDouble, CalendarDays, Heart, LogOut } from "lucide-react";
+import { User, Menu, X, BedDouble, CalendarDays, Heart, LogOut, SprayCan } from "lucide-react";
 import NotificationBell from "@/components/notifications/NotificationBell";
 import { getLogoHomePath, isStaffRole } from "@/lib/routing";
 import { cn } from "@/lib/utils";
@@ -242,6 +242,7 @@ export default function Navbar({ onToggleSidebar }) {
                 }`
               }
             >
+              <SprayCan className="h-4 w-4" />
               Housekeeping
             </NavLink>
 

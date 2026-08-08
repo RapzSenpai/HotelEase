@@ -17,6 +17,9 @@ export default function VerifyEmailPage() {
   const [sending, setSending] = useState(true); // auto-send the code on mount
   const [verifying, setVerifying] = useState(false);
   const [cooldown, setCooldown] = useState(0);
+  // When EmailJS isn't configured / sending fails, the code is returned to us
+  // so the guest can still verify and log in instead of being locked out.
+  const [fallback, setFallback] = useState(null); // { code, reason }
   // React StrictMode mounts effects twice in dev — without this guard the
   // "auto-send on mount" effect would email the OTP twice.
   const autoSendRef = useRef(false);
@@ -35,6 +38,9 @@ export default function VerifyEmailPage() {
         const result = await sendVerificationCode();
         if (!result.ok) {
           setStatus({ type: "error", message: result.reason });
+        } else if (result.fallbackCode) {
+          setFallback({ code: result.fallbackCode, reason: result.fallbackReason });
+          setCode(result.fallbackCode);
         } else {
           setCooldown(60);
         }
@@ -64,6 +70,13 @@ export default function VerifyEmailPage() {
       const result = await sendVerificationCode();
       if (!result.ok) {
         setStatus({ type: "error", message: result.reason });
+      } else if (result.fallbackCode) {
+        setFallback({ code: result.fallbackCode, reason: result.fallbackReason });
+        setCode(result.fallbackCode);
+        setStatus({
+          type: "success",
+          message: "A new code was generated.",
+        });
       } else {
         setStatus({ type: "success", message: "A new code was sent." });
         setCooldown(60);
@@ -169,7 +182,9 @@ export default function VerifyEmailPage() {
           <span>
             {sending
               ? "Sending your verification code…"
-              : "A code has been sent. Please check your inbox (and spam folder)."}
+              : fallback
+                ? "A code was generated below — enter it to continue."
+                : "A code has been sent. Please check your inbox (and spam folder)."}
           </span>
         </div>
 
@@ -204,6 +219,23 @@ export default function VerifyEmailPage() {
               <MailCheck className="h-4 w-4 shrink-0 mt-0.5 text-success" />
             )}
             <span>{status.message}</span>
+          </div>
+        ) : null}
+
+        {fallback ? (
+          <div className="space-y-2 rounded-xl border border-warning/40 bg-warning/10 p-4">
+            <div className="flex items-start gap-2 text-sm text-foreground">
+              <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5 text-warning" />
+              <span>
+                {fallback.reason || "Email delivery is unavailable."} A code was
+                generated for you below — enter it to continue.
+              </span>
+            </div>
+            <div className="rounded-lg bg-background/70 px-4 py-3 text-center">
+              <span className="text-2xl font-semibold tracking-[0.3em]">
+                {fallback.code}
+              </span>
+            </div>
           </div>
         ) : null}
 

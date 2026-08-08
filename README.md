@@ -7,7 +7,7 @@ A web-based Hotel Property Management System (PMS) built for the BSHM department
 - **Frontend:** React 19, Vite 8, Tailwind CSS 3, shadcn/ui (Radix UI)
 - **Backend:** Firebase (Firestore, Authentication)
 - **Image Hosting:** Cloudinary (unsigned uploads, client-side compression, on-the-fly optimization)
-- **AI Chatbot:** Groq API (LLaMA 3.1 8B)
+- **AI Chatbot:** Groq API (LLaMA 3.1 8B), proxied server-side via a Cloudflare Worker
 - **Email:** EmailJS (client-side)
 - **PDF:** jsPDF + jsPDF-AutoTable
 - **Charts:** Recharts
@@ -29,7 +29,7 @@ A web-based Hotel Property Management System (PMS) built for the BSHM department
 - npm or yarn
 - A Firebase project (Firestore + Authentication enabled)
 - A Cloudinary account (unsigned upload preset)
-- A Groq API key (for AI chatbot)
+- A Cloudflare Worker for the AI chatbot (see [worker/]('./worker'))
 
 ### Installation
 
@@ -43,7 +43,7 @@ npm install
 
 # Set up environment variables
 cp .env.example .env
-# Edit .env with your Firebase, Cloudinary, Groq, and EmailJS credentials
+# Edit .env with your Firebase, Cloudinary, Groq proxy, and EmailJS credentials
 
 # Start the dev server
 npm run dev
@@ -59,12 +59,14 @@ npm run dev
 | `VITE_FIREBASE_STORAGE_BUCKET` | Firebase storage bucket |
 | `VITE_FIREBASE_MESSAGING_SENDER_ID` | Firebase messaging sender ID |
 | `VITE_FIREBASE_APP_ID` | Firebase app ID |
+| `VITE_FIREBASE_MEASUREMENT_ID` | Google Analytics 4 measurement ID (optional) |
 | `VITE_CLOUDINARY_CLOUD_NAME` | Cloudinary cloud name |
 | `VITE_CLOUDINARY_UPLOAD_PRESET` | Cloudinary unsigned upload preset |
-| `VITE_GROQ_API_KEY` | Groq API key for AI chatbot |
+| `VITE_GROQ_PROXY_URL` | URL of the deployed Cloudflare Worker AI chat proxy |
 | `VITE_EMAILJS_SERVICE_ID` | EmailJS service ID |
 | `VITE_EMAILJS_TEMPLATE_ID` | EmailJS template ID (booking confirmation) |
 | `VITE_EMAILJS_REPLY_TEMPLATE_ID` | EmailJS template ID (message reply) |
+| `VITE_EMAILJS_VERIFY_TEMPLATE_ID` | EmailJS template ID (verification OTP) |
 | `VITE_EMAILJS_PUBLIC_KEY` | EmailJS public key |
 
 ### Build & Deploy
@@ -80,15 +82,16 @@ firebase deploy
 ## Features
 
 - **Booking Lifecycle:** Pending → Approved → Awaiting Payment → Checked In → Checked Out
+- **Verification OTP:** Email-based code on signup, with on-screen fallback if email delivery fails
 - **Payment Processing:** GCash, Bank Transfer, Credit/Debit Card, Over-the-Counter with proof upload
 - **Housekeeping Management:** Kanban board, staff assignment, photo verification, cleaning timer
-- **AI Chatbot:** Context-aware room recommendations powered by Groq/LLaMA
+- **AI Chatbot:** Context-aware room recommendations powered by Groq/LLaMA (server-side proxy)
 - **Training Mode:** Sandboxed demo environment with session codes and data isolation
 - **Real-time Updates:** Firestore onSnapshot subscriptions for live data
 - **Keyboard Shortcuts:** FO hotkeys (C, O, H) for quick operations
 - **Analytics Dashboard:** Occupancy rates, revenue tracking, booking trends
 - **Image Optimization:** Client-side compression before upload, lazy loading, Cloudinary URL transformations
-- **Email Notifications:** Booking confirmations and support reply emails via EmailJS
+- **Email Notifications:** Booking confirmations, support replies, and verification OTPs via EmailJS
 
 ## Project Structure
 
@@ -103,6 +106,8 @@ src/
   services/         # Firebase/Firestore service layer
   firebase/         # Firebase configuration
   cloudinary/       # Cloudinary configuration
+worker/
+  src/index.js      # Cloudflare Worker AI chat proxy (keeps Groq key server-side)
 ```
 
 ## License

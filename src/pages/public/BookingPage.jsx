@@ -89,6 +89,7 @@ export default function BookingPage() {
   const [leadGuestEmail, setLeadGuestEmail] = useState(profile?.email || "");
   const [countryCode, setCountryCode] = useState("+63");
   const [phoneNumber, setPhoneNumber] = useState("");
+  const [phoneError, setPhoneError] = useState(null);
   const [arrivalTime, setArrivalTime] = useState("I don't know");
 
   const [checkIn, setCheckIn] = useState(searchParams.get("checkIn") || "");
@@ -193,6 +194,18 @@ export default function BookingPage() {
     setStep1Error(null);
     setStep1Touched(true);
     if (!leadGuestName || !leadGuestEmail || !phoneNumber) { setStep1Error("Please fill in all required customer information."); return; }
+    const phoneDigits = phoneNumber.replace(/\D/g, "");
+    if (phoneDigits.length < 10) {
+      setPhoneError("Phone number must be at least 10 digits (e.g., 912 345 6789).");
+      setStep1Error("Please enter a valid phone number.");
+      return;
+    }
+    if (phoneDigits.length > 11) {
+      setPhoneError("Only 11 numbers are allowed. Please enter a valid phone number.");
+      setStep1Error("Please enter a valid phone number.");
+      return;
+    }
+    setPhoneError(null);
     if (!checkIn || !checkOut) { setStep1Error("Please select check-in and check-out dates."); return; }
     if (nights <= 0) { setStep1Error("Check-out must be after check-in."); return; }
     if (!bookable) { setStep1Error("This room is not currently bookable."); return; }
@@ -402,11 +415,21 @@ export default function BookingPage() {
                     type="tel"
                     required
                     placeholder="912 345 6789"
+                    inputMode="numeric"
+                    maxLength={11}
                     value={phoneNumber}
-                    onChange={(e) => setPhoneNumber(e.target.value)}
-                    className={`flex-1 ${step1Touched && !phoneNumber ? "border-destructive focus-visible:ring-destructive" : ""}`}
+                    onChange={(e) => {
+                      setPhoneNumber(e.target.value.replace(/\D/g, "").slice(0, 11));
+                      if (phoneError) setPhoneError(null);
+                    }}
+                    className={`flex-1 ${step1Touched && !phoneNumber ? "border-destructive focus-visible:ring-destructive" : phoneError ? "border-destructive focus-visible:ring-destructive" : ""}`}
                   />
                 </div>
+                {phoneError ? (
+                  <p className="text-xs text-destructive">{phoneError}</p>
+                ) : (
+                  <p className="text-xs text-foreground/45">10-11 digit mobile number, e.g. 912 345 6789.</p>
+                )}
               </div>
 
               <div className="border-t border-border pt-4 mt-4" />

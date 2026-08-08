@@ -31,21 +31,30 @@ async function sendVerificationEmail({ toEmail, toName, otp }) {
   const publicKey = import.meta.env.VITE_EMAILJS_PUBLIC_KEY;
 
   if (!serviceId || !templateId || !publicKey) {
-    throw new Error("EmailJS verification is not configured.");
+    // EmailJS isn't wired up (e.g. local dev). Don't block the guest — the
+    // caller surfaces the code on screen instead.
+    return { sent: false, reason: "EmailJS verification is not configured." };
   }
 
-  await emailjs.send(
-    serviceId,
-    templateId,
-    {
-      to_email: toEmail,
-      to_name: toName,
-      subject: "HotelEase — Your Verification Code",
-      eyebrow: "Account Verification",
-      bodyHTML: buildOtpBody(otp),
-    },
-    publicKey,
-  );
+  try {
+    await emailjs.send(
+      serviceId,
+      templateId,
+      {
+        to_email: toEmail,
+        to_name: toName,
+        subject: "HotelEase — Your Verification Code",
+        eyebrow: "Account Verification",
+        bodyHTML: buildOtpBody(otp),
+      },
+      publicKey,
+    );
+    return { sent: true };
+  } catch (e) {
+    // Same fallback path: sending email failed, so let the guest log in by
+    // showing the code on screen instead of locking them out.
+    return { sent: false, reason: e?.message || "Failed to send the email." };
+  }
 }
 
 /**
@@ -82,11 +91,18 @@ export async function issueVerificationCode({
     updatedAt: serverTimestamp(),
   });
 
-  await sendVerificationEmail({
+  const sendResult = await sendVerificationEmail({
     toEmail: email,
     toName: fullName || "Guest",
     otp,
   });
+
+  // If the email couldn't actually be delivered (EmailJS not configured or a
+  // send failure), surface the code so the guest can still verify and log in
+  // instead of being stuck on the OTP screen.
+  if (!sendResult.sent) {
+    return { ok: true, fallbackCode: otp, fallbackReason: sendResult.reason };
+  }
 
   return { ok: true };
 }
