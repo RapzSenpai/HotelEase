@@ -384,8 +384,8 @@ export default function Sidebar({ open, onClose }) {
             </div>
           ))}
 
-          {/* Logout — always accessible, incl. mobile drawer */}
-          <div className="mt-4">
+          {/* Logout — mobile drawer only; desktop uses the Navbar logout */}
+          <div className="mt-4 md:hidden">
             <div className="h-px bg-border/60 mb-1.5" />
             <button
               type="button"
