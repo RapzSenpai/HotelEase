@@ -66,8 +66,8 @@ export default function AdminAnalyticsPage() {
     <div className="space-y-4 max-w-7xl mx-auto">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="space-y-1">
-          <h1 className="font-playfair text-4xl font-bold tracking-tight">System Analytics</h1>
-          <p className="text-muted-foreground">
+          <h1 className="font-playfair text-4xl font-semibold tracking-tight">System Analytics</h1>
+          <p className="text-foreground/60">
             Comprehensive overview of hotel performance and booking trends.
           </p>
         </div>
@@ -76,14 +76,14 @@ export default function AdminAnalyticsPage() {
           onClick={refresh}
           disabled={loading}
         >
-          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
           {loading ? "Refreshing..." : "Sync Data"}
         </Button>
       </div>
 
       {error ? (
-        <div className="rounded-2xl border border-destructive/20 bg-destructive/10 p-4 text-sm text-destructive flex items-center gap-3">
-          <TrendingUp className="w-5 h-5" />
+        <div className="rounded-xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive flex items-center gap-3">
+          <TrendingUp className="h-4 w-4 shrink-0" />
           {error}
         </div>
       ) : null}

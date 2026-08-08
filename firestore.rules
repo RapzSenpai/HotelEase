@@ -45,8 +45,11 @@ service cloud.firestore {
       return isProdFOOrAdmin() || isTrainingFOOrAdmin();
     }
 
+    // Admin = production admin ONLY. Training users may self-declare an "admin"
+    // role inside the sandbox (training_*) but must never gain access to
+    // production collections like messages/testimonials.
     function isAdmin() {
-      return isProdAdmin() || (isAuthenticated() && getTrainingRole() == 'admin');
+      return isProdAdmin();
     }
 
     // FIX: isTrainingFOOrAdmin reads training_guests
@@ -169,12 +172,20 @@ service cloud.firestore {
 
     match /training_guests/{uid} {
       allow read: if isOwner(uid) || isProdFOOrAdmin() || isTrainingFOOrAdmin();
-      // Allow trainees to create their own profile (must be a guest; staff may seed demo users).
-      // Mirrors the prod /users rule so a trainee cannot self-grant an admin/fo role.
-      allow create: if isOwner(uid) && !isAnonymous() && request.resource.data.role == 'guest';
+      // Trainees sign in ANONYMOUSLY, so self-creation must not require
+      // !isAnonymous(). Role is self-declared so trainees can practice each
+      // role; access is limited to the training_* sandbox via isTraining*.
+      // Staff (prod or training) may seed demo users of any role.
+      allow create: if (isProdFOOrAdmin() || isTrainingFOOrAdmin()) ||
+                     (isOwner(uid) &&
+                      request.resource.data.role in ['guest', 'fo', 'admin'] &&
+                      request.resource.data.uid == request.auth.uid &&
+                      request.resource.data.keys().hasOnly(
+                        ['uid', 'email', 'fullName', 'phone', 'role', 'emailVerified',
+                         'createdAt', 'updatedAt']));
       // Trainees may edit only their own profile fields (never their role).
-      allow update: if (isProdFOOrAdmin() || isTrainingFOOrAdmin()) ||
-                     (isOwner(uid) && !isAnonymous() &&
+      allow update: if isProdFOOrAdmin() || isTrainingFOOrAdmin() ||
+                     (isOwner(uid) &&
                       request.resource.data.diff(resource.data).affectedKeys().hasOnly(
                         ['fullName', 'email', 'phone', 'photoUrl', 'updatedAt', 'lastLoginAt',
                          'lastLoginIp', 'isOnline', 'lastSeenAt', 'emailVerified', 'verifiedAt']));
@@ -184,7 +195,7 @@ service cloud.firestore {
     match /training_bookings/{id} {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated() && 
-                       (request.resource.data.guestId == request.auth.uid || isProdFOOrAdmin());
+                       (request.resource.data.guestId == request.auth.uid || isProdFOOrAdmin() || isTrainingFOOrAdmin());
       allow update: if (isAuthenticated() && 
                                (isProdFOOrAdmin() || isTrainingFOOrAdmin()) &&
                                (request.resource.data.status != "Checked Out" || 
@@ -209,12 +220,13 @@ service cloud.firestore {
     }
 
     match /training_rooms/{id} {
-      allow read: if isAuthenticated() && !isAnonymous();
+      // Trainees are anonymous accounts, so anonymous reads must be allowed.
+      allow read: if isAuthenticated();
       allow write: if isAuthenticated();
     }
 
     match /training_reviews/{id} {
-      allow read: if isAuthenticated() && !isAnonymous();
+      allow read: if isAuthenticated();
       allow create: if isAuthenticated();
       allow update, delete: if isAuthenticated();
     }

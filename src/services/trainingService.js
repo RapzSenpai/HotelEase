@@ -23,6 +23,7 @@ const TRAINING_GUESTS_COL = "training_guests";
 const TRAINING_PAYMENTS_COL = "training_payments";
 const TRAINING_HOUSEKEEPING_LOGS_COL = "training_housekeeping_logs";
 const TRAINING_ROOMS_COL = "training_rooms";
+const TRAINING_REVIEWS_COL = "training_reviews";
 
 function generateSessionCode() {
   // Short human-friendly code; collisions are extremely unlikely for a class project.
@@ -56,14 +57,18 @@ export async function getTrainingSystemState() {
 
 export async function setTrainingModeEnabled(enabled) {
   const next = Boolean(enabled);
-  await setDoc(
-    SYSTEM_DOC_REF,
-    {
-      enabled: next,
-      updatedAt: serverTimestamp(),
-    },
-    { merge: true }
-  );
+  const patch = {
+    enabled: next,
+    updatedAt: serverTimestamp(),
+  };
+  // Closing training mode also closes any active session code so students
+  // can no longer join while the mode is disabled.
+  if (!next) {
+    patch.sessionCode = null;
+    patch.sessionExpiry = null;
+    patch.sessionExpiryIso = null;
+  }
+  await setDoc(SYSTEM_DOC_REF, patch, { merge: true });
   return { ok: true };
 }
 
@@ -126,13 +131,21 @@ async function clearCollection(colName) {
 }
 
 export async function resetTrainingData() {
-  const guestsSnap = await getDocs(collection(db, TRAINING_GUESTS_COL));
-  const notifDeletions = guestsSnap.docs.map(async (d) => {
-    const notifsSnap = await getDocs(collection(db, "notifications", d.id, "items"));
-    const delPromises = notifsSnap.docs.map(n => deleteDoc(doc(db, "notifications", d.id, "items", n.id)));
-    return Promise.all(delPromises);
-  });
-  await Promise.all(notifDeletions);
+  // Notification cleanup is a best-effort nicety. Rules only allow a user to
+  // read/write their own notifications subcollection, so when an admin (or a
+  // different training uid) resets, these may be denied. Never let that
+  // failure block the actual collection wipe below.
+  try {
+    const guestsSnap = await getDocs(collection(db, TRAINING_GUESTS_COL));
+    const notifDeletions = guestsSnap.docs.map(async (d) => {
+      const notifsSnap = await getDocs(collection(db, "notifications", d.id, "items"));
+      const delPromises = notifsSnap.docs.map(n => deleteDoc(doc(db, "notifications", d.id, "items", n.id)));
+      return Promise.all(delPromises);
+    });
+    await Promise.all(notifDeletions);
+  } catch (e) {
+    console.warn("[trainingService] Notification cleanup skipped:", e);
+  }
 
   await Promise.all([
     clearCollection(TRAINING_BOOKINGS_COL),
@@ -140,6 +153,7 @@ export async function resetTrainingData() {
     clearCollection(TRAINING_PAYMENTS_COL),
     clearCollection(TRAINING_HOUSEKEEPING_LOGS_COL),
     clearCollection(TRAINING_ROOMS_COL),
+    clearCollection(TRAINING_REVIEWS_COL),
   ]);
   return { ok: true };
 }

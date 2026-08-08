@@ -130,6 +130,47 @@ export async function deleteUser(uid, { trainingMode = false } = {}) {
   return { ok: true };
 }
 
+const DELETE_PROXY_URL = import.meta.env.VITE_GROQ_PROXY_URL;
+const DELETE_PROXY_KEY = import.meta.env.VITE_DELETE_KEY;
+
+/**
+ * Permanently delete a user: Firebase Auth account + Firestore user docs.
+ *
+ * The web client is forbidden from deleting Auth accounts, so this goes through
+ * the Cloudflare Worker (server-side) which holds the service-account key and a
+ * shared DELETE_KEY. Requires VITE_GROQ_PROXY_URL + VITE_DELETE_KEY in .env.
+ */
+export async function deleteUserFully(uid) {
+  if (!uid || typeof uid !== "string") throw new Error("Invalid uid passed to deleteUserFully");
+  if (!DELETE_PROXY_URL || !DELETE_PROXY_KEY) {
+    throw new Error("Full user deletion is not configured (missing VITE_GROQ_PROXY_URL / VITE_DELETE_KEY).");
+  }
+
+  const base = DELETE_PROXY_URL.replace(/\/+$/, "");
+  const response = await fetch(`${base}/delete-user`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-DELETE-KEY": DELETE_PROXY_KEY,
+    },
+    body: JSON.stringify({ uid }),
+  });
+
+  const data = await response.json().catch(() => ({}));
+
+  // 404 auth_not_found: the Auth account is already gone, but Firestore docs
+  // were still deleted — treat as a successful full deletion.
+  if (response.status === 404 && data?.reason === "auth_not_found") {
+    return { ...data, ok: true };
+  }
+
+  if (!response.ok) {
+    const detail = data?.error || data?.detail || `HTTP ${response.status}`;
+    throw new Error(`Failed to fully delete user: ${detail}`);
+  }
+  return data;
+}
+
 export async function updateLastLogin(uid, { trainingMode = false } = {}) {
   if (!uid || typeof uid !== "string") throw new Error("Invalid uid passed to updateLastLogin");
 

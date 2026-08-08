@@ -6,5 +6,7 @@ compatibility_date = "2026-01-01"
 [vars]
 RATE_LIMIT_MAX = "10"
 
-# Set the real key securely (never in code / git):
+# Set secrets securely (never in code / git):
 #   npx wrangler secret put GROQ_API_KEY
+#   npx wrangler secret put FIREBASE_SERVICE_ACCOUNT
+#   npx wrangler secret put DELETE_KEY

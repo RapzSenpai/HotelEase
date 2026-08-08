@@ -759,14 +759,17 @@ export default function MyBookingsPage() {
         { trainingMode },
       );
 
-      unsubRooms = subscribeToRooms({ trainingMode }, (roomData) => {
-        if (!isMounted) return;
-        const map = {};
-        for (const r of roomData) {
-          map[r.id] = r;
-        }
-        setRoomsMap(map);
-      });
+      unsubRooms = subscribeToRooms(
+        (roomData) => {
+          if (!isMounted) return;
+          const map = {};
+          for (const r of roomData) {
+            map[r.id] = r;
+          }
+          setRoomsMap(map);
+        },
+        { trainingMode },
+      );
     }
 
     init();

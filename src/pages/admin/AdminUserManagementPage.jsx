@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { setUserRole, deleteUser, subscribeToUsers } from "@/services/userService";
+import { setUserRole, deleteUser, deleteUserFully, subscribeToUsers } from "@/services/userService";
 import { forceLogoutUser } from "@/services/sessionService";
 import { isOnlineNow } from "@/services/presenceService";
 import { auditAction, AUDIT_ACTIONS } from "@/services/auditService";
@@ -137,7 +137,7 @@ export default function AdminUserManagementPage() {
     
     const uid = deletingUser.id;
     try {
-      await deleteUser(uid, { trainingMode: isTrainingSource });
+      await deleteUserFully(uid);
       auditAction(AUDIT_ACTIONS.USER_DELETE, {
         targetId: uid,
         targetType: "user",
@@ -145,12 +145,30 @@ export default function AdminUserManagementPage() {
         description: `Deleted user ${deletingUser.email || deletingUser.fullName || uid}`,
         trainingMode: isTrainingSource,
       });
-      toast.success("User deleted successfully");
+      toast.success("User deleted completely (profile + login account)");
       setUsers((prev) => prev.filter((u) => u.id !== uid));
       setIsDeleteDialogOpen(false);
       setDeletingUser(null);
     } catch (e) {
-      toast.error(e?.message || "Failed to delete user");
+      // Fallback: remove the Firestore profile only, then warn the admin that
+      // the login account still exists (client SDK cannot delete Auth accounts).
+      toast.error(`Full delete failed: ${e?.message || e}`);
+      try {
+        await deleteUser(uid, { trainingMode: isTrainingSource });
+        auditAction(AUDIT_ACTIONS.USER_DELETE, {
+          targetId: uid,
+          targetType: "user",
+          changes: { email: deletingUser.email, fullName: deletingUser.fullName },
+          description: `Deleted user profile ${deletingUser.email || deletingUser.fullName || uid} (Auth account preserved)`,
+          trainingMode: isTrainingSource,
+        });
+        setUsers((prev) => prev.filter((u) => u.id !== uid));
+        setIsDeleteDialogOpen(false);
+        setDeletingUser(null);
+        toast.warning("Profile removed. Login account still exists — fully remove it with the backend script.");
+      } catch (e2) {
+        toast.error(e2?.message || "Failed to delete user");
+      }
     }
   }
 

@@ -63,6 +63,7 @@ npm run dev
 | `VITE_CLOUDINARY_CLOUD_NAME` | Cloudinary cloud name |
 | `VITE_CLOUDINARY_UPLOAD_PRESET` | Cloudinary unsigned upload preset |
 | `VITE_GROQ_PROXY_URL` | URL of the deployed Cloudflare Worker AI chat proxy |
+| `VITE_DELETE_KEY` | Shared passphrase for the worker's `/delete-user` route (must equal `DELETE_KEY` secret) |
 | `VITE_EMAILJS_SERVICE_ID` | EmailJS service ID |
 | `VITE_EMAILJS_TEMPLATE_ID` | EmailJS template ID (booking confirmation) |
 | `VITE_EMAILJS_REPLY_TEMPLATE_ID` | EmailJS template ID (message reply) |
