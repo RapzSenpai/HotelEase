@@ -42,7 +42,10 @@ jobs:
           VITE_EMAILJS_SERVICE_ID: ${{ secrets.VITE_EMAILJS_SERVICE_ID }}
           VITE_EMAILJS_TEMPLATE_ID: ${{ secrets.VITE_EMAILJS_TEMPLATE_ID }}
           VITE_EMAILJS_REPLY_TEMPLATE_ID: ${{ secrets.VITE_EMAILJS_REPLY_TEMPLATE_ID }}
+          VITE_EMAILJS_VERIFY_TEMPLATE_ID: ${{ secrets.VITE_EMAILJS_VERIFY_TEMPLATE_ID }}
           VITE_EMAILJS_PUBLIC_KEY: ${{ secrets.VITE_EMAILJS_PUBLIC_KEY }}
+          VITE_DELETE_KEY: ${{ secrets.VITE_DELETE_KEY }}
+          VITE_FIREBASE_MEASUREMENT_ID: ${{ secrets.VITE_FIREBASE_MEASUREMENT_ID }}
 
       - name: Upload build artifact
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
