@@ -88,11 +88,9 @@ export default function App() {
         <Route
           path="/login"
           element={
-            <MaintenanceRoute>
-              <GuestAuthRoute>
-                <SuspenseWrapper><LoginPage /></SuspenseWrapper>
-              </GuestAuthRoute>
-            </MaintenanceRoute>
+            <GuestAuthRoute>
+              <SuspenseWrapper><LoginPage /></SuspenseWrapper>
+            </GuestAuthRoute>
           }
         />
         <Route

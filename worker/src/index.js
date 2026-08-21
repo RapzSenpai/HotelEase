@@ -18,7 +18,7 @@
  */
 
 const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
-const MODEL_ID = "llama-3.1-8b-instant";
+const MODEL_ID = "openai/gpt-oss-20b";
 
 const RATE_WINDOW_MS = 60 * 1000;
 

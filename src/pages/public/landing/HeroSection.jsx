@@ -9,6 +9,10 @@ import image3 from "@/assets/3.jpg";
 import image4 from "@/assets/4.jpg";
 import image5 from "@/assets/5.jpg";
 import { SectionEyebrow } from "./components";
+import {
+  DraggableCardContainer,
+  DraggableCardBody,
+} from "@/components/ui/draggable-card";
 
 export default function HeroSection({ user, isStaff, staffDashboardPath }) {
   const { word: changingWord } = useTypewriter(
@@ -76,37 +80,35 @@ export default function HeroSection({ user, isStaff, staffDashboardPath }) {
             </div>
           </div>
           <div className="lg:col-span-6 w-full flex justify-center lg:justify-end">
-            <div className="grid grid-cols-2 gap-3 h-[420px] sm:h-[480px] md:grid-cols-12 md:grid-rows-6 md:h-[550px] lg:h-[600px] w-full max-w-2xl">
-              <div className="col-span-2 md:col-span-8 md:row-span-4 rounded-[2rem] overflow-hidden shadow-lg border border-border/10 group hover:scale-[1.02] transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]">
-                <div className="relative w-full h-full">
-                  <img src={heroBg} alt="Consolatrix Suites" className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/25 via-transparent to-transparent" />
-                </div>
+            <div className="grid grid-cols-2 gap-3 h-[420px] sm:h-[480px] md:hidden w-full max-w-2xl">
+              <div className="col-span-2 rounded-[2rem] overflow-hidden shadow-lg border border-border/10">
+                <img src={heroBg} alt="Consolatrix Suites" className="h-full w-full object-cover" />
               </div>
-              <div className="col-span-1 md:col-span-4 md:row-span-2 rounded-[2rem] overflow-hidden shadow-md border border-border/10 group hover:scale-[1.02] transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]">
-                <div className="relative w-full h-full">
-                  <img src={image2} alt="Hotel Interior" className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent" />
-                </div>
+              <div className="rounded-[2rem] overflow-hidden shadow-md border border-border/10">
+                <img src={image2} alt="Hotel Interior" className="h-full w-full object-cover" />
               </div>
-              <div className="hidden md:block md:col-span-4 md:row-span-4 rounded-[2rem] overflow-hidden shadow-md border border-border/10 group hover:scale-[1.02] transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]">
-                <div className="relative w-full h-full">
-                  <img src={image3} alt="Hotel Amenities" className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent" />
-                </div>
+              <div className="rounded-[2rem] overflow-hidden shadow-md border border-border/10">
+                <img src={image4} alt="Room View" className="h-full w-full object-cover" />
               </div>
-              <div className="col-span-1 md:col-span-4 md:row-span-2 rounded-[2rem] overflow-hidden shadow-md border border-border/10 group hover:scale-[1.02] transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]">
-                <div className="relative w-full h-full">
-                  <img src={image4} alt="Room View" className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent" />
-                </div>
-              </div>
-              <div className="hidden md:block md:col-span-4 md:row-span-2 rounded-[2rem] overflow-hidden shadow-md border border-border/10 group hover:scale-[1.02] transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]">
-                <div className="relative w-full h-full">
-                  <img src={image5} alt="Dining Area" className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent" />
-                </div>
-              </div>
+            </div>
+            <div className="hidden md:block w-full max-w-3xl">
+              <DraggableCardContainer className="h-[680px] w-full">
+                <DraggableCardBody index={0} className="absolute top-[5%] left-[10%] rotate-[-2deg] h-[320px] w-[300px] rounded-[2rem] border border-border/10">
+                  <img src={heroBg} alt="Consolatrix Suites" className="pointer-events-none relative z-10 h-full w-full object-cover rounded-[2rem]" />
+                </DraggableCardBody>
+                <DraggableCardBody index={1} className="absolute top-[8%] left-[40%] rotate-[5deg] h-[280px] w-[260px] rounded-[2rem] border border-border/10">
+                  <img src={image2} alt="Hotel Interior" className="pointer-events-none relative z-10 h-full w-full object-cover rounded-[2rem]" />
+                </DraggableCardBody>
+                <DraggableCardBody index={2} className="absolute top-[35%] left-[22%] rotate-[-4deg] h-[240px] w-[220px] rounded-[2rem] border border-border/10">
+                  <img src={image3} alt="Hotel Amenities" className="pointer-events-none relative z-10 h-full w-full object-cover rounded-[2rem]" />
+                </DraggableCardBody>
+                <DraggableCardBody index={3} className="absolute top-[50%] left-[3%] rotate-[3deg] h-[260px] w-[240px] rounded-[2rem] border border-border/10">
+                  <img src={image4} alt="Room View" className="pointer-events-none relative z-10 h-full w-full object-cover rounded-[2rem]" />
+                </DraggableCardBody>
+                <DraggableCardBody index={4} className="absolute top-[42%] left-[45%] rotate-[-3deg] h-[280px] w-[260px] rounded-[2rem] border border-border/10">
+                  <img src={image5} alt="Dining Area" className="pointer-events-none relative z-10 h-full w-full object-cover rounded-[2rem]" />
+                </DraggableCardBody>
+              </DraggableCardContainer>
             </div>
           </div>
         </div>

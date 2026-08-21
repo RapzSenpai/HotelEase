@@ -7,7 +7,7 @@ A web-based Hotel Property Management System (PMS) built for the BSHM department
 - **Frontend:** React 19, Vite 8, Tailwind CSS 3, shadcn/ui (Radix UI)
 - **Backend:** Firebase (Firestore, Authentication)
 - **Image Hosting:** Cloudinary (unsigned uploads, client-side compression, on-the-fly optimization)
-- **AI Chatbot:** Groq API (LLaMA 3.1 8B), proxied server-side via a Cloudflare Worker
+- **AI Chatbot:** Groq API (OpenAI GPT-OSS 20B), proxied server-side via a Cloudflare Worker
 - **Email:** EmailJS (client-side)
 - **PDF:** jsPDF + jsPDF-AutoTable
 - **Charts:** Recharts
@@ -86,7 +86,7 @@ firebase deploy
 - **Verification OTP:** Email-based code on signup, with on-screen fallback if email delivery fails
 - **Payment Processing:** GCash, Bank Transfer, Credit/Debit Card, Over-the-Counter with proof upload
 - **Housekeeping Management:** Kanban board, staff assignment, photo verification, cleaning timer
-- **AI Chatbot:** Context-aware room recommendations powered by Groq/LLaMA (server-side proxy)
+- **AI Chatbot:** Context-aware room recommendations powered by Groq/GPT-OSS (server-side proxy)
 - **Training Mode:** Sandboxed demo environment with session codes and data isolation
 - **Real-time Updates:** Firestore onSnapshot subscriptions for live data
 - **Keyboard Shortcuts:** FO hotkeys (C, O, H) for quick operations
