@@ -448,7 +448,7 @@ function BookingCard({ booking, room, trainingMode, userProfile, onCancelled }) 
               <form onSubmit={handlePaymentProofUpload} className="space-y-3">
                 {/* Payment Method Display (read-only - locked from booking time) */}
                 <div className="space-y-2">
-                  <label className="text-xs font-semibold uppercase text-foreground/70">Payment Method</label>
+                  <span className="text-xs font-semibold uppercase text-foreground/70">Payment Method</span>
                   <div className="text-sm font-medium">{booking.paymentMethod}</div>
                 </div>
 
@@ -486,7 +486,7 @@ function BookingCard({ booking, room, trainingMode, userProfile, onCancelled }) 
 
                 {/* Payment Type Display (read-only - locked from booking time) */}
                 <div className="space-y-2">
-                  <label className="text-xs font-semibold uppercase text-foreground/70">Payment Type</label>
+                  <span className="text-xs font-semibold uppercase text-foreground/70">Payment Type</span>
                   <div className="text-sm font-medium">
                     {booking.paymentType || "Full"} Payment (₱{(booking.paymentType === "Partial" ? calculatePartialPayment(total) : total).toLocaleString()})
                   </div>
@@ -494,9 +494,10 @@ function BookingCard({ booking, room, trainingMode, userProfile, onCancelled }) 
 
                 {/* File Input */}
                 <div className="space-y-2">
-                  <label className="text-xs font-semibold uppercase text-foreground/70">Proof Image</label>
+                  <label htmlFor="proof-image" className="text-xs font-semibold uppercase text-foreground/70">Proof Image</label>
                   <div className="relative">
                     <input
+                      id="proof-image"
                       type="file"
                       accept="image/*"
                       onChange={(e) => setPaymentFile(e.target.files?.[0] || null)}
@@ -647,10 +648,11 @@ function BookingCard({ booking, room, trainingMode, userProfile, onCancelled }) 
                       Cancelling an approved booking requires Front Office review and may be noted on your account.
                     </span>
                     <div className="mt-4">
-                      <label className="text-xs font-semibold uppercase text-foreground/70">
+                      <label htmlFor="cancel-reason" className="text-xs font-semibold uppercase text-foreground/70">
                         Cancellation Reason *
                       </label>
                       <textarea 
+                        id="cancel-reason"
                         className="w-full mt-1 p-2 rounded-md border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
                         rows={3}
                         placeholder="Please explain why you need to cancel..."

@@ -1,4 +1,4 @@
-import { useEffect, useState, memo, useMemo, useCallback } from "react";
+import { useEffect, useRef, useState, memo, useMemo, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -362,22 +362,25 @@ export default function RoomDetailPage() {
   }, [roomId]);
 
   // ---- fetch reviews ----
+  const isMountedReviewsRef = useRef(true);
   async function loadReviews() {
-    setReviewsLoading(true);
-    setReviewsError(null);
+    if (isMountedReviewsRef.current) setReviewsLoading(true);
+    if (isMountedReviewsRef.current) setReviewsError(null);
     try {
       const data = await listReviewsForRoom(roomId, { trainingMode });
-      setReviews(data);
+      if (isMountedReviewsRef.current) setReviews(data);
     } catch (e) {
-      setReviewsError(mapFirebaseError(e) || "Failed to load reviews.");
+      if (isMountedReviewsRef.current) setReviewsError(mapFirebaseError(e) || "Failed to load reviews.");
     } finally {
-      setReviewsLoading(false);
+      if (isMountedReviewsRef.current) setReviewsLoading(false);
     }
   }
 
   useEffect(() => {
+    isMountedReviewsRef.current = true;
     if (!roomId) return;
     loadReviews();
+    return () => { isMountedReviewsRef.current = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomId]);
 
@@ -862,9 +865,9 @@ export default function RoomDetailPage() {
                     <h3 className="font-playfair text-base font-semibold text-foreground">Leave a Review</h3>
                     <form onSubmit={handleSubmitReview} className="space-y-4">
                       <div className="space-y-1.5">
-                        <label className="text-xs font-medium text-foreground/50 uppercase tracking-wider">
+                        <span className="text-xs font-medium text-foreground/50 uppercase tracking-wider">
                           Your Rating<RequiredIndicator />
-                        </label>
+                        </span>
                         <StarSelector value={formRating} onChange={setFormRating} />
                       </div>
                       <div className="space-y-1.5">

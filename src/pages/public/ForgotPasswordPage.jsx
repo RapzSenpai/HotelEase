@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { CheckCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -24,6 +24,20 @@ export default function ForgotPasswordPage() {
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
   const [cooldown, setCooldown] = useState(0);
+  const cooldownRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (cooldownRef.current) clearInterval(cooldownRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (cooldown <= 0 && cooldownRef.current) {
+      clearInterval(cooldownRef.current);
+      cooldownRef.current = null;
+    }
+  }, [cooldown]);
 
   async function onSubmit(e) {
     e.preventDefault();
@@ -39,14 +53,8 @@ export default function ForgotPasswordPage() {
       await forgotPassword({ email });
       setSuccess(true);
       setCooldown(COOLDOWN_SECONDS);
-      const interval = setInterval(() => {
-        setCooldown((prev) => {
-          if (prev <= 1) {
-            clearInterval(interval);
-            return 0;
-          }
-          return prev - 1;
-        });
+      cooldownRef.current = setInterval(() => {
+        setCooldown((prev) => (prev <= 1 ? 0 : prev - 1));
       }, 1000);
     } catch (err) {
       setError(getErrorMessage(err));

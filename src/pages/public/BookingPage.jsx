@@ -556,7 +556,7 @@ export default function BookingPage() {
             <div className="rounded-xl border border-border bg-background p-5 space-y-5">
               <div className="text-base font-semibold">Payment Information</div>
               <div className="space-y-2">
-                <label className="text-xs font-semibold uppercase tracking-wide text-foreground/60">Payment Method</label>
+                <span className="text-xs font-semibold uppercase tracking-wide text-foreground/60">Payment Method</span>
                 <div className="grid grid-cols-2 gap-2">
                   {PAYMENT_METHODS.map((method) => (
                     <label key={method} className={`flex items-center gap-2 cursor-pointer rounded-lg border p-3 transition-colors ${paymentMethod === method ? "border-primary bg-primary/5" : "border-border hover:border-primary/40 hover:bg-muted/30"}`}>
@@ -568,7 +568,7 @@ export default function BookingPage() {
               </div>
               {renderPaymentInstructions(paymentMethod, amountDue)}
               <div className="space-y-2">
-                <label className="text-xs font-semibold uppercase tracking-wide text-foreground/60">Payment Type</label>
+                <span className="text-xs font-semibold uppercase tracking-wide text-foreground/60">Payment Type</span>
                 <div className="flex flex-wrap gap-4">
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input type="radio" name="paymentType" value="Full" checked={paymentType === "Full"} onChange={(e) => setPaymentType(e.target.value)} className="accent-primary" />

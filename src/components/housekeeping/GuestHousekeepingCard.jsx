@@ -246,10 +246,11 @@ export default function GuestHousekeepingCard({ booking, room, trainingMode, use
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-2">
-            <label className="text-xs font-semibold text-foreground/70 uppercase">
+            <label htmlFor="hk-note" className="text-xs font-semibold text-foreground/70 uppercase">
               Special Instructions / Notes (Optional)
             </label>
             <textarea
+              id="hk-note"
               value={note}
               onChange={(e) => setNote(e.target.value)}
               placeholder="e.g. Please replace bath towels and clean around 2 PM while I'm out."
@@ -329,10 +330,11 @@ export default function GuestHousekeepingCard({ booking, room, trainingMode, use
               ))}
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-foreground/70 uppercase">
+              <label htmlFor="hk-feedback" className="text-xs font-semibold text-foreground/70 uppercase">
                 Comments (Optional)
               </label>
               <textarea
+                id="hk-feedback"
                 value={feedback}
                 onChange={(e) => setFeedback(e.target.value)}
                 placeholder="The room was spotless! Thank you."

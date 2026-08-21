@@ -471,6 +471,7 @@ export default function FoBookingsPage() {
 
   // ── Fetch rooms and guests for name mapping ──
   useEffect(() => {
+    let isMounted = true;
     async function loadResources() {
       try {
         const [rooms, users] = await Promise.all([
@@ -478,6 +479,7 @@ export default function FoBookingsPage() {
           listUsers({ trainingMode }),
         ]);
 
+        if (!isMounted) return;
         const rMap = {};
         rooms.forEach((r) => {
           rMap[r.id] = r.name || r.roomNumber || r.id;
@@ -494,6 +496,7 @@ export default function FoBookingsPage() {
       }
     }
     loadResources();
+    return () => { isMounted = false; };
   }, [trainingMode]);
 
   // ── Real-time bookings subscription ──

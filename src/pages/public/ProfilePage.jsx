@@ -72,11 +72,19 @@ export default function ProfilePage() {
 
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const fileInputRef = useRef(null);
+  const [avatarImgFailed, setAvatarImgFailed] = useState(0);
 
   const [sendingReset, setSendingReset] = useState(false);
 
   const [summary, setSummary] = useState({ count: 0, completed: 0, spent: 0 });
   const [summaryLoading, setSummaryLoading] = useState(true);
+
+  const avatarUrl = localProfile.photoUrl || "";
+
+  // Reset image failure state when the avatar URL changes (new upload).
+  useEffect(() => {
+    setAvatarImgFailed(0);
+  }, [avatarUrl]);
 
   const loadSummary = useCallback(async () => {
     if (!user?.uid) return;
@@ -114,7 +122,6 @@ export default function ProfilePage() {
   }
 
   const displayName = localProfile.fullName || user.displayName || user.email?.split("@")[0] || "Guest";
-  const avatarUrl = localProfile.photoUrl || "";
 
   function startEditName() {
     setNameDraft(displayName);
@@ -212,11 +219,19 @@ export default function ProfilePage() {
         <Card className="flex flex-col items-center p-6 text-center">
           <div className="relative">
             <div className="flex h-28 w-28 items-center justify-center overflow-hidden rounded-full border-2 border-primary/40 bg-primary/10">
-              {avatarUrl ? (
+              {avatarUrl && avatarImgFailed === 0 ? (
                 <img
                   src={optimizeCloudinaryUrl(avatarUrl, { width: 200 })}
                   alt={displayName}
                   className="h-full w-full object-cover"
+                  onError={() => setAvatarImgFailed(1)}
+                />
+              ) : avatarUrl && avatarImgFailed === 1 ? (
+                <img
+                  src={avatarUrl}
+                  alt={displayName}
+                  className="h-full w-full object-cover"
+                  onError={() => setAvatarImgFailed(2)}
                 />
               ) : (
                 <span className="font-playfair text-4xl font-semibold text-primary">
@@ -243,8 +258,10 @@ export default function ProfilePage() {
                 </DialogHeader>
                 <div className="flex flex-col items-center gap-4">
                   <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-full border-2 border-primary/30 bg-primary/10">
-                    {avatarUrl ? (
-                      <img src={optimizeCloudinaryUrl(avatarUrl, { width: 200 })} alt={displayName} className="h-full w-full object-cover" />
+                    {avatarUrl && avatarImgFailed === 0 ? (
+                      <img src={optimizeCloudinaryUrl(avatarUrl, { width: 200 })} alt={displayName} className="h-full w-full object-cover" onError={() => setAvatarImgFailed(1)} />
+                    ) : avatarUrl && avatarImgFailed === 1 ? (
+                      <img src={avatarUrl} alt={displayName} className="h-full w-full object-cover" onError={() => setAvatarImgFailed(2)} />
                     ) : (
                       <span className="font-playfair text-3xl font-semibold text-primary">{getInitials(displayName)}</span>
                     )}

@@ -212,11 +212,17 @@ service cloud.firestore {
     }
     
     match /training_payments/{id} {
-      allow read, write: if isAuthenticated();
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && !isAnonymous();
+      allow update: if isProdFOOrAdmin() || isTrainingFOOrAdmin() || isAuthenticated();
+      allow delete: if isProdFOOrAdmin() || isTrainingFOOrAdmin();
     }
 
     match /training_housekeeping_logs/{id} {
-      allow read, write: if isAuthenticated();
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && !isAnonymous();
+      allow update: if isProdFOOrAdmin() || isTrainingFOOrAdmin() || isAuthenticated();
+      allow delete: if isProdFOOrAdmin() || isTrainingFOOrAdmin();
     }
 
     match /training_rooms/{id} {

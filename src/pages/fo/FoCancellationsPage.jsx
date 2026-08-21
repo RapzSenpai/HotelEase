@@ -182,6 +182,7 @@ export default function FoCancellationsPage() {
 
   // ── Fetch rooms and guests for name mapping ──
   useEffect(() => {
+    let isMounted = true;
     async function loadResources() {
       try {
         const [rooms, users] = await Promise.all([
@@ -189,6 +190,7 @@ export default function FoCancellationsPage() {
           listUsers({ trainingMode }),
         ]);
 
+        if (!isMounted) return;
         const rMap = {};
         rooms.forEach((r) => {
           rMap[r.id] = r.name || r.roomNumber || r.id;
@@ -205,6 +207,7 @@ export default function FoCancellationsPage() {
       }
     }
     loadResources();
+    return () => { isMounted = false; };
   }, [trainingMode]);
 
   // ── Real-time bookings subscription ──

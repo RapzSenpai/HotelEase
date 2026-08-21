@@ -12,9 +12,11 @@ export default function MaintenancePage() {
   const navigate = useNavigate();
 
   useEffect(() => {
+    let isMounted = true;
     async function loadStatus() {
       try {
         const status = await getMaintenanceStatus();
+        if (!isMounted) return;
         setMaintenance(status);
 
         // If maintenance is disabled, leave the maintenance page:
@@ -25,11 +27,12 @@ export default function MaintenancePage() {
       } catch (error) {
         console.error("Failed to load maintenance status:", error);
       } finally {
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     }
 
     loadStatus();
+    return () => { isMounted = false; };
   }, [role, navigate]);
 
   const handleRefresh = () => {

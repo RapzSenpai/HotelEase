@@ -41,6 +41,8 @@ export function AuthProvider({ children }) {
   const assignedRoleRef = useRef(null);
   const currentUidRef = useRef(null);
   const currentSessionIdRef = useRef(null);
+  const profileSnapUnsubRef = useRef(null);
+  const profileSnapUserRef = useRef(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -100,6 +102,9 @@ export function AuthProvider({ children }) {
 
           if (!stillSignedIn()) return;
 
+          // Fetch the user doc once for initial role/force-logout, then
+          // subscribe to live changes so profile (fullName, photoUrl, phone,
+          // emailVerified) propagates instantly across the entire app.
           const userDoc = await getUserDoc(firebaseUser.uid, {
             preferTraining: effectiveTrainingMode,
           });
@@ -108,8 +113,7 @@ export function AuthProvider({ children }) {
 
           if (userDoc) {
             // Force logout enforcement: if this session was created before the
-            // admin's force-logout timestamp, sign the user out. A fresh login
-            // after the kick is allowed (its lastSignInTime is newer).
+            // admin's force-logout timestamp, sign the user out.
             if (userDoc.forceLogout) {
               const kickedAt = new Date(userDoc.forceLogoutTimestamp || 0).getTime();
               const signedInAt = new Date(firebaseUser.metadata?.lastSignInTime || 0).getTime();
@@ -121,7 +125,7 @@ export function AuthProvider({ children }) {
 
             setProfile(userDoc);
             setRole(userDoc.role || "guest");
-            
+
             // Update last login timestamp, set online status, and create session
             try {
               await updateLastLogin(firebaseUser.uid, { trainingMode: effectiveTrainingMode });
@@ -130,7 +134,6 @@ export function AuthProvider({ children }) {
               startPresence(firebaseUser.uid, { trainingMode: effectiveTrainingMode });
             } catch (e) {
               console.error("Failed to update last login/online status:", e);
-              // Don't block login if this fails
             }
 
             // Create session for tracking (non-blocking)
@@ -141,6 +144,37 @@ export function AuthProvider({ children }) {
               .catch((e) => {
                 console.error("Failed to create session:", e);
               });
+
+            // Live profile subscription: keeps profile in sync when
+            // ProfilePage (or other components) update fullName/photoUrl/phone,
+            // and enforces force-logout in real time.
+            if (profileSnapUnsubRef.current) {
+              profileSnapUnsubRef.current();
+              profileSnapUnsubRef.current = null;
+            }
+            profileSnapUserRef.current = firebaseUser;
+            const ref = doc(db, getCol("users", effectiveTrainingMode), firebaseUser.uid);
+            profileSnapUnsubRef.current = onSnapshot(
+              ref,
+              (snap) => {
+                if (!snap.exists()) return;
+                const data = snap.data();
+                // Force-logout enforcement (real-time)
+                if (data.forceLogout) {
+                  const kickedAt = new Date(data.forceLogoutTimestamp || 0).getTime();
+                  const signedInAt = new Date(
+                    profileSnapUserRef.current?.metadata?.lastSignInTime || 0
+                  ).getTime();
+                  if (signedInAt < kickedAt) {
+                    signOut(auth).catch(() => {});
+                    return;
+                  }
+                }
+                setProfile(data);
+                setRole(data.role || "guest");
+              },
+              () => {}
+            );
           } else if (assignedRoleRef.current) {
             setRole(assignedRoleRef.current);
           } else {
@@ -169,32 +203,15 @@ export function AuthProvider({ children }) {
 
     return () => {
       isMounted = false;
+      if (profileSnapUnsubRef.current) {
+        profileSnapUnsubRef.current();
+        profileSnapUnsubRef.current = null;
+      }
       if (cleanup) cleanup();
     };
   }, []);
 
-  // Real-time force-logout enforcement while the user is active.
-  // Fires immediately when an admin force-logs this user out mid-session.
-  useEffect(() => {
-    if (!user?.uid) return;
-    const ref = doc(db, getCol("users", trainingMode), user.uid);
-    const unsub = onSnapshot(
-      ref,
-      (snap) => {
-        if (!snap.exists()) return;
-        const data = snap.data();
-        if (data.forceLogout) {
-          const kickedAt = new Date(data.forceLogoutTimestamp || 0).getTime();
-          const signedInAt = new Date(user.metadata?.lastSignInTime || 0).getTime();
-          if (signedInAt < kickedAt) {
-            signOut(auth).catch(() => {});
-          }
-        }
-      },
-      () => {}
-    );
-    return unsub;
-  }, [user?.uid, user?.metadata?.lastSignInTime, trainingMode]);
+
 
   // Email verification (OTP) helpers. Defined in the provider body so they see
   // the current trainingMode/profile rather than a stale closure.

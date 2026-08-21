@@ -156,27 +156,32 @@ export default function FavoritesPage() {
   }, [user, role]);
 
   useEffect(() => {
+    let isMounted = true;
     async function loadRooms() {
       if (favorites.length === 0) {
-        setRooms([]);
-        setLoading(false);
+        if (isMounted) {
+          setRooms([]);
+          setLoading(false);
+        }
         return;
       }
 
-      setLoading(true);
+      if (isMounted) setLoading(true);
       try {
         const roomPromises = favorites.map((fav) => getRoom(fav.roomId, { trainingMode }));
         const roomData = await Promise.all(roomPromises);
+        if (!isMounted) return;
         setRooms(roomData.filter((r) => r !== null));
       } catch (e) {
         console.error("Failed to load favorite rooms:", e);
-        setRooms([]);
+        if (isMounted) setRooms([]);
       } finally {
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     }
 
     loadRooms();
+    return () => { isMounted = false; };
   }, [favorites, trainingMode]);
 
   async function handleRemoveFavorite(roomId) {
