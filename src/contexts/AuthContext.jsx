@@ -266,6 +266,16 @@ export function AuthProvider({ children }) {
       setAuthError(null);
       setLoading(true);
       assignedRoleRef.current = "guest";
+
+      // Registration is always a production guest signup (training users join
+      // via session codes). Clear any stale local override so the new account
+      // isn't silently routed into the sandbox on its next login.
+      try {
+        localStorage.removeItem("bshm_training_override");
+      } catch {
+        // ignore
+      }
+
       try {
         const cred = await createUserWithEmailAndPassword(auth, email, password);
         const effectiveTrainingMode = (() => {

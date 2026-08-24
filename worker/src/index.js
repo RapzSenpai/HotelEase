@@ -135,6 +135,19 @@ function base64ToBytes(s) {
   return Uint8Array.from(bin, (c) => c.charCodeAt(0));
 }
 
+/**
+ * Decode a PEM certificate body ("-----BEGIN CERTIFICATE-----..." wrapper
+ * removed) into DER bytes. The armor lines are plain ASCII and corrupt the
+ * output if fed through a lenient base64 decoder.
+ */
+function pemToDerBytes(pem) {
+  const body = String(pem)
+    .replace(/-----BEGIN CERTIFICATE-----/, "")
+    .replace(/-----END CERTIFICATE-----/, "")
+    .replace(/\s+/g, "");
+  return base64ToBytes(body);
+}
+
 function decodeJwtSegment(segment) {
   return JSON.parse(new TextDecoder().decode(base64ToBytes(segment)));
 }
@@ -231,7 +244,7 @@ async function verifyFirebaseIdToken(token, projectId) {
     const pem = certs.get(String(header.kid || ""));
     if (!pem) return null;
 
-    const spkiDer = extractSpkiFromCertificate(base64ToBytes(pem));
+    const spkiDer = extractSpkiFromCertificate(pemToDerBytes(pem));
     const key = await crypto.subtle.importKey(
       "spki",
       spkiDer,
@@ -242,7 +255,10 @@ async function verifyFirebaseIdToken(token, projectId) {
     const signature = base64ToBytes(parts[2]);
     const signedData = new TextEncoder().encode(`${parts[0]}.${parts[1]}`);
     const valid = await crypto.subtle.verify({ name: "RSASSA-PKCS1-v1_5" }, key, signature, signedData);
-    if (!valid) return null;
+    if (!valid) {
+      console.error("verifyFirebaseIdToken: signature check failed");
+      return null;
+    }
 
     const now = Math.floor(Date.now() / 1000);
     if (typeof claims.exp !== "number" || claims.exp < now - TOKEN_SKEW_SECONDS) return null;
@@ -251,7 +267,8 @@ async function verifyFirebaseIdToken(token, projectId) {
     if (typeof claims.sub !== "string" || claims.sub.length === 0) return null;
     if (claims.iss !== `https://securetoken.google.com/${projectId}`) return null;
     return claims;
-  } catch {
+  } catch (e) {
+    console.error("verifyFirebaseIdToken: verification error:", String(e?.message || e).slice(0, 200));
     return null;
   }
 }
