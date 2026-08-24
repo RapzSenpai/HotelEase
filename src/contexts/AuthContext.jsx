@@ -67,6 +67,17 @@ export function AuthProvider({ children }) {
             }
             stopPresence(currentUidRef.current);
             currentUidRef.current = null;
+            // Detach the PREVIOUS user's live profile listener. Without this,
+            // a later write to the old user's doc (offline flag, presence,
+            // session revoke) re-fires here and resurrects their role/profile
+            // into the now-signed-out or next session — which made fresh
+            // guest accounts briefly inherit staff roles and trip Firestore
+            // permission errors on staff-only subscriptions.
+            if (profileSnapUnsubRef.current) {
+              profileSnapUnsubRef.current();
+              profileSnapUnsubRef.current = null;
+            }
+            profileSnapUserRef.current = null;
             setRole(null);
             setProfile(null);
             setTrainingMode(false);

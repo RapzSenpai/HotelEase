@@ -15,6 +15,11 @@ export function useFOIndicators({ trainingMode = null, role = null } = {}) {
   const [hasPendingCancellations, setHasPendingCancellations] = useState(false);
 
   useEffect(() => {
+    // Staff-only hook. Bail out for guests/signed-out states so a stale or
+    // mistimed role can never attach FO/Admin-only Firestore listeners —
+    // the rules would (correctly) deny them and spam permission errors.
+    if (role !== "fo" && role !== "admin") return undefined;
+
     const unsubscribers = [];
 
     // 1. Pending bookings count
