@@ -19,7 +19,7 @@ A web-based Hotel Property Management System (PMS) built for the BSHM department
 |------|--------|
 | **Guest** | Browse rooms, book, pay (proof upload), review, use chatbot |
 | **Front Office** | Check-in/out, payments, housekeeping, bookings, announcements, cancellations |
-| **Admin** | Analytics, user management, room management, system settings, training mode |
+| **Admin** | Analytics + AI insights, user management, room management, system settings, training mode |
 
 ## Setup
 
@@ -86,7 +86,7 @@ firebase deploy
 - **Verification OTP:** Email-based code on signup, with on-screen fallback if email delivery fails
 - **Payment Processing:** GCash, Bank Transfer, Credit/Debit Card, Over-the-Counter with proof upload
 - **Housekeeping Management:** Kanban board, staff assignment, photo verification, cleaning timer
-- **AI Chatbot:** Context-aware room recommendations powered by Groq/GPT-OSS (server-side proxy)
+- **AI Suite:** Guest concierge chatbot (landing, rooms, room detail), admin Ops Assistant with on-demand charts, and one-click AI Insights reports — all Groq-powered via a server-side proxy with identity-based rate limiting (anonymous vs signed-in daily budgets)
 - **Training Mode:** Sandboxed demo environment with session codes and data isolation
 - **Real-time Updates:** Firestore onSnapshot subscriptions for live data
 - **Keyboard Shortcuts:** FO hotkeys (C, O, H) for quick operations
@@ -108,7 +108,7 @@ src/
   firebase/         # Firebase configuration
   cloudinary/       # Cloudinary configuration
 worker/
-  src/index.js      # Cloudflare Worker AI chat proxy (keeps Groq key server-side)
+  src/index.js      # Cloudflare Worker: AI proxy (chat, insights, admin-chat), user deletion, token-verified rate limiting
 ```
 
 ## License
