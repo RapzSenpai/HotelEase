@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,9 +8,7 @@ import { Link, NavLink, useNavigate } from "react-router-dom";
 import { Eye, EyeOff, AlertTriangle } from "lucide-react";
 import { Select } from "radix-ui";
 import { mapAuthError } from "@/lib/authErrors";
-
-const MAX_ATTEMPTS = 5;
-const LOCKOUT_SECONDS = 30;
+import { useLoginLockout } from "@/hooks/useLoginLockout";
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -22,30 +20,16 @@ export default function LoginPage() {
   const [localError, setLocalError] = useState(null);
   const [showTraining, setShowTraining] = useState(false);
 
-  // Brute-force protection
-  const [failedAttempts, setFailedAttempts] = useState(0);
-  const [lockoutEndTime, setLockoutEndTime] = useState(null);
-  const [remainingSeconds, setRemainingSeconds] = useState(0);
-  const timerRef = useRef(null);
-
-  const isLocked = lockoutEndTime && Date.now() < lockoutEndTime;
-
-  // Countdown timer
-  useEffect(() => {
-    if (!lockoutEndTime) return;
-    function tick() {
-      const remaining = Math.max(0, Math.ceil((lockoutEndTime - Date.now()) / 1000));
-      setRemainingSeconds(remaining);
-      if (remaining <= 0) {
-        setLockoutEndTime(null);
-        setFailedAttempts(0);
-        clearInterval(timerRef.current);
-      }
-    }
-    tick();
-    timerRef.current = setInterval(tick, 1000);
-    return () => clearInterval(timerRef.current);
-  }, [lockoutEndTime]);
+  // Brute-force protection (persists across refresh via sessionStorage)
+  const {
+    failedAttempts,
+    isLocked,
+    remainingSeconds,
+    maxAttempts,
+    lockSeconds,
+    registerFailure,
+    resetAttempts,
+  } = useLoginLockout();
 
   const [trainingCode, setTrainingCode] = useState("");
   const [trainingRole, setTrainingRole] = useState("guest");
@@ -62,16 +46,13 @@ export default function LoginPage() {
 
     try {
       await login({ email, password });
-      setFailedAttempts(0);
+      resetAttempts();
       if (role === "fo") navigate("/fo");
       else if (role === "admin") navigate("/admin");
       else navigate("/my-bookings");
     } catch (err) {
-      const next = failedAttempts + 1;
-      setFailedAttempts(next);
-      if (next >= MAX_ATTEMPTS) {
-        setLockoutEndTime(Date.now() + LOCKOUT_SECONDS * 1000);
-        setLocalError(`Too many failed attempts. Locked for ${LOCKOUT_SECONDS} seconds.`);
+      if (registerFailure()) {
+        setLocalError(`Too many failed attempts. Locked for ${lockSeconds} seconds.`);
       } else {
         setLocalError(mapAuthError(err) || "Login failed.");
       }
@@ -140,10 +121,10 @@ export default function LoginPage() {
           </div>
         ) : null}
 
-        {!isLocked && failedAttempts > 0 && failedAttempts < MAX_ATTEMPTS && (
+        {!isLocked && failedAttempts > 0 && failedAttempts < maxAttempts && (
           <div className="flex items-center gap-2 rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm text-foreground">
             <AlertTriangle className="h-4 w-4 shrink-0 text-warning" />
-            <span>{MAX_ATTEMPTS - failedAttempts} attempt{MAX_ATTEMPTS - failedAttempts !== 1 ? "s" : ""} remaining before lockout.</span>
+            <span>{maxAttempts - failedAttempts} attempt{maxAttempts - failedAttempts !== 1 ? "s" : ""} remaining before lockout.</span>
           </div>
         )}
 

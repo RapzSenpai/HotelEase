@@ -18,6 +18,7 @@ import { getRoom, isRoomActive } from "@/services/roomsService";
 import { getRoomCapacity } from "@/lib/roomCapacity";
 import { mapFirebaseError } from "@/lib/errors";
 import { toggleFavorite, subscribeToFavorites } from "@/services/favoritesService";
+import ChatbotWidget from "@/components/chatbot/ChatbotWidget";
 import {
   listReviewsForRoom,
   createReview,
@@ -1106,6 +1107,7 @@ export default function RoomDetailPage() {
           </div>
         </div>
       )}
+      <ChatbotWidget positionClass="bottom-28 right-6" />
     </>
   );
 }

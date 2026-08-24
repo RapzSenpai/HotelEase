@@ -30,7 +30,9 @@ import {
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null);
+  // Seed from auth.currentUser so visitors with a persisted session get the
+  // loader (not the login form) on first paint of guarded routes.
+  const [user, setUser] = useState(() => auth.currentUser);
   const [role, setRole] = useState(null); // 'guest' | 'fo' | 'admin'
   const [profile, setProfile] = useState(null);
   const [trainingMode, setTrainingMode] = useState(false);

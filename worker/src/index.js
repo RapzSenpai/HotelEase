@@ -4,6 +4,10 @@
  * Routes:
  *   POST /delete-user   → deletes a user's Firebase Auth account + Firestore docs
  *                         (FIREBASE_SERVICE_ACCOUNT + DELETE_KEY secrets)
+ *   POST /insights      → one-shot analyst report over an admin-built data
+ *                         snapshot { context } (GROQ_API_KEY secret)
+ *   POST /admin-chat    → multi-turn ops assistant over { messages, context };
+ *                         may emit ```chart JSON blocks for the UI to render
  *   POST (default)      → forwards { messages } to Groq (GROQ_API_KEY secret)
  *
  * Set secrets (never in code / git):
@@ -22,6 +26,49 @@ const MODEL_ID = "openai/gpt-oss-20b";
 
 const RATE_WINDOW_MS = 60 * 1000;
 
+// Fenced-block marker used by the admin assistant's chart-spec protocol.
+const FENCE = "```";
+
+const INSIGHTS_SYSTEM_PROMPT = [
+  "You are a hotel business analyst for HotelEase — a hotel management system for Consolatrix Suites, Toledo City, Philippines.",
+  "You receive one JSON snapshot of aggregated hotel performance (last 30 days vs previous 30 days).",
+  "",
+  "Produce a concise markdown report with exactly these sections:",
+  "## Summary",
+  "2-3 sentences on overall performance.",
+  "## Key Trends",
+  "Bullet points that reference actual numbers from the snapshot.",
+  "## Potential Issues",
+  "Warnings such as stuck bookings (Awaiting Payment/Pending), rising cancellations, low occupancy, weak ratings, unanswered messages.",
+  "## Recommendations",
+  "3-5 concrete, actionable next steps for the admin.",
+  "",
+  "Rules:",
+  "- Use ONLY numbers present in the snapshot. Never invent or extrapolate data.",
+  "- Currency is PHP. Use the peso sign or 'PHP'.",
+  "- If a metric is zero or null, state it plainly instead of speculating.",
+  "- No preamble like 'Sure' — start directly with the report.",
+].join("\n");
+
+const ADMIN_CHAT_SYSTEM_PROMPT = [
+  "You are HotelEase Ops Assistant — an admin-only assistant embedded in the HotelEase admin dashboard for Consolatrix Suites.",
+  "You help admins understand analytics, bookings, revenue, rooms, reviews and operations using ONLY the DATA SNAPSHOT embedded below.",
+  "",
+  "Rules:",
+  "1. Answer strictly from the snapshot. Never invent numbers. If something is not in the snapshot, say so plainly.",
+  "2. Be direct and concise: 1-5 sentences unless listing options.",
+  "3. When a visualization genuinely helps, append ONE fenced code block tagged 'chart' containing STRICT JSON, nothing else inside the fence:",
+  FENCE + 'chart',
+  '{"type":"bar","title":"Revenue by Payment Method","data":[{"label":"GCash","value":12500}]}',
+  FENCE,
+  "   - type MUST be one of: bar, line, pie, area",
+  "   - data items are {label, value} with numeric value; use 2-31 items",
+  "   - line/area for daily trends, bar for comparisons, pie for shares (max 6 slices)",
+  "4. No markdown tables. No emojis.",
+  "5. You analyze and advise only — you cannot create, edit, or delete anything.",
+  "6. Currency is PHP.",
+].join("\n");
+
 // ===========================================================================
 // Small helpers
 // ===========================================================================
@@ -33,7 +80,7 @@ function json(body, status = 200) {
       "Content-Type": "application/json",
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "POST, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type, X-DELETE-KEY",
+      "Access-Control-Allow-Headers": "Content-Type, X-DELETE-KEY, X-HE-AUTH",
       "Cache-Control": "no-store",
     },
   });
@@ -63,6 +110,210 @@ function rateLimited(ip, max) {
   }
 
   return entry.count > max;
+}
+
+// ===========================================================================
+// AI abuse protection: Firebase ID token verification + tiered limits
+//
+// Tiers (per isolate for minute limits; KV-backed per day):
+//   signed-in user  → 20 req/min, 30 req/day   (keyed by uid)
+//   anonymous       →  3 req/min,  5 req/day   (keyed by IP)
+// /insights and /admin-chat additionally require a verified user token.
+// Anonymous Firebase sessions (training sandbox) count as anonymous.
+// ===========================================================================
+
+const FIREBASE_CERTS_URL =
+  "https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com";
+const TOKEN_SKEW_SECONDS = 60;
+
+let firebaseCertsCache = null; // { certs: Map<kid, pem>, fetchedAt }
+
+function base64ToBytes(s) {
+  const b64 = s.replace(/-/g, "+").replace(/_/g, "/").replace(/\s+/g, "");
+  const padded = b64 + "=".repeat((4 - (b64.length % 4)) % 4);
+  const bin = atob(padded);
+  return Uint8Array.from(bin, (c) => c.charCodeAt(0));
+}
+
+function decodeJwtSegment(segment) {
+  return JSON.parse(new TextDecoder().decode(base64ToBytes(segment)));
+}
+
+async function getFirebasePublicCerts() {
+  if (firebaseCertsCache && Date.now() - firebaseCertsCache.fetchedAt < 60 * 60 * 1000) {
+    return firebaseCertsCache.certs;
+  }
+  const res = await fetch(FIREBASE_CERTS_URL);
+  if (!res.ok) throw new Error(`Failed to fetch Firebase public certs (${res.status})`);
+  const obj = await res.json();
+  firebaseCertsCache = { certs: new Map(Object.entries(obj)), fetchedAt: Date.now() };
+  return firebaseCertsCache.certs;
+}
+
+function readDerTlv(buf, pos) {
+  const tag = buf[pos];
+  let len = buf[pos + 1];
+  if (len & 0x80) {
+    const n = len & 0x7f;
+    len = 0;
+    for (let i = 0; i < n; i += 1) len = len * 256 + buf[pos + 2 + i];
+    return { tag, contentStart: pos + 2 + n, contentLen: len };
+  }
+  return { tag, contentStart: pos + 2, contentLen: len };
+}
+
+function derSequence(contentBytes) {
+  const len = contentBytes.length;
+  let header;
+  if (len < 128) {
+    header = new Uint8Array([0x30, len]);
+  } else {
+    const lenBytes = [];
+    let l = len;
+    while (l > 0) {
+      lenBytes.unshift(l & 0xff);
+      l >>= 8;
+    }
+    header = new Uint8Array([0x30, 0x80 | lenBytes.length, ...lenBytes]);
+  }
+  const out = new Uint8Array(header.length + len);
+  out.set(header, 0);
+  out.set(contentBytes, header.length);
+  return out;
+}
+
+/**
+ * Extract the SubjectPublicKeyInfo DER from an X.509 certificate.
+ * Inside tbsCertificate the SPKI is the only SEQUENCE whose second child is a
+ * BIT STRING, so it can be located without a full ASN.1 library.
+ */
+function extractSpkiFromCertificate(certDer) {
+  const outer = readDerTlv(certDer, 0); // Certificate SEQUENCE
+  const tbs = readDerTlv(certDer, outer.contentStart); // tbsCertificate
+  const end = Math.min(tbs.contentStart + tbs.contentLen, certDer.length);
+
+  let pos = tbs.contentStart;
+  while (pos < end) {
+    const tlv = readDerTlv(certDer, pos);
+    if (tlv.tag === 0x30 && tlv.contentStart + tlv.contentLen <= end) {
+      const first = readDerTlv(certDer, tlv.contentStart);
+      const secondPos = first.contentStart + first.contentLen;
+      if (secondPos < end) {
+        const second = readDerTlv(certDer, secondPos);
+        if (first.tag === 0x30 && second.tag === 0x03) {
+          return derSequence(certDer.subarray(tlv.contentStart, tlv.contentStart + tlv.contentLen));
+        }
+      }
+    }
+    pos = tlv.contentStart + tlv.contentLen;
+  }
+  throw new Error("SubjectPublicKeyInfo not found in certificate");
+}
+
+async function verifyFirebaseIdToken(token, projectId) {
+  try {
+    const parts = token.split(".");
+    if (parts.length !== 3) return null;
+
+    let header;
+    let claims;
+    try {
+      header = decodeJwtSegment(parts[0]);
+      claims = decodeJwtSegment(parts[1]);
+    } catch {
+      return null;
+    }
+    if (!header || header.alg !== "RS256" || typeof claims !== "object" || claims === null) {
+      return null;
+    }
+
+    const certs = await getFirebasePublicCerts();
+    const pem = certs.get(String(header.kid || ""));
+    if (!pem) return null;
+
+    const spkiDer = extractSpkiFromCertificate(base64ToBytes(pem));
+    const key = await crypto.subtle.importKey(
+      "spki",
+      spkiDer,
+      { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
+      false,
+      ["verify"],
+    );
+    const signature = base64ToBytes(parts[2]);
+    const signedData = new TextEncoder().encode(`${parts[0]}.${parts[1]}`);
+    const valid = await crypto.subtle.verify({ name: "RSASSA-PKCS1-v1_5" }, key, signature, signedData);
+    if (!valid) return null;
+
+    const now = Math.floor(Date.now() / 1000);
+    if (typeof claims.exp !== "number" || claims.exp < now - TOKEN_SKEW_SECONDS) return null;
+    if (typeof claims.iat !== "number" || claims.iat > now + TOKEN_SKEW_SECONDS) return null;
+    if (claims.aud !== projectId) return null;
+    if (typeof claims.sub !== "string" || claims.sub.length === 0) return null;
+    if (claims.iss !== `https://securetoken.google.com/${projectId}`) return null;
+    return claims;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Resolve the caller tier from the X-HE-AUTH header.
+ * Returns { uid } for verified real users, or { uid: null } for everyone else
+ * (missing header, bad/expired token, or anonymous training sessions).
+ */
+async function resolveAiIdentity(request, workerEnv) {
+  const header = request.headers.get("X-HE-AUTH") || "";
+  const match = /^Bearer\s+(.+)$/i.exec(header.trim());
+  if (!match || !workerEnv.FIREBASE_SERVICE_ACCOUNT) return { uid: null };
+
+  let projectId = null;
+  try {
+    projectId = JSON.parse(workerEnv.FIREBASE_SERVICE_ACCOUNT).project_id;
+  } catch {
+    return { uid: null };
+  }
+  if (!projectId) return { uid: null };
+
+  const claims = await verifyFirebaseIdToken(match[1], projectId);
+  if (!claims) return { uid: null };
+  if (claims.firebase?.sign_in_provider === "anonymous") return { uid: null };
+  return { uid: claims.sub };
+}
+
+// Daily counters: KV-backed when the AI_LIMITS binding exists, with an
+// in-isolate memory fallback so infra hiccups never hard-block users.
+const memDailyCounters = new Map();
+
+function aiDailyKey(scopeId) {
+  return `${new Date().toISOString().slice(0, 10)}:${scopeId}`;
+}
+
+async function getAiDailyCount(workerEnv, scopeId) {
+  const key = aiDailyKey(scopeId);
+  try {
+    if (workerEnv.AI_LIMITS) {
+      const v = await workerEnv.AI_LIMITS.get(key);
+      return v == null ? 0 : Number(v) || 0;
+    }
+  } catch {}
+  return memDailyCounters.get(key) || 0;
+}
+
+async function incrementAiDailyCount(workerEnv, scopeId) {
+  const key = aiDailyKey(scopeId);
+  const next = (await getAiDailyCount(workerEnv, scopeId)) + 1;
+  try {
+    if (workerEnv.AI_LIMITS) {
+      // TTL of 48h lets date-keyed entries clean themselves up.
+      await workerEnv.AI_LIMITS.put(key, String(next), { expirationTtl: 172800 });
+    }
+  } catch {}
+  memDailyCounters.set(key, next);
+  if (memDailyCounters.size > 5000) {
+    for (const [k] of memDailyCounters) {
+      if (k.split(":")[0] !== new Date().toISOString().slice(0, 10)) memDailyCounters.delete(k);
+    }
+  }
 }
 
 // ===========================================================================
@@ -249,6 +500,36 @@ async function handleDeleteUser(request, workerEnv) {
   }
 }
 
+async function callGroq(apiKey, messages, { maxTokens = 300, temperature = 0.7, extraBody = {} } = {}) {
+  const groqRes = await fetch(GROQ_API_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: MODEL_ID,
+      messages,
+      max_tokens: maxTokens,
+      temperature,
+      // gpt-oss is a reasoning model: hidden thinking tokens count against
+      // max_tokens. "low" keeps answers from being truncated mid-JSON.
+      reasoning_effort: "low",
+      ...extraBody,
+    }),
+  });
+
+  if (!groqRes.ok) {
+    const errText = await groqRes.text();
+    const err = new Error(`Groq upstream error: ${errText.slice(0, 300)}`);
+    err.status = groqRes.status;
+    throw err;
+  }
+
+  const data = await groqRes.json();
+  return data?.choices?.[0]?.message?.content?.trim() || "";
+}
+
 async function handleChatRequest(request, workerEnv) {
   const apiKey = workerEnv.GROQ_API_KEY;
   if (!apiKey) {
@@ -267,30 +548,119 @@ async function handleChatRequest(request, workerEnv) {
   }
 
   try {
-    const groqRes = await fetch(GROQ_API_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: MODEL_ID,
-        messages: payload.messages,
-        max_tokens: 300,
-        temperature: 0.7,
-      }),
-    });
-
-    if (!groqRes.ok) {
-      const errText = await groqRes.text();
-      return json({ error: "Groq upstream error.", detail: errText }, groqRes.status);
-    }
-
-    const data = await groqRes.json();
-    const content = data?.choices?.[0]?.message?.content?.trim();
-
-    return json({ content: content || "" });
+    const content = await callGroq(apiKey, payload.messages, { maxTokens: 300, temperature: 0.7 });
+    return json({ content });
   } catch (e) {
+    if (e.status) return json({ error: "Groq upstream error.", detail: String(e.message || e) }, e.status);
+    return json({ error: "Failed to reach Groq.", detail: String(e) }, 502);
+  }
+}
+
+/**
+ * One-shot analyst report over the admin-built snapshot.
+ */
+async function handleInsightsRequest(request, workerEnv) {
+  const apiKey = workerEnv.GROQ_API_KEY;
+  if (!apiKey) {
+    return json({ error: "Groq proxy is not configured (missing GROQ_API_KEY secret)." }, 500);
+  }
+
+  let payload;
+  try {
+    payload = await request.json();
+  } catch {
+    return json({ error: "Invalid JSON body." }, 400);
+  }
+
+  const context = payload?.context;
+  if (!context || typeof context !== "object") {
+    return json({ error: "Missing context object." }, 400);
+  }
+
+  const snapshotJson = JSON.stringify(context);
+  if (snapshotJson.length > 200_000) {
+    return json({ error: "Context payload too large." }, 413);
+  }
+
+  try {
+    const content = await callGroq(
+      apiKey,
+      [
+        { role: "system", content: INSIGHTS_SYSTEM_PROMPT },
+        {
+          role: "user",
+          content:
+            "Analyze this hotel performance snapshot and produce the markdown report:\n\n" +
+            snapshotJson,
+        },
+      ],
+      { maxTokens: 1200, temperature: 0.4 },
+    );
+    return json({ content });
+  } catch (e) {
+    if (e.status) return json({ error: "Groq upstream error.", detail: String(e.message || e) }, e.status);
+    return json({ error: "Failed to reach Groq.", detail: String(e) }, 502);
+  }
+}
+
+/**
+ * Multi-turn admin assistant. The client supplies its own conversation
+ * history; the snapshot is injected fresh into the system prompt each call.
+ */
+async function handleAdminChatRequest(request, workerEnv) {
+  const apiKey = workerEnv.GROQ_API_KEY;
+  if (!apiKey) {
+    return json({ error: "Groq proxy is not configured (missing GROQ_API_KEY secret)." }, 500);
+  }
+
+  let payload;
+  try {
+    payload = await request.json();
+  } catch {
+    return json({ error: "Invalid JSON body." }, 400);
+  }
+
+  const incoming = payload?.messages;
+  if (!Array.isArray(incoming) || incoming.length === 0) {
+    return json({ error: "Missing messages array." }, 400);
+  }
+  if (incoming.length > 40) {
+    return json({ error: "Too many messages." }, 400);
+  }
+  for (const m of incoming) {
+    if (!m || typeof m.content !== "string" || (m.role !== "user" && m.role !== "assistant")) {
+      return json({ error: "Invalid message format." }, 400);
+    }
+  }
+
+  const context = payload?.context;
+  if (!context || typeof context !== "object") {
+    return json({ error: "Missing context object." }, 400);
+  }
+
+  const snapshotJson = JSON.stringify(context);
+  if (snapshotJson.length > 200_000) {
+    return json({ error: "Context payload too large." }, 413);
+  }
+
+  try {
+    const content = await callGroq(
+      apiKey,
+      [
+        {
+          role: "system",
+          content:
+            ADMIN_CHAT_SYSTEM_PROMPT +
+            "\n\nDATA SNAPSHOT (aggregated, current vs previous period):\n" +
+            snapshotJson,
+        },
+        ...incoming.map((m) => ({ role: m.role, content: m.content.slice(0, 4000) })),
+      ],
+      { maxTokens: 2000, temperature: 0.3 },
+    );
+    return json({ content });
+  } catch (e) {
+    if (e.status) return json({ error: "Groq upstream error.", detail: String(e.message || e) }, e.status);
     return json({ error: "Failed to reach Groq.", detail: String(e) }, 502);
   }
 }
@@ -303,7 +673,7 @@ export default {
         headers: {
           "Access-Control-Allow-Origin": "*",
           "Access-Control-Allow-Methods": "POST, OPTIONS",
-          "Access-Control-Allow-Headers": "Content-Type, X-DELETE-KEY",
+          "Access-Control-Allow-Headers": "Content-Type, X-DELETE-KEY, X-HE-AUTH",
           "Access-Control-Max-Age": "86400",
         },
       });
@@ -320,10 +690,49 @@ export default {
       return handleDeleteUser(request, workerEnv);
     }
 
-    const maxPerWindow = Number(workerEnv.RATE_LIMIT_MAX || 10);
+    // ---- AI endpoints: identity + tiered limits ---------------------------
     const ip = request.headers.get("CF-Connecting-IP") || "unknown";
-    if (rateLimited(ip, maxPerWindow)) {
-      return json({ error: "Rate limit exceeded. Please try again shortly." }, 429);
+    const identity = await resolveAiIdentity(request, workerEnv);
+
+    // Minute limits: trusted users get a wider bucket, keyed by uid so
+    // rotating IPs don't reset it; anonymous callers stay IP-keyed.
+    const minuteCap = identity.uid
+      ? Number(workerEnv.RATE_LIMIT_USER_MAX || 20)
+      : Number(workerEnv.RATE_LIMIT_ANON_MAX || 3);
+    if (rateLimited(identity.uid ? `u:${identity.uid}` : `ip:${ip}`, minuteCap)) {
+      return json({ error: "Rate limit exceeded. Please slow down.", code: "RATE_LIMIT" }, 429);
+    }
+
+    // Admin-only AI features require a verified signed-in user.
+    if (!identity.uid && (path === "/insights" || path === "/admin-chat")) {
+      return json({ error: "Sign in required to use this feature.", code: "AUTH_REQUIRED" }, 401);
+    }
+
+    // Daily budget (KV-backed). Counted before the Groq call so parallel
+    // bursts can't race past the cap; a failed Groq call still spends one.
+    const dailyScopeId = identity.uid ? `u:${identity.uid}` : `ip:${ip}`;
+    const dailyCap = identity.uid
+      ? Number(workerEnv.DAILY_USER_MAX || 30)
+      : Number(workerEnv.DAILY_ANON_MAX || 5);
+    const usedToday = await getAiDailyCount(workerEnv, dailyScopeId);
+    if (usedToday >= dailyCap) {
+      return json(
+        {
+          error: identity.uid
+            ? "You've reached your AI assistant limit for today."
+            : "You've used your free AI messages for today.",
+          code: "DAILY_CAP",
+        },
+        402,
+      );
+    }
+    await incrementAiDailyCount(workerEnv, dailyScopeId);
+
+    if (path === "/insights") {
+      return handleInsightsRequest(request, workerEnv);
+    }
+    if (path === "/admin-chat") {
+      return handleAdminChatRequest(request, workerEnv);
     }
 
     return handleChatRequest(request, workerEnv);

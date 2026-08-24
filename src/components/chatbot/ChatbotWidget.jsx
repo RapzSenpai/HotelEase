@@ -1,9 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { NavLink } from "react-router-dom";
 import { MessageCircle, X, Sparkles, ChevronRight, Copy, Check, ArrowDown, ArrowUp, RotateCcw } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { sendMessage } from "@/services/chatbotService";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+
+const UNAVAILABLE_TEXT =
+  "I'm having trouble responding right now. Please try again in a moment.";
 
 const QUICK_REPLIES = [
   { label: "View available rooms", followUp: "View available rooms" },
@@ -157,7 +161,7 @@ function EmptyState({ quickReplies, onSelect }) {
   );
 }
 
-export default function ChatbotWidget() {
+export default function ChatbotWidget({ positionClass = "bottom-6 right-6" }) {
   const { trainingMode } = useAuth();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState([]);
@@ -165,6 +169,7 @@ export default function ChatbotWidget() {
   const [loading, setLoading] = useState(false);
   const [showQuickReplies, setShowQuickReplies] = useState(true);
   const [isAtBottom, setIsAtBottom] = useState(true);
+  const [capped, setCapped] = useState(false);
   const listRef = useRef(null);
   const inputRef = useRef(null);
 
@@ -185,6 +190,7 @@ export default function ChatbotWidget() {
       },
     ]);
     setShowQuickReplies(true);
+    setCapped(false);
   }, [open]);
 
   useEffect(() => {
@@ -247,6 +253,29 @@ export default function ChatbotWidget() {
             at: new Date(),
           },
         ]);
+      } catch (e) {
+        if (e?.code === "DAILY_CAP") {
+          setCapped(true);
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: `c-${Date.now()}`,
+              role: "assistant",
+              content: "You've used your free AI messages for today. Sign in to keep chatting — your history stays right here.",
+              at: new Date(),
+            },
+          ]);
+        } else {
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: `e-${Date.now()}`,
+              role: "assistant",
+              content: e?.message || UNAVAILABLE_TEXT,
+              at: new Date(),
+            },
+          ]);
+        }
       } finally {
         setLoading(false);
       }
@@ -281,7 +310,7 @@ export default function ChatbotWidget() {
 
   return (
     <>
-      <div className="pointer-events-none fixed bottom-6 right-6 z-[100] flex flex-col items-end">
+      <div className={`pointer-events-none fixed ${positionClass} z-[100] flex flex-col items-end`}>
         {/* Chat Panel */}
         <div
           className={`pointer-events-auto mb-3 origin-bottom-right transition-all duration-300 ease-out ${
@@ -402,7 +431,23 @@ export default function ChatbotWidget() {
               )}
             </div>
 
-            {/* Composer — unified container */}
+            {/* Composer — unified container (locked after daily cap) */}
+            {capped ? (
+              <div className="shrink-0 border-t border-border bg-white p-4">
+                <div className="rounded-2xl border border-primary/30 bg-primary/10 p-3.5 text-center">
+                  <p className="text-sm font-medium text-foreground">Free messages used up</p>
+                  <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                    Sign in to keep chatting — it takes seconds.
+                  </p>
+                  <NavLink
+                    to="/login"
+                    className="mt-2.5 inline-flex h-9 items-center justify-center rounded-xl bg-primary px-5 text-xs font-semibold text-primary-foreground transition-all hover:brightness-110 active:scale-95"
+                  >
+                    Sign In to Continue
+                  </NavLink>
+                </div>
+              </div>
+            ) : (
             <form onSubmit={onSubmit} className="shrink-0 border-t border-border bg-white p-3">
               <div className="flex items-center gap-2 rounded-2xl border border-border bg-background px-3 py-1 transition-all focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/15">
                 <input
@@ -424,6 +469,7 @@ export default function ChatbotWidget() {
                 </button>
               </div>
             </form>
+            )}
           </div>
         </div>
 

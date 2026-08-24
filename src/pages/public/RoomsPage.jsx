@@ -12,6 +12,7 @@ import {
 import { Heart, Calendar as CalendarIcon, Search, X, CheckCircle2, XCircle, Sparkles, ChevronDown } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { getAvailableRooms, checkAndExpireStaleBookings } from "@/services/bookingsService";
+import ChatbotWidget from "@/components/chatbot/ChatbotWidget";
 
 const MASONRY_IMAGE_HEIGHTS = ["h-52", "h-64", "h-48"];
 
@@ -656,6 +657,7 @@ export default function RoomsPage() {
           ))}
         </div>
       )}
+      <ChatbotWidget />
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import { listRooms } from "@/services/roomsService";
+import { getAiAuthHeaders, AiRequestError } from "@/lib/aiAuth";
 
 // The Groq API key never ships to the browser. Chat requests are forwarded to a
 // Cloudflare Worker proxy (server-side), which injects the key + rate limits.
@@ -84,7 +85,10 @@ export async function sendMessage(
   try {
     const response = await fetch(GROQ_PROXY_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(await getAiAuthHeaders()),
+      },
       body: JSON.stringify({
         messages: [
           {
@@ -101,14 +105,24 @@ export async function sendMessage(
     });
 
     if (!response.ok) {
-      console.error(`chatbotService: Groq proxy returned ${response.status}`);
-      return UNAVAILABLE;
+      const errData = await response.json().catch(() => ({}));
+      const codeMap = { 401: "AUTH_REQUIRED", 402: "DAILY_CAP", 429: "RATE_LIMIT" };
+      console.error(
+        `chatbotService: Groq proxy returned ${response.status}`,
+        errData?.error || "",
+      );
+      throw new AiRequestError(
+        errData?.error || `AI request failed (${response.status})`,
+        errData?.code || codeMap[response.status] || "UPSTREAM",
+        response.status,
+      );
     }
 
     const data = await response.json();
     return data?.content?.trim() || UNAVAILABLE;
   } catch (e) {
+    if (e instanceof AiRequestError) throw e;
     console.error("chatbotService: Groq proxy error", e);
-    return UNAVAILABLE;
+    throw new AiRequestError(UNAVAILABLE, "UNAVAILABLE");
   }
 }

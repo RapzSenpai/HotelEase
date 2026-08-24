@@ -8,6 +8,7 @@ import ErrorBoundary from "@/components/common/ErrorBoundary";
 import ScrollToTop from "@/components/common/ScrollToTop";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
+import AdminAssistantWidget from "@/components/admin/AdminAssistantWidget";
 import "@/components/ui/toast-custom.css";
 
 const trainingBanner = (
@@ -100,6 +101,7 @@ export default function AppShell() {
 
       <Footer />
       <ScrollToTop />
+      {role === "admin" && location.pathname.startsWith("/admin") && <AdminAssistantWidget />}
     </div>
   );
 }

@@ -2,9 +2,17 @@ name = "hotelease-chat"
 main = "src/index.js"
 compatibility_date = "2026-01-01"
 
-# Rate limiting guard: max requests per client IP per 60s window.
-[vars]
-RATE_LIMIT_MAX = "10"
+# AI abuse protection tiers (see src/index.js):
+#   minute caps — anonymous vs signed-in users; daily budget in KV below.
+# [vars]
+# RATE_LIMIT_ANON_MAX = "3"    # per minute, keyed by IP
+# RATE_LIMIT_USER_MAX = "20"   # per minute, keyed by uid
+# DAILY_ANON_MAX      = "5"    # per day, keyed by IP
+# DAILY_USER_MAX      = "30"   # per day, keyed by uid
+
+[[kv_namespaces]]
+binding = "AI_LIMITS"
+id = "bcd303296228470a8c99654377e3611e"
 
 # Set secrets securely (never in code / git):
 #   npx wrangler secret put GROQ_API_KEY

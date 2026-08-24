@@ -4,6 +4,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { getAdminAnalyticsSummary } from "@/services/analyticsService";
 import { subscribeToActiveUsersByRole } from "@/services/activityService";
 import { useAuth } from "@/contexts/AuthContext";
+import AiInsightsCard from "@/components/admin/AiInsightsCard";
 import { 
   BarChart, 
   Bar, 
@@ -275,6 +276,9 @@ export default function AdminAnalyticsPage() {
               </div>
             </CardContent>
           </Card>
+
+          {/* AI Insights */}
+          <AiInsightsCard />
         </div>
       )}
     </div>
