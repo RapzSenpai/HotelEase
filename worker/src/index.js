@@ -70,17 +70,37 @@ const ADMIN_CHAT_SYSTEM_PROMPT = [
 ].join("\n");
 
 // ===========================================================================
-// Small helpers
-// ===========================================================================
+function getAllowedOrigin(request, workerEnv) {
+  if (!request) return "*";
+  const origin = request.headers.get("Origin");
+  if (!origin) return "*";
 
-function json(body, status = 200) {
+  // Allow local development (localhost / 127.0.0.1 on any port)
+  if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
+    return origin;
+  }
+
+  // Allow standard Firebase hosting domains or custom configured origin
+  if (
+    origin.endsWith(".web.app") ||
+    origin.endsWith(".firebaseapp.com") ||
+    (workerEnv?.ALLOWED_ORIGIN && origin === workerEnv.ALLOWED_ORIGIN)
+  ) {
+    return origin;
+  }
+
+  // Default to echoing origin to prevent breaking valid frontends
+  return origin;
+}
+
+function json(body, status = 200, request = null, workerEnv = null) {
   return new Response(JSON.stringify(body), {
     status,
     headers: {
       "Content-Type": "application/json",
-      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Origin": getAllowedOrigin(request, workerEnv),
       "Access-Control-Allow-Methods": "POST, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type, X-DELETE-KEY, X-HE-AUTH",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization, X-DELETE-KEY, X-HE-AUTH",
       "Cache-Control": "no-store",
     },
   });
@@ -448,39 +468,79 @@ async function deleteFirestoreDoc(accessToken, projectId, path) {
   }
 }
 
+/**
+ * Retrieve a user's role from Firestore to verify admin privilege.
+ */
+async function getFirestoreUserRole(accessToken, projectId, uid) {
+  const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/users/${encodeURIComponent(uid)}`;
+  const resp = await fetch(url, {
+    method: "GET",
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!resp.ok) return null;
+  const data = await resp.json().catch(() => null);
+  return data?.fields?.role?.stringValue || null;
+}
+
 async function handleDeleteUser(request, workerEnv) {
-  const deleteKey = workerEnv.DELETE_KEY;
-  if (!deleteKey) {
-    return json({ error: "DELETE_KEY secret is not configured." }, 500);
-  }
-
-  const sentKey = request.headers.get("X-DELETE-KEY") || "";
-  if (sentKey !== deleteKey) {
-    return json({ error: "Invalid delete key." }, 403);
-  }
-
-  let payload;
-  try {
-    payload = await request.json();
-  } catch {
-    return json({ error: "Invalid JSON body." }, 400);
-  }
-
-  const uid = typeof payload?.uid === "string" ? payload.uid.trim() : "";
-  if (!uid) {
-    return json({ error: "Missing uid." }, 400);
-  }
-
   const sa = workerEnv.FIREBASE_SERVICE_ACCOUNT;
   if (!sa) {
-    return json({ error: "FIREBASE_SERVICE_ACCOUNT secret is not configured." }, 500);
+    return json({ error: "FIREBASE_SERVICE_ACCOUNT secret is not configured." }, 500, request, workerEnv);
   }
 
   let projectId;
   try {
     projectId = JSON.parse(sa).project_id;
   } catch {
-    return json({ error: "FIREBASE_SERVICE_ACCOUNT is not valid JSON." }, 500);
+    return json({ error: "FIREBASE_SERVICE_ACCOUNT is not valid JSON." }, 500, request, workerEnv);
+  }
+
+  // Authorize caller:
+  // Primary (Secure): Bearer Firebase ID token -> verified against Google certs + Firestore admin role check.
+  // Legacy Fallback: X-DELETE-KEY header matching DELETE_KEY secret.
+  const authHeader = request.headers.get("Authorization") || request.headers.get("X-HE-AUTH") || "";
+  const match = /^Bearer\s+(.+)$/i.exec(authHeader.trim());
+  const deleteKey = workerEnv.DELETE_KEY;
+  const sentKey = request.headers.get("X-DELETE-KEY") || "";
+
+  let isAuthorized = false;
+  let accessToken = null;
+
+  if (match) {
+    const claims = await verifyFirebaseIdToken(match[1], projectId);
+    if (!claims || !claims.sub || claims.firebase?.sign_in_provider === "anonymous") {
+      return json({ error: "Unauthorized: Invalid or expired Firebase ID token." }, 401, request, workerEnv);
+    }
+    const callerUid = claims.sub;
+    try {
+      accessToken = await getGoogleAccessToken(sa);
+      const role = await getFirestoreUserRole(accessToken, projectId, callerUid);
+      if (role === "admin") {
+        isAuthorized = true;
+      } else {
+        return json({ error: "Forbidden: Admin role required to delete users." }, 403, request, workerEnv);
+      }
+    } catch (e) {
+      return json({ error: "Failed to verify admin privileges.", detail: String(e?.message || e) }, 500, request, workerEnv);
+    }
+  } else if (deleteKey && sentKey === deleteKey) {
+    isAuthorized = true;
+  }
+
+  if (!isAuthorized) {
+    return json({ error: "Unauthorized: Admin authorization required." }, 401, request, workerEnv);
+  }
+
+  let payload;
+  try {
+    payload = await request.json();
+  } catch {
+    return json({ error: "Invalid JSON body." }, 400, request, workerEnv);
+  }
+
+  const uid = typeof payload?.uid === "string" ? payload.uid.trim() : "";
+  if (!uid) {
+    return json({ error: "Missing uid." }, 400, request, workerEnv);
   }
 
   // Validate the required JWT fields so we fail with a clear, specific error
@@ -492,11 +552,15 @@ async function handleDeleteUser(request, workerEnv) {
     return json(
       { error: `FIREBASE_SERVICE_ACCOUNT is missing field(s): ${missingFields.join(", ")}` },
       500,
+      request,
+      workerEnv,
     );
   }
 
   try {
-    const accessToken = await getGoogleAccessToken(sa);
+    if (!accessToken) {
+      accessToken = await getGoogleAccessToken(sa);
+    }
     const authResult = await deleteAuthAccount(accessToken, projectId, uid);
 
     const deleted = [];
@@ -509,11 +573,13 @@ async function handleDeleteUser(request, workerEnv) {
       return json(
         { ok: false, uid, reason: "auth_not_found", deletedFirestore: deleted },
         404,
+        request,
+        workerEnv,
       );
     }
-    return json({ ok: true, uid, deletedFirestore: deleted });
+    return json({ ok: true, uid, deletedFirestore: deleted }, 200, request, workerEnv);
   } catch (e) {
-    return json({ error: "Delete failed.", detail: String(e?.message || e) }, 502);
+    return json({ error: "Delete failed.", detail: String(e?.message || e) }, 502, request, workerEnv);
   }
 }
 
@@ -688,9 +754,9 @@ export default {
       return new Response(null, {
         status: 204,
         headers: {
-          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Origin": getAllowedOrigin(request, workerEnv),
           "Access-Control-Allow-Methods": "POST, OPTIONS",
-          "Access-Control-Allow-Headers": "Content-Type, X-DELETE-KEY, X-HE-AUTH",
+          "Access-Control-Allow-Headers": "Content-Type, Authorization, X-DELETE-KEY, X-HE-AUTH",
           "Access-Control-Max-Age": "86400",
         },
       });
