@@ -97,6 +97,19 @@ export default function FoHousekeepingPage() {
     return data.filter((r) => cleaningStatuses.includes(r.status));
   }, [rooms, roomIdParam]);
 
+  const filteredRoom = useMemo(
+    () =>
+      rooms.find((r) => r.id === roomIdParam && r.isActive !== false) || null,
+    [rooms, roomIdParam],
+  );
+
+  // Clear a stale/invalid ?roomId= deep-link once rooms have loaded.
+  useEffect(() => {
+    if (!loading && roomIdParam && !filteredRoom) {
+      navigate("/fo/housekeeping", { replace: true });
+    }
+  }, [loading, roomIdParam, filteredRoom, navigate]);
+
     // Reset logs when the selected room clears (during render, not in the effect).
   const [prevSelectedRoomId, setPrevSelectedRoomId] = useState(selectedRoomId);
   if (prevSelectedRoomId !== selectedRoomId) {
@@ -283,11 +296,11 @@ export default function FoHousekeepingPage() {
         </div>
       </div>
 
-      {roomIdParam && (
+      {filteredRoom && (
         <div className="flex items-center justify-between rounded-xl border border-primary/20 bg-primary/5 p-3.5 text-sm">
           <div className="flex items-center gap-2">
             <span className="h-2 w-2 rounded-full bg-primary animate-pulse" />
-            <span>Currently filtering by Room: <span className="font-semibold text-primary">{rooms.find((r) => r.id === roomIdParam)?.name || roomIdParam}</span></span>
+            <span>Currently filtering by Room: <span className="font-semibold text-primary">{filteredRoom.name || roomIdParam}</span></span>
           </div>
           <Button
             variant="outline"
@@ -314,9 +327,16 @@ export default function FoHousekeepingPage() {
         <div className="space-y-4">
           <div className="space-y-3">
             {visibleRooms.length === 0 ? (
-              <div className="rounded-xl border border-border bg-background p-4 text-sm text-foreground/70">
-                No rooms in housekeeping workflow right now.
-              </div>
+              filteredRoom ? (
+                <div className="rounded-xl border border-border bg-background p-4 text-sm text-foreground/70">
+                  {filteredRoom.name || roomIdParam} is not currently in the
+                  housekeeping workflow.
+                </div>
+              ) : (
+                <div className="rounded-xl border border-border bg-background p-4 text-sm text-foreground/70">
+                  No rooms in housekeeping workflow right now.
+                </div>
+              )
             ) : viewMode === "kanban" ? (
               <HousekeepingKanban
                 rooms={visibleRooms}

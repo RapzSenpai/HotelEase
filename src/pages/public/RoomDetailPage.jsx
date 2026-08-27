@@ -52,6 +52,7 @@ import {
   Star,
   AlertTriangle,
   SlidersHorizontal,
+  PenLine,
 } from "lucide-react";
 
 // ---------------------------------------------------------------------------
@@ -163,7 +164,7 @@ function PhotoCarousel({ photos, roomName, isFavorite, onToggleFavorite, user, r
 
   if (photos.length === 0) {
     return (
-      <div className="rounded-2xl border border-border/40 bg-background flex items-center justify-center h-80 text-foreground/40 text-sm">
+      <div className="rounded-2xl border border-border/40 bg-background flex items-center justify-center h-80 md:h-[480px] text-foreground/40 text-sm">
         No photos available for this room.
       </div>
     );
@@ -175,7 +176,7 @@ function PhotoCarousel({ photos, roomName, isFavorite, onToggleFavorite, user, r
         <img
           src={optimizeCloudinaryUrl(photos[0], { width: 1200 })}
           alt={`${roomName || "Room"} photo`}
-          className="h-80 w-full object-cover"
+          className="h-80 md:h-[480px] w-full object-cover"
           loading="lazy"
         />
         {user && role === "guest" && (
@@ -195,7 +196,7 @@ function PhotoCarousel({ photos, roomName, isFavorite, onToggleFavorite, user, r
   return (
     <div className="rounded-2xl overflow-hidden border border-border/40 shadow-[0_4px_24px_rgba(28,28,30,0.06)] bg-white">
       {/* Main image */}
-      <div className="relative h-80 md:h-[420px] select-none">
+      <div className="relative h-80 md:h-[480px] select-none">
         <img
           src={optimizeCloudinaryUrl(photos[current], { width: 1200 })}
           alt={`${roomName || "Room"} photo ${current + 1} of ${photos.length}`}
@@ -332,6 +333,9 @@ export default function RoomDetailPage() {
   // --- reviews overlay state ---
   const [reviewsOpen, setReviewsOpen] = useState(false);
   const [reviewFilter, setReviewFilter] = useState("all");
+
+  // --- review form dialog state ---
+  const [reviewFormOpen, setReviewFormOpen] = useState(false);
 
   // ---- fetch room ----
   useEffect(() => {
@@ -490,6 +494,7 @@ export default function RoomDetailPage() {
       setFormRating(0);
       setFormFeedback("");
       setCanReview(false);
+      setReviewFormOpen(false);
       await loadReviews();
     } catch (e) {
       setSubmitError(
@@ -574,7 +579,7 @@ export default function RoomDetailPage() {
   return (
     <>
       {/* Main scrollable content */}
-      <div className="space-y-6 pb-32">
+      <div className="space-y-6 pb-24">
 
         {/* Breadcrumb / back link */}
         <div>
@@ -598,7 +603,7 @@ export default function RoomDetailPage() {
         {loading && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
             <div className="lg:col-span-5">
-              <div className="h-80 md:h-[420px] rounded-2xl bg-muted/20 animate-pulse" />
+              <div className="h-80 md:h-[480px] rounded-2xl bg-muted/20 animate-pulse" />
             </div>
             <div className="lg:col-span-7 space-y-4">
               <div className="h-10 w-2/3 rounded bg-muted/20 animate-pulse" />
@@ -673,15 +678,6 @@ export default function RoomDetailPage() {
                       <h1 className="font-playfair text-3xl md:text-4xl font-bold tracking-tight text-foreground">
                         {room.name || room.type || "Room"}
                       </h1>
-                      {avgRating && (
-                        <div className="flex items-center gap-1.5">
-                          <Star className="h-4 w-4 fill-primary text-primary" />
-                          <span className="text-sm font-semibold text-foreground">{avgRating}</span>
-                          <span className="text-xs text-foreground/50">
-                            ({reviews.length} review{reviews.length !== 1 ? "s" : ""})
-                          </span>
-                        </div>
-                      )}
                     </div>
                     <button
                       type="button"
@@ -720,9 +716,13 @@ export default function RoomDetailPage() {
                 {room.description && (
                   <div className="space-y-3">
                     <h2 className="font-playfair text-lg font-semibold text-foreground">About this room</h2>
-                    <p className="text-sm text-foreground/70 leading-relaxed whitespace-pre-line">
-                      {room.description}
-                    </p>
+                    <div className="rounded-xl border border-border/40 bg-white p-4 shadow-[0_1px_3px_rgba(28,28,30,0.04)]">
+                      <div className="border-l-2 border-primary/30 pl-4">
+                        <p className="text-sm text-foreground/70 leading-relaxed whitespace-pre-line">
+                          {room.description}
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 )}
 
@@ -816,7 +816,11 @@ export default function RoomDetailPage() {
                   {!reviewsLoading && !reviewsError && (
                     <>
                       {reviews.length === 0 ? (
-                        <p className="text-sm text-foreground/50">No reviews yet.</p>
+                        <div className="rounded-xl border border-dashed border-border/50 bg-muted/5 px-6 py-10 text-center">
+                          <Star className="mx-auto mb-3 h-8 w-8 text-foreground/20" />
+                          <p className="text-sm font-medium text-foreground/50">No reviews yet</p>
+                          <p className="mt-1 text-xs text-foreground/35">Be the first to share your experience!</p>
+                        </div>
                       ) : (
                         <div className="space-y-3">
                           {visibleReviews.map((review) => (
@@ -844,66 +848,43 @@ export default function RoomDetailPage() {
                       )}
 
                       {hasMoreReviews && (
+                        <div className="flex gap-2">
+                          {eligibilityChecked && canReview && (
+                            <Button
+                              size="sm"
+                              className="flex-1"
+                              onClick={() => setReviewFormOpen(true)}
+                            >
+                              <PenLine className="mr-1.5 h-3.5 w-3.5" />
+                              Write a Review
+                            </Button>
+                          )}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className={`bg-white/80 backdrop-blur-sm ${eligibilityChecked && canReview ? "flex-1" : "w-full"}`}
+                            onClick={() => {
+                              setReviewFilter("all");
+                              setReviewsOpen(true);
+                            }}
+                          >
+                            Show All Reviews ({reviews.length})
+                          </Button>
+                        </div>
+                      )}
+                      {!hasMoreReviews && eligibilityChecked && canReview && (
                         <Button
-                          variant="outline"
                           size="sm"
-                          className="w-full bg-white/80 backdrop-blur-sm"
-                          onClick={() => {
-                            setReviewFilter("all");
-                            setReviewsOpen(true);
-                          }}
+                          className="w-full"
+                          onClick={() => setReviewFormOpen(true)}
                         >
-                          Show All Reviews ({reviews.length})
+                          <PenLine className="mr-1.5 h-3.5 w-3.5" />
+                          Write a Review
                         </Button>
                       )}
                     </>
                   )}
                 </div>
-
-                {/* Review submission form */}
-                {eligibilityChecked && canReview && (
-                  <div className="rounded-xl border border-border/40 bg-white p-5 space-y-4 shadow-[0_1px_3px_rgba(28,28,30,0.04)]">
-                    <h3 className="font-playfair text-base font-semibold text-foreground">Leave a Review</h3>
-                    <form onSubmit={handleSubmitReview} className="space-y-4">
-                      <div className="space-y-1.5">
-                        <span className="text-xs font-medium text-foreground/50 uppercase tracking-wider">
-                          Your Rating<RequiredIndicator />
-                        </span>
-                        <StarSelector value={formRating} onChange={setFormRating} />
-                      </div>
-                      <div className="space-y-1.5">
-                        <label
-                          htmlFor="review-feedback"
-                          className="text-xs font-medium text-foreground/50 uppercase tracking-wider"
-                        >
-                          Your Feedback<RequiredIndicator />
-                        </label>
-                        <textarea
-                          id="review-feedback"
-                          value={formFeedback}
-                          onChange={(e) => setFormFeedback(e.target.value)}
-                          rows={4}
-                          placeholder="Share your experience with this room…"
-                          className="w-full rounded-xl border border-border/50 bg-background px-3.5 py-2.5 text-sm text-foreground placeholder:text-foreground/35 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/40 resize-none transition-colors"
-                          disabled={submitting}
-                        />
-                      </div>
-                      {submitError && (
-                        <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-foreground">
-                          {submitError}
-                        </div>
-                      )}
-                      <Button
-                        type="submit"
-                        variant="default"
-                        disabled={submitting}
-                        className="w-full sm:w-auto"
-                      >
-                        {submitting ? "Submitting…" : "Submit Review"}
-                      </Button>
-                    </form>
-                  </div>
-                )}
 
               </div>
             </div>
@@ -922,13 +903,13 @@ export default function RoomDetailPage() {
           </DialogHeader>
 
           {/* Filter bar */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-2 -mx-1 px-1">
-            <SlidersHorizontal className="h-3.5 w-3.5 text-foreground/40 shrink-0" />
+          <div className="flex flex-wrap items-center gap-2 rounded-xl bg-muted/10 p-2">
+            <SlidersHorizontal className="h-3.5 w-3.5 shrink-0 text-foreground/40" />
             {["all", "5", "4", "3", "2", "1"].map((f) => (
               <button
                 key={f}
                 onClick={() => setReviewFilter(f)}
-                className={`flex-shrink-0 rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
                   reviewFilter === f
                     ? "bg-primary text-primary-foreground"
                     : "bg-muted/20 text-foreground/60 hover:bg-muted/30"
@@ -967,6 +948,66 @@ export default function RoomDetailPage() {
               ))
             )}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── REVIEW FORM DIALOG ── */}
+      <Dialog
+        open={reviewFormOpen}
+        onOpenChange={(open) => {
+          setReviewFormOpen(open);
+          if (!open) {
+            setFormRating(0);
+            setFormFeedback("");
+            setSubmitError(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-playfair text-xl">Write a Review</DialogTitle>
+            <DialogDescription>
+              Share your experience staying in this room.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSubmitReview} className="space-y-4">
+            <div className="space-y-1.5">
+              <span className="text-xs font-medium text-foreground/50 uppercase tracking-wider">
+                Your Rating<RequiredIndicator />
+              </span>
+              <StarSelector value={formRating} onChange={setFormRating} />
+            </div>
+            <div className="space-y-1.5">
+              <label
+                htmlFor="review-feedback-dialog"
+                className="text-xs font-medium text-foreground/50 uppercase tracking-wider"
+              >
+                Your Feedback<RequiredIndicator />
+              </label>
+              <textarea
+                id="review-feedback-dialog"
+                value={formFeedback}
+                onChange={(e) => setFormFeedback(e.target.value)}
+                rows={4}
+                placeholder="Share your experience with this room…"
+                className="w-full rounded-xl border border-border/50 bg-background px-3.5 py-2.5 text-sm text-foreground placeholder:text-foreground/35 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/40 resize-none transition-colors"
+                disabled={submitting}
+              />
+            </div>
+            {submitError && (
+              <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-foreground">
+                {submitError}
+              </div>
+            )}
+            <Button
+              type="submit"
+              variant="default"
+              disabled={submitting}
+              className="w-full"
+            >
+              {submitting ? "Submitting…" : "Submit Review"}
+            </Button>
+          </form>
         </DialogContent>
       </Dialog>
 

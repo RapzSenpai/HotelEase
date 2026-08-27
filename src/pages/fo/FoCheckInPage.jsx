@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -239,8 +240,10 @@ export default function FoCheckInPage() {
           paymentMethod: b.paymentMethod || b.payment?.method || "N/A",
           processedBy: profile?.fullName || profile?.email || "Front Office Staff",
         });
+        toast.success("Check-In Slip downloaded.");
       } catch (slipErr) {
         console.error("Failed to generate check-in slip:", slipErr);
+        toast.error("Failed to generate Check-In Slip.");
       }
       navigate(`/fo/check-out?roomId=${roomIdParam || ""}`);
     } catch (e) {

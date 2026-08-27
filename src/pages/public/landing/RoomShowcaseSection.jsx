@@ -1,4 +1,5 @@
 import { memo } from "react";
+import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { NavLink } from "react-router-dom";
@@ -22,12 +23,6 @@ const RoomTile = memo(function RoomTile({ room, rating, onView, onBook, size = "
   const amenities = getRoomAmenities(room);
   const ratingLabel = formatRatingBadge(rating);
 
-  const sizeClasses = {
-    large: "lg:col-span-2 lg:row-span-2",
-    medium: "lg:col-span-1 lg:row-span-1",
-    wide: "lg:col-span-2 lg:row-span-1",
-  };
-
   const heightClasses = {
     large: "min-h-[400px] lg:min-h-[480px]",
     medium: "min-h-[280px] lg:min-h-[240px]",
@@ -35,7 +30,7 @@ const RoomTile = memo(function RoomTile({ room, rating, onView, onBook, size = "
   };
 
   return (
-    <div className={`group relative overflow-hidden rounded-2xl border border-border/40 bg-white shadow-[0_4px_24px_rgba(28,28,30,0.06)] transition-all duration-300 hover:shadow-[0_8px_32px_rgba(28,28,30,0.1)] ${sizeClasses[size]} ${heightClasses[size]}`}>
+    <div className={`group relative h-full w-full overflow-hidden rounded-2xl border border-border/40 bg-white shadow-[0_4px_24px_rgba(28,28,30,0.06)] transition-all duration-300 hover:shadow-[0_8px_32px_rgba(28,28,30,0.1)] ${heightClasses[size]}`}>
       <button onClick={onView} className="absolute inset-0 w-full h-full cursor-pointer" aria-label={`View details for ${room.name || room.type}`}>
         {firstPhoto ? (
           <img src={optimizeCloudinaryUrl(firstPhoto, { width: 800 })} alt={room.name || room.type} className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105" loading="lazy" />
@@ -114,11 +109,17 @@ export default function RoomShowcaseSection({ showcaseRooms, roomsLoading, roomR
         <path d="M-100,200 C450,290 850,100 1250,240 T2200,200" strokeWidth="0.5" />
       </svg>
       <div className="mx-auto max-w-7xl px-6">
-        <div className="mb-14 space-y-4 max-w-2xl">
+        <motion.div
+          className="mb-14 space-y-4 max-w-2xl"
+          initial={{ opacity: 0, y: 30 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: "-60px" }}
+          transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+        >
           <SectionEyebrow>Our Rooms</SectionEyebrow>
           <h2 className="font-playfair text-4xl md:text-5xl font-bold tracking-tight">Featured Accommodations</h2>
           <p className="text-foreground/60 leading-relaxed">Explore our available rooms, each designed for comfort and elegance.</p>
-        </div>
+        </motion.div>
         {roomsLoading ? (
           <FeaturedRoomsSkeleton />
         ) : showcaseRooms.length === 0 ? (
@@ -127,32 +128,54 @@ export default function RoomShowcaseSection({ showcaseRooms, roomsLoading, roomR
           </Card>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 auto-rows-[240px]">
-            <RoomTile
-              room={showcaseRooms[0]}
-              rating={roomRatings[showcaseRooms[0].id]}
-              onView={() => handleViewRoom(showcaseRooms[0].id)}
-              onBook={() => handleBookRoom(showcaseRooms[0].id)}
-              canBook={canBookRooms}
-              size="large"
-            />
-            {showcaseRooms.slice(1).map((room) => (
+            <motion.div
+              className="lg:col-span-2 lg:row-span-2"
+              initial={{ opacity: 0, y: 40, scale: 0.98 }}
+              whileInView={{ opacity: 1, y: 0, scale: 1 }}
+              viewport={{ once: true, margin: "-40px" }}
+              transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+            >
               <RoomTile
-                key={room.id}
-                room={room}
-                rating={roomRatings[room.id]}
-                onView={() => handleViewRoom(room.id)}
-                onBook={() => handleBookRoom(room.id)}
+                room={showcaseRooms[0]}
+                rating={roomRatings[showcaseRooms[0].id]}
+                onView={() => handleViewRoom(showcaseRooms[0].id)}
+                onBook={() => handleBookRoom(showcaseRooms[0].id)}
                 canBook={canBookRooms}
-                size="medium"
+                size="large"
               />
+            </motion.div>
+            {showcaseRooms.slice(1).map((room, index) => (
+              <motion.div
+                key={room.id}
+                className="lg:col-span-1 lg:row-span-1"
+                initial={{ opacity: 0, y: 40, scale: 0.98 }}
+                whileInView={{ opacity: 1, y: 0, scale: 1 }}
+                viewport={{ once: true, margin: "-40px" }}
+                transition={{ duration: 0.7, delay: 0.15 * (index + 1), ease: [0.22, 1, 0.36, 1] }}
+              >
+                <RoomTile
+                  room={room}
+                  rating={roomRatings[room.id]}
+                  onView={() => handleViewRoom(room.id)}
+                  onBook={() => handleBookRoom(room.id)}
+                  canBook={canBookRooms}
+                  size="medium"
+                />
+              </motion.div>
             ))}
           </div>
         )}
-        <div className="mt-12 flex justify-start md:justify-center">
+        <motion.div
+          className="mt-12 flex justify-start md:justify-center"
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.6, delay: 0.35, ease: [0.22, 1, 0.36, 1] }}
+        >
           <Button asChild variant="outline" size="lg" className="bg-white/70 backdrop-blur-sm">
             <NavLink to="/rooms">View All Rooms</NavLink>
           </Button>
-        </div>
+        </motion.div>
       </div>
     </section>
   );

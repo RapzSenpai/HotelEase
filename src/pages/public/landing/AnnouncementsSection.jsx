@@ -1,3 +1,4 @@
+import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Image } from "lucide-react";
@@ -17,10 +18,16 @@ export default function AnnouncementsSection({ announcements, announcementsLoadi
         <path d="M2100,200 C1600,340 1100,100 600,240 T-100,200" strokeWidth="0.5" strokeDasharray="4 4" />
       </svg>
       <div className="mx-auto max-w-7xl px-6">
-        <div className="mb-14 space-y-4 max-w-2xl">
+        <motion.div
+          className="mb-14 space-y-4 max-w-2xl"
+          initial={{ opacity: 0, y: 30 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: "-60px" }}
+          transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+        >
           <SectionEyebrow>News & Events</SectionEyebrow>
           <h2 className="font-playfair text-4xl md:text-5xl font-bold tracking-tight">Latest Announcements</h2>
-        </div>
+        </motion.div>
         {announcementsError && (
           <Card className="mb-6 border-destructive/30 bg-destructive/10">
             <CardContent className="p-4 text-sm text-foreground">{announcementsError}</CardContent>
@@ -41,25 +48,33 @@ export default function AnnouncementsSection({ announcements, announcementsLoadi
             {announcements.map((a, index) => {
               const isFeatured = index === 0;
               return (
-                <Card
+                <motion.div
                   key={a.id}
-                  className={`group overflow-hidden border-border/60 bg-gradient-to-br from-primary/5 to-primary/[0.02] shadow-[0_2px_20px_rgba(28,28,30,0.04)] hover:shadow-[0_4px_28px_rgba(28,28,30,0.08)] transition-all duration-300 ease-out rounded-2xl ${isFeatured ? "md:col-span-7" : "md:col-span-5"}`}
+                  className={isFeatured ? "md:col-span-7" : "md:col-span-5"}
+                  initial={{ opacity: 0, y: 35 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true, margin: "-40px" }}
+                  transition={{ duration: 0.7, delay: 0.12 * index, ease: [0.22, 1, 0.36, 1] }}
                 >
-                  {a.imageUrl ? (
-                    <div className={`overflow-hidden ${isFeatured ? "h-64 md:h-72" : "h-56"}`}>
-                      <img src={optimizeCloudinaryUrl(a.imageUrl, { width: 800 })} alt={a.title} className="h-full w-full object-cover group-hover:scale-[1.04] transition-transform duration-700 ease-[cubic-bezier(0.32,0.72,0,1)]" loading="lazy" />
-                    </div>
-                  ) : (
-                    <div className={`overflow-hidden ${isFeatured ? "h-64 md:h-72" : "h-56"} flex items-center justify-center bg-primary/5 rounded-2xl`}>
-                      <Image className="h-8 w-8 text-primary/30" />
-                    </div>
-                  )}
-                  <CardHeader className={`space-y-2 ${isFeatured ? "p-4 md:p-5" : "p-3 md:p-4"}`}>
-                    <Badge variant="muted" className="w-fit rounded-full text-[11px] uppercase tracking-wide">{formatDate(a.date)}</Badge>
-                    <CardTitle className={`font-playfair leading-snug ${isFeatured ? "text-lg md:text-xl" : "text-base md:text-lg"}`}>{a.title}</CardTitle>
-                    <CardDescription className={`leading-relaxed ${isFeatured ? "text-sm line-clamp-4" : "text-sm line-clamp-3"}`}>{a.description}</CardDescription>
-                  </CardHeader>
-                </Card>
+                  <Card
+                    className="group overflow-hidden border-border/60 bg-gradient-to-br from-primary/5 to-primary/[0.02] shadow-[0_2px_20px_rgba(28,28,30,0.04)] hover:shadow-[0_4px_28px_rgba(28,28,30,0.08)] transition-all duration-300 ease-out rounded-2xl h-full"
+                  >
+                    {a.imageUrl ? (
+                      <div className={`overflow-hidden ${isFeatured ? "h-64 md:h-72" : "h-56"}`}>
+                        <img src={optimizeCloudinaryUrl(a.imageUrl, { width: 800 })} alt={a.title} className="h-full w-full object-cover group-hover:scale-[1.04] transition-transform duration-700 ease-[cubic-bezier(0.32,0.72,0,1)]" loading="lazy" />
+                      </div>
+                    ) : (
+                      <div className={`overflow-hidden ${isFeatured ? "h-64 md:h-72" : "h-56"} flex items-center justify-center bg-primary/5 rounded-2xl`}>
+                        <Image className="h-8 w-8 text-primary/30" />
+                      </div>
+                    )}
+                    <CardHeader className={`space-y-2 ${isFeatured ? "p-4 md:p-5" : "p-3 md:p-4"}`}>
+                      <Badge variant="muted" className="w-fit rounded-full text-[11px] uppercase tracking-wide">{formatDate(a.date)}</Badge>
+                      <CardTitle className={`font-playfair leading-snug ${isFeatured ? "text-lg md:text-xl" : "text-base md:text-lg"}`}>{a.title}</CardTitle>
+                      <CardDescription className={`leading-relaxed ${isFeatured ? "text-sm line-clamp-4" : "text-sm line-clamp-3"}`}>{a.description}</CardDescription>
+                    </CardHeader>
+                  </Card>
+                </motion.div>
               );
             })}
           </div>

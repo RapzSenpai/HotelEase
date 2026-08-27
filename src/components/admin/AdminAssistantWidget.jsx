@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Bot, X, ChevronRight, Copy, Check, ArrowUp, Loader2 } from "lucide-react";
+import { Bot, X, Copy, Check, ArrowUp, RotateCcw } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { buildAdminContext, sendAdminChat } from "@/services/insightsService";
 import Markdown from "react-markdown";
@@ -38,31 +38,59 @@ const markdownComponents = {
         </pre>
       );
     }
-    return <code className="rounded-md bg-white px-1.5 py-0.5 text-xs font-mono">{children}</code>;
+    return <code className="rounded-md bg-foreground/8 px-1.5 py-0.5 text-xs font-mono">{children}</code>;
   },
   pre: ({ children }) => <>{children}</>,
 };
 
-function CopyButton({ content }) {
+function ActionBar({ content, onRegenerate }) {
   const [copied, setCopied] = useState(false);
+
   const handleCopy = async () => {
     try {
       await navigator.clipboard.writeText(content);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
-      /* clipboard unavailable */
+      /* clipboard API unavailable or blocked */
     }
   };
+
   return (
-    <button
-      type="button"
-      onClick={handleCopy}
-      className="rounded-md p-1 text-foreground/25 transition-colors hover:text-foreground/60"
-      aria-label="Copy response"
-    >
-      {copied ? <Check className="h-3.5 w-3.5 text-success" /> : <Copy className="h-3.5 w-3.5" />}
-    </button>
+    <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+      <button
+        type="button"
+        onClick={handleCopy}
+        className="rounded-md p-1 text-foreground/30 transition-colors hover:text-foreground/60"
+        aria-label="Copy message"
+      >
+        {copied ? <Check className="h-3.5 w-3.5 text-success" /> : <Copy className="h-3.5 w-3.5" />}
+      </button>
+      {onRegenerate && (
+        <button
+          type="button"
+          onClick={onRegenerate}
+          className="rounded-md p-1 text-foreground/30 transition-colors hover:text-foreground/60"
+          aria-label="Regenerate response"
+        >
+          <RotateCcw className="h-3.5 w-3.5" />
+        </button>
+      )}
+    </div>
+  );
+}
+
+function EmptyState({ contextReady }) {
+  return (
+    <div className="flex flex-1 flex-col items-center px-6 pt-4 text-center">
+      <div className="mt-auto" />
+      <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
+        <Bot className="h-5 w-5 text-primary" />
+      </div>
+      <p className="mb-auto text-sm font-medium text-foreground">
+        {contextReady ? "What would you like to know?" : "Loading hotel data…"}
+      </p>
+    </div>
   );
 }
 
@@ -103,7 +131,7 @@ export default function AdminAssistantWidget() {
   }, [messages, loading, open]);
 
   const appendUserAndReply = useCallback(
-    async (text) => {
+    async (text, isRegenerate = false) => {
       const trimmed = text.trim();
       if (!trimmed || loading || !contextReady) return;
 
@@ -112,11 +140,21 @@ export default function AdminAssistantWidget() {
         .slice(-8)
         .map((m) => ({ role: m.role === "user" ? "user" : "assistant", content: m.content }));
 
-      setMessages((prev) => [
-        ...prev,
-        { id: `u-${Date.now()}`, role: "user", content: trimmed.slice(0, 400) },
-      ]);
-      setInput("");
+      if (isRegenerate) {
+        setMessages((prev) => {
+          const withoutLastAssistant = prev.filter(
+            (m) => !(m.role === "assistant" && m.id !== "welcome"),
+          );
+          return [...withoutLastAssistant];
+        });
+      } else {
+        setMessages((prev) => [
+          ...prev,
+          { id: `u-${Date.now()}`, role: "user", content: trimmed.slice(0, 400) },
+        ]);
+        setInput("");
+      }
+
       setLoading(true);
 
       try {
@@ -147,10 +185,17 @@ export default function AdminAssistantWidget() {
     [loading, messages, trainingMode, contextReady],
   );
 
+  const handleRegenerate = useCallback(() => {
+    const lastUserMsg = [...messages].reverse().find((m) => m.role === "user");
+    if (lastUserMsg) appendUserAndReply(lastUserMsg.content, true);
+  }, [messages, appendUserAndReply]);
+
   const onSubmit = (e) => {
     e.preventDefault();
     appendUserAndReply(input);
   };
+
+  const isOnlyWelcome = messages.length === 1 && messages[0].id === "welcome";
 
   return (
     <div className="pointer-events-none fixed bottom-6 right-6 z-[100] flex flex-col items-end">
@@ -162,116 +207,97 @@ export default function AdminAssistantWidget() {
             : "scale-95 opacity-0 translate-y-2 pointer-events-none invisible"
         }`}
       >
-        <div className="flex h-[540px] w-[380px] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-[0_8px_30px_rgba(0,0,0,0.18)]">
-          {/* Header */}
-          <div className="flex shrink-0 items-center justify-between bg-[#1C1C1E] px-4 py-3">
-            <div className="flex items-center gap-2.5">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/20">
-                <Bot className="h-4 w-4 text-primary" />
-              </div>
-              <div>
-                <p className="text-sm font-semibold leading-tight text-white">Ops Assistant</p>
-                <p className="mt-0.5 flex items-center gap-1.5 text-xs text-white/50">
-                  <span className={`h-1.5 w-1.5 rounded-full ${contextReady ? "bg-success" : "bg-primary animate-pulse"}`} />
-                  {contextReady ? "Live data loaded" : "Loading data…"}
-                </p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => setOpen(false)}
-              className="rounded-md p-1 text-white/40 transition-colors hover:text-white"
-              aria-label="Close assistant"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
+        <div className="flex w-[380px] max-w-[calc(100vw-2rem)] max-h-[min(500px,calc(100vh-160px))] flex-col overflow-hidden rounded-2xl border border-border bg-white shadow-[0_8px_30px_rgba(0,0,0,0.08)]">
 
           {/* Messages */}
-          <div ref={listRef} className="relative min-h-0 flex-1 overflow-y-auto">
-            <div className="space-y-4 px-4 py-4">
-              {messages.map((m) => {
-                if (m.role === "user") {
-                  return (
-                    <div key={m.id} className="flex justify-end">
-                      <div className="max-w-[85%] rounded-2xl rounded-br-md bg-[#1C1C1E] px-3.5 py-2.5 text-sm font-medium leading-relaxed text-white">
-                        {m.content}
+          <div ref={listRef} className={`min-h-0 flex-1 overflow-y-auto${isOnlyWelcome ? " flex flex-col" : ""}`}>
+            {isOnlyWelcome ? (
+              <EmptyState contextReady={contextReady} />
+            ) : (
+              <div className="space-y-4 px-4 py-4">
+                {messages.map((m) => {
+                  if (m.role === "user") {
+                    return (
+                      <div key={m.id} className="flex justify-end">
+                        <div className="max-w-[85%] rounded-2xl rounded-br-md bg-primary px-3.5 py-2.5 text-sm font-medium leading-relaxed text-primary-foreground">
+                          {m.content}
+                        </div>
                       </div>
+                    );
+                  }
+
+                  return (
+                    <div key={m.id} className="group relative flex justify-start">
+                      <div
+                        className={`w-full max-w-[92%] text-sm ${
+                          m.isError ? "rounded-xl border border-destructive/25 bg-destructive/10 px-3 py-2 text-destructive" : "text-foreground"
+                        }`}
+                      >
+                        <Markdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                          {m.content}
+                        </Markdown>
+                      </div>
+                      {!m.isError && m.id !== "welcome" && (
+                        <div className="absolute -right-1 -top-1">
+                          <ActionBar content={m.content} onRegenerate={handleRegenerate} />
+                        </div>
+                      )}
                     </div>
                   );
-                }
+                })}
 
-                return (
-                  <div key={m.id} className="group relative flex justify-start">
-                    <div
-                      className={`w-full max-w-[92%] text-sm ${
-                        m.isError ? "rounded-xl border border-destructive/25 bg-destructive/10 px-3 py-2 text-destructive" : "text-foreground"
-                      }`}
-                    >
-                      <Markdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-                        {m.content}
-                      </Markdown>
+                {loading && (
+                  <div className="flex justify-start">
+                    <div className="flex items-center gap-1 py-1">
+                      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-foreground/30 [animation-delay:-0.3s]" />
+                      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-foreground/30 [animation-delay:-0.15s]" />
+                      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-foreground/30" />
                     </div>
-                    {!m.isError && m.id !== "welcome" && (
-                      <div className="absolute -right-1 -top-1 opacity-0 transition-opacity group-hover:opacity-100">
-                        <CopyButton content={m.content} />
-                      </div>
-                    )}
                   </div>
-                );
-              })}
-
-              {loading && (
-                <div className="flex justify-start">
-                  <div className="flex items-center gap-1.5 rounded-full border border-border bg-white px-3 py-2">
-                    <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
-                    <span className="text-xs text-muted-foreground">Analyzing…</span>
-                  </div>
-                </div>
-              )}
-
-              {/* Quick prompts */}
-              {messages.length <= 1 && !loading && (
-                <div className="flex flex-wrap gap-2 pt-1">
-                  {QUICK_PROMPTS.map((q) => (
-                    <button
-                      key={q.label}
-                      type="button"
-                      disabled={!contextReady}
-                      onClick={() => appendUserAndReply(q.prompt)}
-                      className="flex items-center gap-1 rounded-full border border-border bg-white px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:border-primary hover:text-primary disabled:pointer-events-none disabled:opacity-50"
-                    >
-                      {q.label}
-                      <ChevronRight className="h-3 w-3" />
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Composer */}
-          <form onSubmit={onSubmit} className="shrink-0 border-t border-border bg-white p-3">
-            <div className="flex items-center gap-2 rounded-2xl border border-border bg-background px-3 py-1 transition-all focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/15">
-              <input
-                ref={inputRef}
-                value={input}
-                onChange={(e) => setInput(e.target.value.slice(0, 400))}
-                placeholder="Ask about revenue, bookings, rooms…"
-                disabled={loading || !contextReady}
-                maxLength={400}
-                className="h-10 flex-1 bg-transparent text-sm text-foreground placeholder:text-foreground/40 focus:outline-none"
-              />
-              <button
-                type="submit"
-                disabled={loading || !contextReady || !input.trim()}
-                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#1C1C1E] text-primary transition-all hover:brightness-125 active:scale-95 disabled:opacity-40"
-                aria-label="Send message"
-              >
-                <ArrowUp className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          </form>
+          <div className="shrink-0 bg-white p-2.5">
+            {isOnlyWelcome && (
+              <div className="flex flex-wrap justify-center gap-2 pb-2 pt-3">
+                {QUICK_PROMPTS.map((q) => (
+                  <button
+                    key={q.label}
+                    type="button"
+                    disabled={loading || !contextReady}
+                    onClick={() => appendUserAndReply(q.prompt)}
+                    className="rounded-full border border-border px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:border-primary hover:text-primary disabled:pointer-events-none disabled:opacity-50"
+                  >
+                    {q.label}
+                  </button>
+                ))}
+              </div>
+            )}
+            <form onSubmit={onSubmit}>
+              <div className="flex items-center gap-2 rounded-2xl border border-border bg-background px-3 py-1 transition-all focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/15">
+                <input
+                  ref={inputRef}
+                  value={input}
+                  onChange={(e) => setInput(e.target.value.slice(0, 400))}
+                  placeholder="Ask about revenue, bookings, rooms…"
+                  disabled={loading || !contextReady}
+                  maxLength={400}
+                  className="h-9 flex-1 bg-transparent text-sm text-foreground placeholder:text-foreground/40 focus:outline-none"
+                />
+                <button
+                  type="submit"
+                  disabled={loading || !contextReady || !input.trim()}
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground transition-all hover:brightness-110 active:scale-95 disabled:opacity-40"
+                  aria-label="Send message"
+                >
+                  <ArrowUp className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       </div>
 
@@ -280,13 +306,14 @@ export default function AdminAssistantWidget() {
         <button
           type="button"
           onClick={() => setOpen((o) => !o)}
-          className="group flex h-14 w-14 items-center justify-center rounded-full bg-[#1C1C1E] shadow-lg transition-all duration-300 hover:shadow-xl hover:scale-105 active:scale-95"
+          className="group flex h-14 w-14 items-center justify-center rounded-full shadow-lg transition-all duration-300 hover:shadow-xl hover:scale-105 active:scale-95"
+          style={{ background: "#F5C518" }}
           aria-label={open ? "Close Ops Assistant" : "Open Ops Assistant"}
         >
           {open ? (
-            <X className="h-5 w-5 text-primary transition-transform duration-200" />
+            <X className="h-5 w-5 transition-transform duration-200" style={{ color: "#1C1C1E" }} />
           ) : (
-            <Bot className="h-6 w-6 text-primary transition-transform duration-200 group-hover:scale-110" />
+            <Bot className="h-6 w-6 transition-transform duration-200 group-hover:scale-110" style={{ color: "#1C1C1E" }} />
           )}
         </button>
       </div>

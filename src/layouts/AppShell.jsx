@@ -51,9 +51,13 @@ export default function AppShell() {
   const isLanding = location.pathname === "/";
   const fullWidthPublicPages = ["/about", "/contact", "/privacy"];
   const isFullWidthPublicPage = fullWidthPublicPages.includes(location.pathname);
+  // Room detail has a fixed sticky bottom booking bar — footer adds hidden scroll space
+  const isRoomDetail = /^\/rooms\/[^/]+$/.test(location.pathname);
+  const isFoOrAdmin = hasSidebar || location.pathname.startsWith("/fo") || location.pathname.startsWith("/admin");
+  const hideFooter = isRoomDetail || isFoOrAdmin;
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="flex min-h-screen flex-col bg-background text-foreground">
       <Toaster
         position="top-right"
         richColors={false}
@@ -83,14 +87,14 @@ export default function AppShell() {
       ) : (
         <div
           className={cn(
-            "mx-auto flex",
-            hasSidebar ? "max-w-7xl" : isFullWidthPublicPage ? "w-full max-w-7xl" : "max-w-5xl",
+            "mx-auto flex flex-1 w-full",
+            hasSidebar ? "max-w-7xl" : isFullWidthPublicPage ? "max-w-7xl" : "max-w-5xl",
           )}
         >
           {hasSidebar && (
             <Sidebar open={mobileSidebarOpen} onClose={closeMobileSidebar} />
           )}
-          <main className="min-h-[calc(100vh-64px)] w-full flex-1 px-5 py-6 md:px-8 md:py-8">
+          <main className="flex-1 min-w-0 w-full px-5 py-6 md:px-8 md:py-8">
             {trainingMode && <div className="mb-6">{trainingBanner}</div>}
             <ErrorBoundary>
               <Outlet />
@@ -99,7 +103,7 @@ export default function AppShell() {
         </div>
       )}
 
-      <Footer />
+      {!hideFooter && <Footer className="mt-auto" />}
       <ScrollToTop />
       {role === "admin" && location.pathname.startsWith("/admin") && <AdminAssistantWidget />}
     </div>

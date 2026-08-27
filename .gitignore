@@ -38,3 +38,4 @@ dist-ssr
 *.rar
 srs_diagrams/
 
+.freebuff/

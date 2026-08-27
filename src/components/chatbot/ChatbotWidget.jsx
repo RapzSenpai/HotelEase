@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { NavLink } from "react-router-dom";
-import { MessageCircle, X, Sparkles, ChevronRight, Copy, Check, ArrowDown, ArrowUp, RotateCcw } from "lucide-react";
+import { MessageCircle, X, Sparkles, ChevronRight, Copy, Check, ArrowUp, RotateCcw } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { sendMessage } from "@/services/chatbotService";
 import Markdown from "react-markdown";
@@ -18,8 +18,8 @@ const QUICK_REPLIES = [
 
 const FOLLOW_UP_MAP = {
   room: [
-    { label: "Book this room", followUp: "I'd like to book a room" },
-    { label: "See more rooms", followUp: "What other rooms are available?" },
+    { label: "Room rates", followUp: "What are the room rates?" },
+    { label: "Room amenities", followUp: "What amenities are included?" },
   ],
   book: [
     { label: "Check-in process", followUp: "What is the check-in process?" },
@@ -133,30 +133,14 @@ function ActionBar({ content, onRegenerate }) {
   );
 }
 
-function EmptyState({ quickReplies, onSelect }) {
+function EmptyState() {
   return (
-    <div className="flex h-full flex-col items-center justify-center px-6 text-center">
-      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 mb-3">
+    <div className="flex flex-1 flex-col items-center px-6 pt-4 text-center">
+      <div className="mt-auto" />
+      <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
         <Sparkles className="h-5 w-5 text-primary" />
       </div>
-      <p className="text-sm font-medium text-foreground">HotelEase Assistant</p>
-      <p className="mt-1 text-xs text-muted-foreground leading-relaxed max-w-[240px]">
-        Ask me about rooms, booking, check-in, or anything about your stay.
-      </p>
-      {quickReplies && quickReplies.length > 0 && (
-        <div className="mt-4 flex flex-wrap justify-center gap-2">
-          {quickReplies.map((q) => (
-            <button
-              key={q.label}
-              type="button"
-              onClick={() => onSelect(q.followUp)}
-              className="rounded-full border border-border px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:border-primary hover:text-primary"
-            >
-              {q.label}
-            </button>
-          ))}
-        </div>
-      )}
+      <p className="mb-auto text-sm font-medium text-foreground">How can I help you today?</p>
     </div>
   );
 }
@@ -168,7 +152,6 @@ export default function ChatbotWidget({ positionClass = "bottom-6 right-6" }) {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [showQuickReplies, setShowQuickReplies] = useState(true);
-  const [isAtBottom, setIsAtBottom] = useState(true);
   const [capped, setCapped] = useState(false);
   const listRef = useRef(null);
   const inputRef = useRef(null);
@@ -196,17 +179,6 @@ export default function ChatbotWidget({ positionClass = "bottom-6 right-6" }) {
   useEffect(() => {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, loading, open]);
-
-  const handleScroll = useCallback(() => {
-    const el = listRef.current;
-    if (!el) return;
-    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
-    setIsAtBottom(atBottom);
-  }, []);
-
-  const scrollToBottom = useCallback(() => {
-    listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" });
-  }, []);
 
   const appendUserAndReply = useCallback(
     async (text, isRegenerate = false) => {
@@ -313,33 +285,17 @@ export default function ChatbotWidget({ positionClass = "bottom-6 right-6" }) {
       <div className={`pointer-events-none fixed ${positionClass} z-[100] flex flex-col items-end`}>
         {/* Chat Panel */}
         <div
-          className={`pointer-events-auto mb-3 origin-bottom-right transition-all duration-300 ease-out ${
-            open
-              ? "scale-100 opacity-100 translate-y-0 visible"
-              : "scale-95 opacity-0 translate-y-2 pointer-events-none invisible"
-          }`}
+          className={`pointer-events-auto mb-3 origin-bottom-right transition-all duration-300 ease-out ${open
+            ? "scale-100 opacity-100 translate-y-0 visible"
+            : "scale-95 opacity-0 translate-y-2 pointer-events-none invisible"
+            }`}
         >
-          <div className="flex h-[540px] w-[380px] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-2xl border border-border bg-white shadow-[0_8px_30px_rgba(0,0,0,0.08)]">
-            {/* Header */}
-            <div className="flex shrink-0 items-center bg-primary px-4 py-3">
-              <div className="flex items-center gap-2.5">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary-foreground/15">
-                  <Sparkles className="h-4 w-4 text-primary-foreground" />
-                </div>
-                <div>
-                  <p className="text-sm font-semibold leading-tight text-primary-foreground">HotelEase Assistant</p>
-                  <p className="mt-0.5 flex items-center gap-1.5 text-xs text-primary-foreground/70">
-                    <span className="h-1.5 w-1.5 rounded-full bg-success" />
-                    Online
-                  </p>
-                </div>
-              </div>
-            </div>
+          <div className="flex w-[380px] max-w-[calc(100vw-2rem)] max-h-[min(500px,calc(100vh-160px))] flex-col overflow-hidden rounded-2xl border border-border bg-white shadow-[0_8px_30px_rgba(0,0,0,0.08)]">
 
             {/* Messages */}
-            <div ref={listRef} onScroll={handleScroll} className="relative min-h-0 flex-1 overflow-y-auto">
+            <div ref={listRef} className={`min-h-0 flex-1 overflow-y-auto${isOnlyWelcome ? " flex flex-col" : ""}`}>
               {isOnlyWelcome ? (
-                <EmptyState quickReplies={QUICK_REPLIES} onSelect={appendUserAndReply} />
+                <EmptyState />
               ) : (
                 <div className="space-y-4 px-4 py-4">
                   {messages.map((m) => {
@@ -380,23 +336,6 @@ export default function ChatbotWidget({ positionClass = "bottom-6 right-6" }) {
                     </div>
                   )}
 
-                  {/* Quick replies */}
-                  {showQuickReplies && messages.length <= 1 && (
-                    <div className="flex flex-wrap gap-2 pt-1">
-                      {QUICK_REPLIES.map((q) => (
-                        <button
-                          key={q.label}
-                          type="button"
-                          disabled={loading}
-                          onClick={() => appendUserAndReply(q.followUp)}
-                          className="rounded-full border border-border px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:border-foreground/20 hover:bg-foreground/5 disabled:pointer-events-none disabled:opacity-50"
-                        >
-                          {q.label}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-
                   {/* Follow-up suggestions */}
                   {!loading && !showQuickReplies && followUpSuggestions.length > 0 && (
                     <div className="flex flex-wrap gap-2 pt-1">
@@ -415,26 +354,12 @@ export default function ChatbotWidget({ positionClass = "bottom-6 right-6" }) {
                   )}
                 </div>
               )}
-
-              {/* Scroll to bottom button */}
-              {!isAtBottom && (
-                <div className="absolute bottom-3 left-1/2 -translate-x-1/2">
-                  <button
-                    type="button"
-                    onClick={scrollToBottom}
-                    className="flex h-8 w-8 items-center justify-center rounded-full border border-border bg-white text-foreground/60 shadow-md transition-all hover:shadow-lg hover:text-foreground"
-                    aria-label="Scroll to bottom"
-                  >
-                    <ArrowDown className="h-4 w-4" />
-                  </button>
-                </div>
-              )}
             </div>
 
             {/* Composer — unified container (locked after daily cap) */}
             {capped ? (
-              <div className="shrink-0 border-t border-border bg-white p-4">
-                <div className="rounded-2xl border border-primary/30 bg-primary/10 p-3.5 text-center">
+              <div className="shrink-0 bg-white p-3">
+                <div className="rounded-2xl border border-primary/30 bg-primary/10 p-3 text-center">
                   <p className="text-sm font-medium text-foreground">Free messages used up</p>
                   <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
                     Sign in to keep chatting — it takes seconds.
@@ -448,27 +373,44 @@ export default function ChatbotWidget({ positionClass = "bottom-6 right-6" }) {
                 </div>
               </div>
             ) : (
-            <form onSubmit={onSubmit} className="shrink-0 border-t border-border bg-white p-3">
-              <div className="flex items-center gap-2 rounded-2xl border border-border bg-background px-3 py-1 transition-all focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/15">
-                <input
-                  ref={inputRef}
-                  value={input}
-                  onChange={(e) => setInput(e.target.value.slice(0, 300))}
-                  placeholder="Ask about rooms, booking, or policies…"
-                  disabled={loading}
-                  maxLength={300}
-                  className="h-10 flex-1 bg-transparent text-sm text-foreground placeholder:text-foreground/40 focus:outline-none"
-                />
-                <button
-                  type="submit"
-                  disabled={loading || !input.trim()}
-                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground transition-all hover:brightness-110 active:scale-95 disabled:opacity-40"
-                  aria-label="Send message"
-                >
-                  <ArrowUp className="h-3.5 w-3.5" />
-                </button>
+              <div className="shrink-0 bg-white p-2.5">
+                {isOnlyWelcome && (
+                  <div className="flex flex-wrap justify-center gap-2 pb-2 pt-3">
+                    {QUICK_REPLIES.map((q) => (
+                      <button
+                        key={q.label}
+                        type="button"
+                        disabled={loading}
+                        onClick={() => appendUserAndReply(q.followUp)}
+                        className="rounded-full border border-border px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:border-primary hover:text-primary disabled:pointer-events-none disabled:opacity-50"
+                      >
+                        {q.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <form onSubmit={onSubmit}>
+                  <div className="flex items-center gap-2 rounded-2xl border border-border bg-background px-3 py-1 transition-all focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/15">
+                    <input
+                      ref={inputRef}
+                      value={input}
+                      onChange={(e) => setInput(e.target.value.slice(0, 300))}
+                      placeholder="Ask about rooms, booking, or policies…"
+                      disabled={loading}
+                      maxLength={300}
+                      className="h-9 flex-1 bg-transparent text-sm text-foreground placeholder:text-foreground/40 focus:outline-none"
+                    />
+                    <button
+                      type="submit"
+                      disabled={loading || !input.trim()}
+                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground transition-all hover:brightness-110 active:scale-95 disabled:opacity-40"
+                      aria-label="Send message"
+                    >
+                      <ArrowUp className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                </form>
               </div>
-            </form>
             )}
           </div>
         </div>

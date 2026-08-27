@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
@@ -64,7 +65,13 @@ export default function ReviewFormSection({ isGuest, user, profile }) {
       </svg>
       <div className="relative mx-auto max-w-4xl px-6">
         <div className="grid md:grid-cols-2 gap-12 items-center">
-          <div className="space-y-6">
+          <motion.div
+            className="space-y-6"
+            initial={{ opacity: 0, x: -40 }}
+            whileInView={{ opacity: 1, x: 0 }}
+            viewport={{ once: true, margin: "-50px" }}
+            transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+          >
             <h2 className="font-playfair text-4xl md:text-5xl font-bold tracking-tight">
               Share Your <span className="text-amber-400">Experience</span>
             </h2>
@@ -77,50 +84,57 @@ export default function ReviewFormSection({ isGuest, user, profile }) {
               </div>
               <span className="text-sm text-foreground/60">Join our community of guests</span>
             </div>
-          </div>
-          <Card className={`${cleanPanel} overflow-hidden`}>
-            <CardContent className="p-8">
-              {submitSuccess ? (
-                <div className="text-center space-y-4 py-6">
-                  <div className="w-16 h-16 mx-auto rounded-full bg-success/10 flex items-center justify-center">
-                    <Star className="h-8 w-8 text-success fill-success" />
+          </motion.div>
+          <motion.div
+            initial={{ opacity: 0, x: 40, scale: 0.98 }}
+            whileInView={{ opacity: 1, x: 0, scale: 1 }}
+            viewport={{ once: true, margin: "-50px" }}
+            transition={{ duration: 0.8, delay: 0.15, ease: [0.22, 1, 0.36, 1] }}
+          >
+            <Card className={`${cleanPanel} overflow-hidden`}>
+              <CardContent className="p-8">
+                {submitSuccess ? (
+                  <div className="text-center space-y-4 py-6">
+                    <div className="w-16 h-16 mx-auto rounded-full bg-success/10 flex items-center justify-center">
+                      <Star className="h-8 w-8 text-success fill-success" />
+                    </div>
+                    <div>
+                      <p className="text-base font-semibold text-foreground mb-2">Thank You!</p>
+                      <p className="text-sm text-foreground/60">Your review has been submitted and is pending approval.</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-base font-semibold text-foreground mb-2">Thank You!</p>
-                    <p className="text-sm text-foreground/60">Your review has been submitted and is pending approval.</p>
+                ) : isGuest ? (
+                  <form className="space-y-5" onSubmit={handleSubmitTestimonial}>
+                    <div className="space-y-2">
+                      <Label htmlFor="testimonial-rating" className="text-sm font-medium">Your Rating</Label>
+                      <StarSelector value={formRating} onChange={setFormRating} disabled={submitting} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="testimonial-message" className="text-sm font-medium">Your Review</Label>
+                      <Textarea id="testimonial-message" value={formMessage} onChange={(e) => setFormMessage(e.target.value)} placeholder="Tell us about your stay..." className="min-h-28 resize-none bg-white/50 backdrop-blur-sm border-white/40" disabled={submitting} />
+                    </div>
+                    {submitError ? <p className="text-sm text-destructive">{submitError}</p> : null}
+                    <Button type="submit" variant="default" className="w-full active:scale-[0.98]" disabled={submitting}>
+                      {submitting ? "Submitting..." : "Submit Review"}
+                    </Button>
+                  </form>
+                ) : (
+                  <div className="text-center space-y-6 py-6">
+                    <div className="w-16 h-16 mx-auto rounded-full bg-primary/10 flex items-center justify-center">
+                      <Quote className="h-8 w-8 text-primary" />
+                    </div>
+                    <div className="space-y-3">
+                      <p className="text-base font-medium text-foreground">Sign In to Share Your Experience</p>
+                      <p className="text-sm text-foreground/60">Join our guest community and leave a review.</p>
+                    </div>
+                    <Button asChild variant="default" className="w-full">
+                      <NavLink to="/login">Sign In</NavLink>
+                    </Button>
                   </div>
-                </div>
-              ) : isGuest ? (
-                <form className="space-y-5" onSubmit={handleSubmitTestimonial}>
-                  <div className="space-y-2">
-                    <Label htmlFor="testimonial-rating" className="text-sm font-medium">Your Rating</Label>
-                    <StarSelector value={formRating} onChange={setFormRating} disabled={submitting} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="testimonial-message" className="text-sm font-medium">Your Review</Label>
-                    <Textarea id="testimonial-message" value={formMessage} onChange={(e) => setFormMessage(e.target.value)} placeholder="Tell us about your stay..." className="min-h-28 resize-none bg-white/50 backdrop-blur-sm border-white/40" disabled={submitting} />
-                  </div>
-                  {submitError ? <p className="text-sm text-destructive">{submitError}</p> : null}
-                  <Button type="submit" variant="default" className="w-full active:scale-[0.98]" disabled={submitting}>
-                    {submitting ? "Submitting..." : "Submit Review"}
-                  </Button>
-                </form>
-              ) : (
-                <div className="text-center space-y-6 py-6">
-                  <div className="w-16 h-16 mx-auto rounded-full bg-primary/10 flex items-center justify-center">
-                    <Quote className="h-8 w-8 text-primary" />
-                  </div>
-                  <div className="space-y-3">
-                    <p className="text-base font-medium text-foreground">Sign In to Share Your Experience</p>
-                    <p className="text-sm text-foreground/60">Join our guest community and leave a review.</p>
-                  </div>
-                  <Button asChild variant="default" className="w-full">
-                    <NavLink to="/login">Sign In</NavLink>
-                  </Button>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                )}
+              </CardContent>
+            </Card>
+          </motion.div>
         </div>
       </div>
     </section>

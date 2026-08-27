@@ -1,15 +1,22 @@
 import { useState, useMemo, memo } from "react";
+import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Star } from "lucide-react";
 import { SectionEyebrow, AmbientGlow } from "./components";
 import { cleanPanel } from "./helpers";
 
-const TestimonialCardItem = memo(function TestimonialCardItem({ testimonial }) {
+const TestimonialCardItem = memo(function TestimonialCardItem({ testimonial, index = 0 }) {
   const rating = Number(testimonial.rating ?? 5);
   const isHighRating = rating === 5;
   return (
-    <div className={`rounded-2xl p-6 md:p-8 border transition-all duration-300 ${isHighRating ? "border-primary/30 bg-primary/5 shadow-[0_2px_12px_rgba(245,197,24,0.05)]" : "border-border/60 bg-white shadow-[0_2px_12px_rgba(28,28,30,0.04)]"}`}>
+    <motion.div
+      initial={{ opacity: 0, y: 30 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "-40px" }}
+      transition={{ duration: 0.6, delay: 0.1 * (index % 4), ease: [0.22, 1, 0.36, 1] }}
+      className={`rounded-2xl p-6 md:p-8 border transition-all duration-300 ${isHighRating ? "border-primary/30 bg-primary/5 shadow-[0_2px_12px_rgba(245,197,24,0.05)]" : "border-border/60 bg-white shadow-[0_2px_12px_rgba(28,28,30,0.04)]"}`}
+    >
       <div className="flex items-center justify-between gap-4 mb-4">
         <span className="font-semibold text-sm text-foreground truncate max-w-[150px]">{testimonial.guestName || "Verified Guest"}</span>
         <div className="flex text-primary shrink-0">
@@ -21,7 +28,7 @@ const TestimonialCardItem = memo(function TestimonialCardItem({ testimonial }) {
       <p className="font-playfair italic text-foreground/85 text-base leading-relaxed tracking-wide pl-1 mt-3">
         &ldquo;{testimonial.message}&rdquo;
       </p>
-    </div>
+    </motion.div>
   );
 });
 
@@ -41,8 +48,8 @@ export default function TestimonialsSection({ testimonials }) {
     const left = [];
     const right = [];
     displayedTestimonials.forEach((t, index) => {
-      if (index % 2 === 0) left.push(t);
-      else right.push(t);
+      if (index % 2 === 0) left.push({ ...t, itemIndex: index });
+      else right.push({ ...t, itemIndex: index });
     });
     return { leftCol: left, rightCol: right };
   }, [displayedTestimonials]);
@@ -62,7 +69,13 @@ export default function TestimonialsSection({ testimonials }) {
       </svg>
       <div className="mx-auto max-w-7xl px-6">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 items-start">
-          <div className="lg:col-span-4 lg:sticky lg:top-24 space-y-8">
+          <motion.div
+            className="lg:col-span-4 lg:sticky lg:top-24 space-y-8"
+            initial={{ opacity: 0, x: -30 }}
+            whileInView={{ opacity: 1, x: 0 }}
+            viewport={{ once: true, margin: "-60px" }}
+            transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+          >
             <div className="space-y-4">
               <SectionEyebrow>Guest Reviews</SectionEyebrow>
               <h2 className="font-playfair text-4xl md:text-5xl font-bold tracking-tight text-foreground leading-[1.1]">
@@ -94,7 +107,7 @@ export default function TestimonialsSection({ testimonials }) {
                 </div>
               </div>
             )}
-          </div>
+          </motion.div>
           <div className="lg:col-span-8">
             {testimonials.length === 0 ? (
               <Card className={`${cleanPanel} p-10 text-center`}>
@@ -105,14 +118,20 @@ export default function TestimonialsSection({ testimonials }) {
                 <CardContent className="p-0 relative">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
                     <div className="space-y-6">
-                      {leftCol.map((t) => <TestimonialCardItem key={t.id} testimonial={t} />)}
+                      {leftCol.map((t) => <TestimonialCardItem key={t.id} testimonial={t} index={t.itemIndex} />)}
                     </div>
                     <div className="space-y-6 md:mt-8">
-                      {rightCol.map((t) => <TestimonialCardItem key={t.id} testimonial={t} />)}
+                      {rightCol.map((t) => <TestimonialCardItem key={t.id} testimonial={t} index={t.itemIndex} />)}
                     </div>
                   </div>
                   {(hasMoreToShow || canShowLess) && (
-                    <div className={`${hasMoreToShow ? "absolute bottom-0 left-0 right-0 h-48 bg-gradient-to-t from-background via-background/90 to-transparent pointer-events-none" : "mt-8"} flex items-end justify-center pb-2`}>
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      whileInView={{ opacity: 1 }}
+                      viewport={{ once: true }}
+                      transition={{ duration: 0.5, delay: 0.2 }}
+                      className={`${hasMoreToShow ? "absolute bottom-0 left-0 right-0 h-48 bg-gradient-to-t from-background via-background/90 to-transparent pointer-events-none" : "mt-8"} flex items-end justify-center pb-2`}
+                    >
                       <div className="flex flex-col items-center gap-2 pointer-events-auto">
                         <span className="text-xs text-foreground/45 font-medium">
                           Showing {Math.min(visibleCount, testimonials.length)} of {testimonials.length} reviews
@@ -130,7 +149,7 @@ export default function TestimonialsSection({ testimonials }) {
                           )}
                         </div>
                       </div>
-                    </div>
+                    </motion.div>
                   )}
                 </CardContent>
               </Card>

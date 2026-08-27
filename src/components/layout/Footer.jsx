@@ -1,14 +1,15 @@
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { cn } from "@/lib/utils";
 
-export default function Footer() {
+export default function Footer({ className }) {
   const { role } = useAuth();
   
   // Show these links only to guests or visitors (unauthenticated)
   const showPublicLinks = !role || role === "guest";
 
   return (
-    <footer className="border-t border-border bg-background/50">
+    <footer className={cn("border-t border-border bg-background/50", className)}>
       <div className="mx-auto max-w-7xl px-6 py-8">
         <div className="flex flex-col items-center gap-4 sm:flex-row sm:justify-between">
           <div className="flex items-center gap-2.5">
