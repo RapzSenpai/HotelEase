@@ -11,7 +11,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Check, X, Search, Image as ImageIcon, ChevronDown } from "lucide-react";
+import { Check, X, Search, Image as ImageIcon, ChevronDown, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -196,7 +196,19 @@ function BookingCard({
             )}
           </div>
           
-          {booking.paymentProofUrl ? (
+          {booking.paymentGateway === "simulated" && !booking.paymentProofUrl ? (
+            <div className="rounded-lg border border-success/30 bg-success/5 px-3 py-2 space-y-1">
+              <div className="flex items-center gap-1.5 text-success text-xs font-semibold">
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                Simulated gateway payment
+              </div>
+              {booking.gatewayRef && (
+                <p className="text-xs text-foreground/60">
+                  Ref: <span className="font-mono font-semibold">{booking.gatewayRef}</span>
+                </p>
+              )}
+            </div>
+          ) : booking.paymentProofUrl ? (
             <div className="flex items-center gap-3">
               <button
                 type="button"
@@ -247,19 +259,19 @@ function BookingCard({
             size="sm"
             disabled={isActing || (() => {
               const requiresProof = booking.paymentMethod === "GCash" || booking.paymentMethod === "Bank Transfer";
-              return requiresProof && !booking.paymentProofUrl;
+              return requiresProof && !booking.paymentProofUrl && booking.paymentGateway !== "simulated";
             })()}
             onClick={onApprove}
             className="flex items-center gap-1.5"
             title={(() => {
               const requiresProof = booking.paymentMethod === "GCash" || booking.paymentMethod === "Bank Transfer";
-              return requiresProof && !booking.paymentProofUrl ? "No payment proof submitted" : undefined;
+              return requiresProof && !booking.paymentProofUrl && booking.paymentGateway !== "simulated" ? "No payment proof submitted" : undefined;
             })()}
           >
             <Check className="h-3.5 w-3.5" />
             {isActing ? "Approving…" : (() => {
               const requiresProof = booking.paymentMethod === "GCash" || booking.paymentMethod === "Bank Transfer";
-              return requiresProof && !booking.paymentProofUrl ? "No Proof" : "Approve";
+              return requiresProof && !booking.paymentProofUrl && booking.paymentGateway !== "simulated" ? "No Proof" : "Approve";
             })()}
           </Button>
           <Button

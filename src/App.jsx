@@ -18,6 +18,7 @@ const ForgotPasswordPage = lazy(() => import("@/pages/public/ForgotPasswordPage"
 const VerifyEmailPage = lazy(() => import("@/pages/public/VerifyEmailPage"));
 const BookingPage = lazy(() => import("@/pages/public/BookingPage"));
 const MyBookingsPage = lazy(() => import("@/pages/public/MyBookingsPage"));
+const SimulatedPaymentPage = lazy(() => import("@/pages/public/SimulatedPaymentPage"));
 const ProfilePage = lazy(() => import("@/pages/public/ProfilePage"));
 const FavoritesPage = lazy(() => import("@/pages/public/FavoritesPage"));
 const HousekeepingPage = lazy(() => import("@/pages/public/HousekeepingPage"));
@@ -148,6 +149,16 @@ export default function App() {
             <MaintenanceRoute>
               <PrivateRoute allowedRoles={["guest"]}>
                 <SuspenseWrapper><MyBookingsPage /></SuspenseWrapper>
+              </PrivateRoute>
+            </MaintenanceRoute>
+          }
+        />
+        <Route
+          path="/my-bookings/:bookingId/pay"
+          element={
+            <MaintenanceRoute>
+              <PrivateRoute allowedRoles={["guest"]}>
+                <SuspenseWrapper><SimulatedPaymentPage /></SuspenseWrapper>
               </PrivateRoute>
             </MaintenanceRoute>
           }

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { NavLink } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -120,6 +120,7 @@ const ACTIVE_STATUSES = new Set([
 // ── BookingCard ───────────────────────────────────────────────────────────────
 
 function BookingCard({ booking, room, trainingMode, userProfile, onCancelled }) {
+  const navigate = useNavigate();
   const [expanded, setExpanded] = useState(false);
   const [payments, setPayments] = useState([]);
   const [paymentsLoading, setPaymentsLoading] = useState(false);
@@ -189,6 +190,7 @@ function BookingCard({ booking, room, trainingMode, userProfile, onCancelled }) 
       amountPaid: receiptPayment.amount,
       balance: Math.max(0, booking.totalCost - Number(booking.payment?.deposit ?? receiptPayment.amount ?? 0)),
       paymentMethod: receiptPayment.method,
+      simulated: receiptPayment.source === "simulated_gateway" || booking.paymentGateway === "simulated",
       paymentDate: receiptPayment.createdAt?.toDate?.() || new Date(),
       processedBy: receiptPayment.processedBy || "Front Office Staff",
     });
@@ -433,18 +435,39 @@ function BookingCard({ booking, room, trainingMode, userProfile, onCancelled }) 
             ) : null}
           </div>
 
-          {/* ── Payment Proof Upload (Awaiting Payment status) ── */}
-          {/* Phase 17.3: Only show upload UI for GCash and Bank Transfer methods */}
+          {/* ── Payment (Awaiting Payment status) ── */}
+          {/* Phase 17.3: Only show payment UI for GCash and Bank Transfer methods.
+              Primary path: simulated gateway checkout. Manual proof upload kept as fallback. */}
           {status === "Awaiting Payment" && PROOF_REQUIRED_METHODS.includes(booking.paymentMethod) && (
             <div className="rounded-lg border border-warning/30 bg-warning/5 p-3 space-y-3">
               <div className="flex items-center gap-2 text-warning">
                 <Clock className="h-4 w-4" />
-                <span className="text-sm font-semibold">Payment Proof Required</span>
+                <span className="text-sm font-semibold">Payment Required</span>
               </div>
               <p className="text-xs text-foreground/70">
-                Upload proof of payment by <span className="font-medium">{deadlineStr}</span> or this booking will be automatically cancelled.
+                Complete payment by <span className="font-medium">{deadlineStr}</span> or this booking will be automatically cancelled.
               </p>
-              
+
+              {/* Primary: simulated gateway checkout */}
+              <Button
+                type="button"
+                size="sm"
+                className="w-full"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigate(`/my-bookings/${booking.id}/pay`);
+                }}
+              >
+                <CreditCard className="mr-2 h-4 w-4" />
+                Pay Now — ₱{(booking.paymentType === "Partial" ? calculatePartialPayment(total) : total).toLocaleString()} via {booking.paymentMethod}
+              </Button>
+
+              <div className="flex items-center gap-2">
+                <span className="h-px flex-1 bg-border" />
+                <span className="text-xs text-foreground/50">or upload proof manually</span>
+                <span className="h-px flex-1 bg-border" />
+              </div>
+
               <form onSubmit={handlePaymentProofUpload} className="space-y-3">
                 {/* Payment Method Display (read-only - locked from booking time) */}
                 <div className="space-y-2">
@@ -544,6 +567,26 @@ function BookingCard({ booking, room, trainingMode, userProfile, onCancelled }) 
               {booking.proofUploadedAt && (
                 <p className="text-xs text-foreground/50">
                   Uploaded: {formatDateTime(booking.proofUploadedAt)}
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* ── Simulated Payment Completed (Pending status) ── */}
+          {status === "Pending" && booking.paymentGateway === "simulated" && (
+            <div className="rounded-lg border border-success/30 bg-success/5 p-3 space-y-2">
+              <div className="flex items-center gap-2 text-success">
+                <CheckCircle2 className="h-4 w-4" />
+                <span className="text-sm font-semibold">Simulated Payment Completed</span>
+              </div>
+              <p className="text-xs text-foreground/70">
+                Your simulated {booking.paymentMethod} payment was received and is awaiting
+                Front Office verification.
+              </p>
+              {booking.gatewayRef && (
+                <p className="text-xs text-foreground/60">
+                  Reference Number:{" "}
+                  <span className="font-mono font-semibold">{booking.gatewayRef}</span>
                 </p>
               )}
             </div>

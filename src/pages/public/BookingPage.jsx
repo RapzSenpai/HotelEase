@@ -13,7 +13,7 @@ import { getRoom, isRoomActive, isRoomBookable } from "@/services/roomsService";
 import { getRoomCapacity, calculateBookingPricing } from "@/lib/roomCapacity";
 import RoomBookingsCalendar from "@/components/calendar/RoomBookingsCalendar";
 import { SkeletonCard } from "@/components/ui/skeleton";
-import { Calendar as CalendarIcon, Upload, CheckCircle2, ChevronLeft, ChevronRight, Clock } from "lucide-react";
+import { Calendar as CalendarIcon, Upload, CheckCircle2, ChevronLeft, ChevronRight, Clock, CreditCard } from "lucide-react";
 import {
   HOTEL_GCASH_NUMBER,
   HOTEL_GCASH_QR_IMAGE_URL,
@@ -697,7 +697,7 @@ export default function BookingPage() {
                   const requiresProof = PROOF_REQUIRED_METHODS.includes(paymentMethod);
                   
                   if (requiresProof) {
-                    return <>Your booking is now <strong>Awaiting Payment</strong>. Please upload your payment proof below to complete the reservation.</>;
+                    return <>Your booking is now <strong>Awaiting Payment</strong>. Complete your payment below to move it to Front Office review — or upload proof manually if you prefer.</>;
                   }
                   
                   // OTC/Card - distinguish Full vs Partial
@@ -718,7 +718,17 @@ export default function BookingPage() {
             {/* Phase 17.3: Only show upload widget for GCash and Bank Transfer */}
             {PROOF_REQUIRED_METHODS.includes(paymentMethod) ? (
               <div className="rounded-xl border border-border bg-background p-5 space-y-4">
-                <div className="text-base font-semibold">Upload Payment Proof</div>
+                <div className="text-base font-semibold">Complete Payment</div>
+                {/* Primary: simulated gateway checkout (sandbox provider) */}
+                <Button type="button" className="w-full" onClick={() => navigate(`/my-bookings/${bookingId}/pay`)}>
+                  <CreditCard className="mr-2 h-4 w-4" />
+                  Proceed to Payment — &#8369;{amountDue.toLocaleString()} via {paymentMethod}
+                </Button>
+                <div className="flex items-center gap-2">
+                  <span className="h-px flex-1 bg-border" />
+                  <span className="text-xs text-foreground/50">or upload proof manually</span>
+                  <span className="h-px flex-1 bg-border" />
+                </div>
                 {renderPaymentInstructions(paymentMethod, amountDue)}
                 <div className="flex items-center gap-2 text-sm text-foreground/70">
                   <span>Payment type:</span>

@@ -185,6 +185,7 @@ export default function FoCheckOutPage() {
       amountPaid: totalPaid,
       balance: Math.max(0, booking.totalCost - totalPaid),
       paymentMethod: latestPayment?.method || booking.payment?.method || "N/A",
+      simulated: paymentRecords.some((p) => p.source === "simulated_gateway") || booking.paymentGateway === "simulated",
       paymentDate: latestPayment?.createdAt?.toDate?.() || new Date(),
       processedBy: latestPayment?.processedBy || profile?.fullName || profile?.email || "Front Office Staff",
     };

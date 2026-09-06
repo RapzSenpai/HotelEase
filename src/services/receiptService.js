@@ -109,7 +109,7 @@ export const generateReceipt = (data) => {
       ['Total Amount', formatAmount(data.total ?? data.subtotal)],
       ['Amount Paid', formatAmount(data.amountPaid)],
       ['Balance Due', formatAmount(data.balance)],
-      ['Payment Method', `${data.paymentMethod || 'N/A'}`],
+      ['Payment Method', `${data.paymentMethod || 'N/A'}${data.simulated ? ' (Simulated — Demo)' : ''}`],
     ],
     theme: 'grid',
     headStyles: { fillColor: primaryColor, textColor: darkTextColor, fontStyle: 'bold' },
@@ -132,6 +132,9 @@ export const generateReceipt = (data) => {
   doc.text("Thank you for choosing HotelEase!", pageWidth / 2, footerY + 6, { align: "center" });
   doc.setFontSize(7.5);
   doc.text("This is a system-generated receipt.", pageWidth / 2, footerY + 10, { align: "center" });
+  if (data.simulated) {
+    doc.text("Simulated gateway payment — demo transaction, no real funds were transferred.", pageWidth / 2, footerY + 14, { align: "center" });
+  }
 
   // Save/Download
   doc.save(`HotelEase-Receipt-${receiptNo}.pdf`);
@@ -248,7 +251,7 @@ export const generateCheckInSlip = (data) => {
       ['Total Stay Amount', formatAmount(data.total)],
       ['Amount Paid (to date)', formatAmount(data.amountPaid)],
       ['Balance Due (at checkout)', formatAmount(data.balance)],
-      ['Payment Method', `${data.paymentMethod || 'N/A'}`],
+      ['Payment Method', `${data.paymentMethod || 'N/A'}${data.simulated ? ' (Simulated — Demo)' : ''}`],
     ],
     theme: 'grid',
     headStyles: { fillColor: primaryColor, textColor: darkTextColor, fontStyle: 'bold' },

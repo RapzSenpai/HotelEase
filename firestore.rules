@@ -143,16 +143,26 @@ service cloud.firestore {
       // Guests can self-cancel their OWN bookings when status is Pending (not Awaiting Payment — 48hr expiry throttles holds).
       // Guests can request cancellation of Approved bookings.
       // Guests can upload payment proof for their OWN bookings only when status is "Awaiting Payment".
-      allow update: if (isProdFOOrAdmin() && !isAnonymous() && 
-                          (request.resource.data.status != "Checked Out" || 
+      // Guests can complete a SIMULATED gateway payment (sandbox provider) for
+      // their OWN bookings — a separate whitelisted transition that writes
+      // gateway fields instead of proof fields. Must stay in sync with
+      // paymentGatewayService.completeSimulatedPayment().
+      allow update: if (isProdFOOrAdmin() && !isAnonymous() &&
+                          (request.resource.data.status != "Checked Out" ||
                            request.resource.data.payment.deposit >= resource.data.totalCost)) ||
                        (isAuthenticated() && !isAnonymous() &&
                         isOwner(resource.data.guestId) &&
                         ((resource.data.status == "Pending" && request.resource.data.status == "Cancelled") ||
                          (resource.data.status == "Approved" && request.resource.data.status == "Cancellation Requested") ||
-                         (resource.data.status == "Awaiting Payment" && 
+                         (resource.data.status == "Awaiting Payment" &&
                           request.resource.data.status == "Pending" &&
-                          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['paymentProofUrl', 'paymentType', 'paymentMethod', 'proofUploadedAt', 'status', 'updatedAt']))));
+                          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['paymentProofUrl', 'paymentType', 'paymentMethod', 'proofUploadedAt', 'status', 'updatedAt'])) ||
+                         (resource.data.status == "Awaiting Payment" &&
+                          request.resource.data.status == "Pending" &&
+                          request.resource.data.paymentGateway == 'simulated' &&
+                          request.resource.data.gatewayRef is string &&
+                          request.resource.data.gatewayRef.size() > 0 &&
+                          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['paymentGateway', 'gatewayRef', 'paidAt', 'status', 'updatedAt']))));
 
       allow delete: if isProdFOOrAdmin() && !isAnonymous();
     }
@@ -222,17 +232,23 @@ service cloud.firestore {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated() && 
                        (request.resource.data.guestId == request.auth.uid || isProdFOOrAdmin() || isTrainingFOOrAdmin());
-      allow update: if (isAuthenticated() && 
+      allow update: if (isAuthenticated() &&
                                (isProdFOOrAdmin() || isTrainingFOOrAdmin()) &&
-                               (request.resource.data.status != "Checked Out" || 
+                               (request.resource.data.status != "Checked Out" ||
                                 request.resource.data.payment.deposit >= resource.data.totalCost)) ||
                        (isAuthenticated() &&
                         isOwner(resource.data.guestId) &&
                         ((resource.data.status == "Pending" && request.resource.data.status == "Cancelled") ||
                          (resource.data.status == "Approved" && request.resource.data.status == "Cancellation Requested") ||
-                         (resource.data.status == "Awaiting Payment" && 
+                         (resource.data.status == "Awaiting Payment" &&
                           request.resource.data.status == "Pending" &&
-                          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['paymentProofUrl', 'paymentType', 'paymentMethod', 'proofUploadedAt', 'status', 'updatedAt']))));
+                          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['paymentProofUrl', 'paymentType', 'paymentMethod', 'proofUploadedAt', 'status', 'updatedAt'])) ||
+                         (resource.data.status == "Awaiting Payment" &&
+                          request.resource.data.status == "Pending" &&
+                          request.resource.data.paymentGateway == 'simulated' &&
+                          request.resource.data.gatewayRef is string &&
+                          request.resource.data.gatewayRef.size() > 0 &&
+                          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['paymentGateway', 'gatewayRef', 'paidAt', 'status', 'updatedAt']))));
       allow delete: if isAuthenticated() && 
                                (isOwner(resource.data.guestId) || isProdFOOrAdmin() || isTrainingFOOrAdmin());
     }

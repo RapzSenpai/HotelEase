@@ -180,9 +180,10 @@ export async function approveBooking(bookingId, { trainingMode = null } = {}) {
       throw new Error("Booking must be Pending to approve.");
     }
 
-    // Phase 17.3: Only require payment proof for GCash and Bank Transfer methods
+    // Phase 17.3: Only require payment proof for GCash and Bank Transfer methods.
+    // Simulated gateway payments carry a gatewayRef instead of a proof image.
     const requiresProof = PROOF_REQUIRED_METHODS.includes(booking.paymentMethod);
-    if (requiresProof && !booking.paymentProofUrl) {
+    if (requiresProof && !booking.paymentProofUrl && booking.paymentGateway !== "simulated") {
       throw new Error("Cannot approve — no payment proof submitted.");
     }
 
@@ -226,10 +227,11 @@ export async function approveBooking(bookingId, { trainingMode = null } = {}) {
       }
     }
 
-    // Only auto-record payment for proof-required methods that actually uploaded proof.
+    // Only auto-record payment for proof-required methods that actually uploaded proof
+    // or completed the simulated gateway checkout.
     // OTC/Card: deposit stays 0 until FO manually records payment at the desk.
     const requiresProof = PROOF_REQUIRED_METHODS.includes(result.booking.paymentMethod);
-    if (requiresProof && result.booking.paymentProofUrl) {
+    if (requiresProof && (result.booking.paymentProofUrl || result.booking.paymentGateway === "simulated")) {
       try {
         const paymentType = result.booking.paymentType || "Full";
         const paymentMethod = result.booking.paymentMethod || "GCash";
@@ -237,13 +239,16 @@ export async function approveBooking(bookingId, { trainingMode = null } = {}) {
         const paymentAmount = paymentType === "Partial"
           ? calculatePartialPayment(totalCost)
           : totalCost;
+        const isSimulated = result.booking.paymentGateway === "simulated";
 
         await recordPayment({
           bookingId,
           amount: paymentAmount,
           method: paymentMethod,
-          note: "Initial payment via proof upload",
-          source: "guest_proof",
+          note: isSimulated
+            ? `Initial payment via simulated gateway (${result.booking.gatewayRef || "no ref"})`
+            : "Initial payment via proof upload",
+          source: isSimulated ? "simulated_gateway" : "guest_proof",
           processedBy: "system",
           trainingMode,
         });
