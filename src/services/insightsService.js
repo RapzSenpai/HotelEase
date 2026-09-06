@@ -253,6 +253,57 @@ export async function buildAdminContext({ trainingMode = null, force = false } =
       ? round1((current.occupancyNights / (activeRooms.length * WINDOW_DAYS)) * 100)
       : 0;
 
+  // ── Right Now: live operational state (no date-window filtering) ──
+  // The historical sections answer "how did we do?"; this answers "what needs
+  // attention today?". Counts come from data already fetched above.
+  const IN_24H_MS = curToMs + DAY_MS;
+  let pendingApprovals = 0;
+  let awaitingPayment = 0;
+  let expiringHolds24h = 0;
+  let cancellationRequests = 0;
+  let arrivalsToday = 0;
+  let departuresToday = 0;
+  const todayStart = startOfDay(now).getTime();
+  const todayEnd = todayStart + DAY_MS;
+
+  for (const b of bookings) {
+    const status = String(b.status ?? "");
+    if (status === "Pending") pendingApprovals += 1;
+    if (status === "Awaiting Payment") {
+      awaitingPayment += 1;
+      const deadline = toDate(b.paymentDeadline)?.getTime() ?? null;
+      if (deadline != null && deadline <= IN_24H_MS) expiringHolds24h += 1;
+    }
+    if (status === "Cancellation Requested") cancellationRequests += 1;
+
+    const checkIn = toDate(b.checkInDate);
+    if (
+      checkIn &&
+      (status === "Approved" || status === "Checked In") &&
+      checkIn.getTime() >= todayStart &&
+      checkIn.getTime() < todayEnd
+    ) {
+      arrivalsToday += 1;
+    }
+
+    const checkOut = toDate(b.checkOutDate);
+    if (
+      status === "Checked In" &&
+      checkOut &&
+      checkOut.getTime() >= todayStart &&
+      checkOut.getTime() < todayEnd
+    ) {
+      departuresToday += 1;
+    }
+  }
+
+  const roomsByStatus = {};
+  for (const r of activeRooms) {
+    const s = String(r.status ?? "Unknown");
+    roomsByStatus[s] = (roomsByStatus[s] ?? 0) + 1;
+  }
+  const roomsNeedingCleaning = roomsByStatus["Dirty / Needs Cleaning"] ?? 0;
+
   const data = {
     generatedAt: new Date().toISOString(),
     scope: key,
@@ -300,6 +351,18 @@ export async function buildAdminContext({ trainingMode = null, force = false } =
       messagesByStatus: messageCounts,
       testimonialsByStatus: testimonialCounts,
     },
+    rightNow: {
+      pendingApprovals,
+      awaitingPayment,
+      expiringHolds24h,
+      cancellationRequests,
+      arrivalsToday,
+      departuresToday,
+      roomsNeedingCleaning,
+      roomsByStatus,
+      unreadMessages: messageCounts.unread ?? 0,
+      pendingTestimonials: testimonialCounts.Pending ?? 0,
+    },
   };
 
   contextCache = { key, fetchedAt: Date.now(), data };
@@ -340,6 +403,36 @@ export async function generateAiInsights(context) {
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throwUpstreamError(data, res.status, "AI insights request failed");
   return String(data.content ?? "").trim();
+}
+
+/**
+ * Ops Briefing: ranked JSON to-do items derived from the snapshot's
+ * rightNow section. Returns a validated, severity-ordered array
+ * of { title, severity, evidence, recommendation, link }.
+ */
+export async function generateOpsBriefing(context) {
+  if (!GROQ_PROXY_URL) throw new Error("AI proxy URL is not configured.");
+
+  const res = await fetch(`${GROQ_PROXY_URL.replace(/\/+$/, "")}/briefing`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(await getAiAuthHeaders()),
+    },
+    body: JSON.stringify({ context }),
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throwUpstreamError(data, res.status, "Ops briefing request failed");
+
+  const items = Array.isArray(data.items) ? data.items : [];
+  return items.map((item) => ({
+    title: String(item.title ?? ""),
+    severity: ["high", "medium", "low"].includes(item.severity) ? item.severity : "medium",
+    evidence: String(item.evidence ?? ""),
+    recommendation: String(item.recommendation ?? ""),
+    link: typeof item.link === "string" && item.link.startsWith("/") ? item.link : "/admin",
+  }));
 }
 
 /**

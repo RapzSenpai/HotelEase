@@ -5,6 +5,7 @@ import { getAdminAnalyticsSummary } from "@/services/analyticsService";
 import { subscribeToActiveUsersByRole } from "@/services/activityService";
 import { useAuth } from "@/contexts/AuthContext";
 import AiInsightsCard from "@/components/admin/AiInsightsCard";
+import AdminBriefingCard from "@/components/admin/AdminBriefingCard";
 import { 
   BarChart, 
   Bar, 
@@ -277,7 +278,8 @@ export default function AdminAnalyticsPage() {
             </CardContent>
           </Card>
 
-          {/* AI Insights */}
+          {/* Ops Briefing + AI Insights */}
+          <AdminBriefingCard trainingMode={trainingMode} />
           <AiInsightsCard />
         </div>
       )}

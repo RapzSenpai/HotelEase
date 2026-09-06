@@ -41,13 +41,30 @@ const INSIGHTS_SYSTEM_PROMPT = [
   "## Potential Issues",
   "Warnings such as stuck bookings (Awaiting Payment/Pending), rising cancellations, low occupancy, weak ratings, unanswered messages.",
   "## Recommendations",
-  "3-5 concrete, actionable next steps for the admin.",
+  "3-5 concrete, actionable next steps.",
   "",
   "Rules:",
   "- Use ONLY numbers present in the snapshot. Never invent or extrapolate data.",
   "- Currency is PHP. Use the peso sign or 'PHP'.",
   "- If a metric is zero or null, state it plainly instead of speculating.",
   "- No preamble like 'Sure' — start directly with the report.",
+].join("\n");
+
+const BRIEFING_SYSTEM_PROMPT = [
+  "You are the HotelEase Ops Briefing generator for Consolatrix Suites (Toledo City, Philippines).",
+  "You receive one JSON snapshot. The `rightNow` section is the live operational state (queues, expiring holds, arrivals, room statuses); the rest is 30-day trend history.",
+  "",
+  "Produce a ranked to-do list of what needs the admin's attention.",
+  'Output ONLY a JSON array — no markdown, no code fences, no commentary. Example shape:',
+  '[{"title":"...","severity":"high","evidence":"...","recommendation":"...","link":"/fo/bookings"}]',
+  "",
+  "Rules:",
+  "- Max 5 items, most severe first. If nothing needs attention, return [].",
+  "- Every item MUST cite exact numbers from the snapshot in `evidence`. Never invent numbers.",
+  "- `severity`: high = time-sensitive with revenue or guest impact (e.g. expiring holds, cancellations, dirty rooms with arrivals today); medium = queues growing; low = opportunities.",
+  "- `recommendation`: ONE concrete action the admin can take right now.",
+  "- `link` MUST be one of: /fo/bookings, /fo/check-in, /fo/check-out, /fo/housekeeping, /fo/cancellations, /admin/messages, /admin/testimonials, /admin/room-rates, /admin",
+  "- Title is at most 60 characters.",
 ].join("\n");
 
 const ADMIN_CHAT_SYSTEM_PROMPT = [
@@ -691,6 +708,88 @@ async function handleInsightsRequest(request, workerEnv) {
 }
 
 /**
+ * Ops Briefing: ranked, structured JSON to-do list derived from the snapshot.
+ * The client renders each item as an actionable card with a deep link.
+ */
+function parseBriefingArray(text) {
+  const raw = String(text ?? "").trim();
+  const start = raw.indexOf("[");
+  const end = raw.lastIndexOf("]");
+  if (start === -1 || end === -1 || end <= start) return [];
+  try {
+    const parsed = JSON.parse(raw.slice(start, end + 1));
+    if (!Array.isArray(parsed)) return [];
+    const allowedLinks = new Set([
+      "/fo/bookings", "/fo/check-in", "/fo/check-out", "/fo/housekeeping",
+      "/fo/cancellations", "/admin/messages", "/admin/testimonials",
+      "/admin/room-rates", "/admin",
+    ]);
+    return parsed
+      .filter(
+        (item) =>
+          item &&
+          typeof item.title === "string" &&
+          typeof item.recommendation === "string",
+      )
+      .slice(0, 5)
+      .map((item) => ({
+        title: String(item.title).slice(0, 90),
+        severity: ["high", "medium", "low"].includes(item.severity) ? item.severity : "medium",
+        evidence: String(item.evidence ?? "").slice(0, 240),
+        recommendation: String(item.recommendation).slice(0, 240),
+        link: allowedLinks.has(item.link) ? item.link : "/admin",
+      }));
+  } catch {
+    return [];
+  }
+}
+
+async function handleBriefingRequest(request, workerEnv) {
+  const apiKey = workerEnv.GROQ_API_KEY;
+  if (!apiKey) {
+    return json({ error: "AI proxy is not configured (missing GROQ_API_KEY secret)." }, 500);
+  }
+
+  let payload;
+  try {
+    payload = await request.json();
+  } catch {
+    return json({ error: "Invalid JSON body." }, 400);
+  }
+
+  const context = payload?.context;
+  if (!context || typeof context !== "object") {
+    return json({ error: "Missing context object." }, 400);
+  }
+
+  const snapshotJson = JSON.stringify(context);
+  if (snapshotJson.length > 200_000) {
+    return json({ error: "Context payload too large." }, 413);
+  }
+
+  try {
+    const content = await callGroq(
+      apiKey,
+      [
+        { role: "system", content: BRIEFING_SYSTEM_PROMPT },
+        {
+          role: "user",
+          content:
+            "Generate the ops briefing JSON array for this snapshot:\n\n" +
+            snapshotJson,
+        },
+      ],
+      { maxTokens: 900, temperature: 0.2 },
+    );
+    const items = parseBriefingArray(content);
+    return json({ items });
+  } catch (e) {
+    if (e.status) return json({ error: "Groq upstream error.", detail: String(e.message || e) }, e.status);
+    return json({ error: "Failed to reach Groq.", detail: String(e) }, 502);
+  }
+}
+
+/**
  * Multi-turn admin assistant. The client supplies its own conversation
  * history; the snapshot is injected fresh into the system prompt each call.
  */
@@ -791,7 +890,7 @@ export default {
     }
 
     // Admin-only AI features require a verified signed-in user.
-    if (!identity.uid && (path === "/insights" || path === "/admin-chat")) {
+    if (!identity.uid && (path === "/insights" || path === "/admin-chat" || path === "/briefing")) {
       return json({ error: "Sign in required to use this feature.", code: "AUTH_REQUIRED" }, 401);
     }
 
@@ -817,6 +916,9 @@ export default {
 
     if (path === "/insights") {
       return handleInsightsRequest(request, workerEnv);
+    }
+    if (path === "/briefing") {
+      return handleBriefingRequest(request, workerEnv);
     }
     if (path === "/admin-chat") {
       return handleAdminChatRequest(request, workerEnv);
