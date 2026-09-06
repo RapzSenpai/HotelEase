@@ -410,7 +410,8 @@ export default function ProfilePage() {
           </CardContent>
         </Card>
 
-        {/* Password */}
+        {/* Password — hidden for anonymous training accounts (no email/password to reset) */}
+        {!user?.isAnonymous && (
         <Card>
           <CardHeader>
             <CardTitle>Password</CardTitle>
@@ -431,6 +432,7 @@ export default function ProfilePage() {
             </Button>
           </CardContent>
         </Card>
+        )}
 
         {/* Booking Summary */}
         <Card>
