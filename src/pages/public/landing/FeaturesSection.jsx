@@ -1,5 +1,4 @@
 import { useRef } from "react";
-/* eslint-disable no-unused-vars -- motion used as JSX namespace <motion.div> */
 import { motion, useInView } from "framer-motion";
 import { SectionEyebrow, AmbientGlow } from "./components";
 import image4 from "@/assets/4.jpg";

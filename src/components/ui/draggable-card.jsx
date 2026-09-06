@@ -1,6 +1,5 @@
 import { cn } from "@/lib/utils";
 import React, { useRef, useContext, createContext, useEffect } from "react";
-/* eslint-disable no-unused-vars -- motion used as JSX namespace <motion.div> */
 import {
   motion,
   useMotionValue,
@@ -10,7 +9,6 @@ import {
   useVelocity,
   useAnimationControls,
 } from "framer-motion";
-/* eslint-enable no-unused-vars */
 
 const ContainerContext = createContext(null);
 
