@@ -108,10 +108,36 @@ service cloud.firestore {
       allow read: if (isProdFOOrAdmin() && !isAnonymous()) ||
                        (!isAnonymous() && isOwner(resource.data.guestId));
       
-      // CREATE: GuestId must match authenticated user
-      allow create: if isAuthenticated() && 
-                       !isAnonymous() && 
-                       request.resource.data.guestId == request.auth.uid;
+      // CREATE: GuestId must match authenticated user.
+      // Non-staff creates get a strict payload whitelist so a DevTools client
+      // cannot fabricate an "Approved"/"Checked In" booking, inject payment
+      // data, or attach junk fields. FO/Admin keeps full create access for
+      // walk-ins and seeding. Mirrors the exact shape written by
+      // bookingsService.createBooking() — update both together.
+      allow create: if isAuthenticated() &&
+                       !isAnonymous() &&
+                       (isProdFOOrAdmin() ||
+                        (request.resource.data.guestId == request.auth.uid &&
+                         request.resource.data.status in ['Awaiting Payment', 'Pending'] &&
+                         request.resource.data.bookingType == 'Online' &&
+                         request.resource.data.roomId is string &&
+                         request.resource.data.nights is number &&
+                         request.resource.data.totalCost is number &&
+                         request.resource.data.totalCost >= 0 &&
+                         request.resource.data.payment.deposit == 0 &&
+                         request.resource.data.payment.keys().hasOnly(['method', 'deposit']) &&
+                         request.resource.data.paymentProofUrl == null &&
+                         request.resource.data.proofUploadedAt == null &&
+                         request.resource.data.proofVerifiedAt == null &&
+                         request.resource.data.keys().hasOnly([
+                           'guestId', 'roomId', 'checkInDate', 'checkOutDate', 'nights',
+                           'baseTotal', 'totalCost', 'status', 'bookingType', 'paxCount',
+                           'extraPaxCount', 'extraPaxFee', 'extraPaxTotal', 'specialRequests',
+                           'leadGuestName', 'leadGuestEmail', 'leadGuestPhone', 'arrivalTime',
+                           'payment', 'paymentProofUrl', 'paymentType', 'paymentMethod',
+                           'paymentDeadline', 'proofUploadedAt', 'proofVerifiedAt',
+                           'createdAt', 'updatedAt'
+                         ])));
 
       // UPDATE: FO/Admin can update anything.
       // Guests can self-cancel their OWN bookings when status is Pending (not Awaiting Payment — 48hr expiry throttles holds).

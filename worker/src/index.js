@@ -332,8 +332,10 @@ async function getAiDailyCount(workerEnv, scopeId) {
       const v = await workerEnv.AI_LIMITS.get(key);
       return v == null ? 0 : Number(v) || 0;
     }
-  } catch {}
-  return memDailyCounters.get(key) || 0;
+    } catch {
+      // KV binding missing or read failed — fall through to the in-memory counter.
+    }
+    return memDailyCounters.get(key) || 0;
 }
 
 async function incrementAiDailyCount(workerEnv, scopeId) {
@@ -344,7 +346,9 @@ async function incrementAiDailyCount(workerEnv, scopeId) {
       // TTL of 48h lets date-keyed entries clean themselves up.
       await workerEnv.AI_LIMITS.put(key, String(next), { expirationTtl: 172800 });
     }
-  } catch {}
+  } catch {
+    // KV write failed — the in-memory counter below still tracks this isolate.
+  }
   memDailyCounters.set(key, next);
   if (memDailyCounters.size > 5000) {
     for (const [k] of memDailyCounters) {
