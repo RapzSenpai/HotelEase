@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -108,11 +109,20 @@ function AnnouncementPhotoUploader({ imageUrl, onChange }) {
 }
 
 export default function FoAnnouncementsPage() {
-  const [form, setForm] = useState({
-    title: "",
-    description: "",
-    date: "",
-    imageUrl: null,
+  const location = useLocation();
+  const [form, setForm] = useState(() => {
+    // AI Ops Assistant hands off drafts via router state — prefilled here so
+    // the admin reviews/edits before posting. Nothing is auto-published.
+    const draft = location.state?.aiDraft;
+    if (draft && typeof draft === "object") {
+      return {
+        title: String(draft.title ?? "").slice(0, 120),
+        description: String(draft.description ?? "").slice(0, 2000),
+        date: "",
+        imageUrl: null,
+      };
+    }
+    return { title: "", description: "", date: "", imageUrl: null };
   });
 
   const [editingId, setEditingId] = useState(null);

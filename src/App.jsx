@@ -261,7 +261,7 @@ export default function App() {
           path="/fo/announcements"
           element={
             <MaintenanceRoute>
-              <PrivateRoute allowedRoles={["fo"]}>
+              <PrivateRoute allowedRoles={["fo", "admin"]}>
                 <SuspenseWrapper><FoAnnouncementsPage /></SuspenseWrapper>
               </PrivateRoute>
             </MaintenanceRoute>

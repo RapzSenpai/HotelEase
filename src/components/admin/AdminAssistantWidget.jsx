@@ -1,20 +1,143 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Bot, X, Copy, Check, ArrowUp, RotateCcw } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Bot, X, Copy, Check, ArrowUp, RotateCcw, Megaphone, Mail, ClipboardList } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { buildAdminContext, sendAdminChat } from "@/services/insightsService";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import AssistantChart from "@/components/admin/AssistantChart";
 
-const QUICK_PROMPTS = [
+const STATIC_PROMPTS = [
   { label: "Summarize this month", prompt: "Summarize hotel performance for the current period." },
   { label: "Top earning rooms?", prompt: "Which rooms are earning the most?" },
   { label: "Any red flags?", prompt: "Are there any potential issues I should look into?" },
   { label: "Chart revenue trend", prompt: "Show me a chart of the daily revenue trend." },
 ];
 
+// Grounded in the live snapshot: only surface prompts for conditions that
+// actually exist right now, falling back to evergreen ones.
+function computePrompts(ctx) {
+  const now = ctx?.rightNow ?? {};
+  const prompts = [];
+  if (now.expiringHolds24h > 0) {
+    prompts.push({
+      label: `${now.expiringHolds24h} payment hold${now.expiringHolds24h === 1 ? "" : "s"} expiring soon`,
+      prompt: "Payment holds are expiring within 24 hours. What should I do, in order?",
+    });
+  }
+  if (now.pendingApprovals > 0) {
+    prompts.push({
+      label: `${now.pendingApprovals} booking${now.pendingApprovals === 1 ? "" : "s"} awaiting approval`,
+      prompt: "Summarize the pending approvals and any risks around them.",
+    });
+  }
+  if (now.cancellationRequests > 0) {
+    prompts.push({
+      label: `${now.cancellationRequests} cancellation request${now.cancellationRequests === 1 ? "" : "s"}`,
+      prompt: "Review the cancellation requests and recommend what to do.",
+    });
+  }
+  if (now.roomsNeedingCleaning > 0) {
+    prompts.push({
+      label: `${now.roomsNeedingCleaning} room${now.roomsNeedingCleaning === 1 ? "" : "s"} need cleaning`,
+      prompt: "Housekeeping status: which rooms need attention and in what order?",
+    });
+  }
+  prompts.push({ label: "Draft an announcement", prompt: "Draft a short announcement for guests based on what is happening in the hotel right now." });
+  prompts.push({ label: "Chart revenue trend", prompt: "Show me a chart of the daily revenue trend." });
+  return prompts.slice(0, 4);
+}
+
+function parseActionBlock(code) {
+  try {
+    const parsed = JSON.parse(String(code ?? ""));
+    if (parsed && parsed.type === "draft_announcement") {
+      return {
+        type: "draft_announcement",
+        title: String(parsed.title ?? "").slice(0, 120),
+        body: String(parsed.body ?? "").slice(0, 800),
+      };
+    }
+  } catch {
+    // malformed JSON — caller falls back to a plain code block
+  }
+  return null;
+}
+
+function AssistantActionCard({ action }) {
+  const navigate = useNavigate();
+  const [copied, setCopied] = useState(false);
+
+  const isAnnouncement = action.type === "draft_announcement";
+  const fullText = isAnnouncement
+    ? `${action.title}\n\n${action.body}`
+    : String(action.body ?? "");
+
+  async function handleCopy() {
+    try {
+      await navigator.clipboard.writeText(fullText);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      /* clipboard API unavailable or blocked */
+    }
+  }
+
+  return (
+    <div className="my-2 rounded-xl border border-primary/25 bg-primary/5 p-3 space-y-2">
+      <div className="flex items-center gap-2">
+        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/15">
+          {isAnnouncement ? (
+            <Megaphone className="h-3.5 w-3.5 text-primary" />
+          ) : (
+            <Mail className="h-3.5 w-3.5 text-primary" />
+          )}
+        </div>
+        <div className="min-w-0">
+          <p className="text-xs font-semibold uppercase tracking-wide text-foreground/60">
+            AI Draft — {isAnnouncement ? "Announcement" : "Reply"}
+          </p>
+          {isAnnouncement && action.title ? (
+            <p className="truncate text-sm font-semibold">{action.title}</p>
+          ) : null}
+        </div>
+      </div>
+      <p className="text-xs leading-relaxed text-foreground/75 whitespace-pre-wrap">
+        {action.body}
+      </p>
+      <div className="flex items-center gap-2 pt-0.5">
+        {isAnnouncement ? (
+          <button
+            type="button"
+            onClick={() =>
+              navigate("/fo/announcements", {
+                state: { aiDraft: { title: action.title, description: action.body } },
+              })
+            }
+            className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground transition-all hover:brightness-110 active:scale-[0.98]"
+          >
+            <ClipboardList className="h-3.5 w-3.5" />
+            Open in Announcements
+          </button>
+        ) : null}
+        <button
+          type="button"
+          onClick={handleCopy}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:border-primary/40 hover:text-primary"
+        >
+          {copied ? <Check className="h-3.5 w-3.5 text-success" /> : <Copy className="h-3.5 w-3.5" />}
+          {copied ? "Copied" : "Copy Draft"}
+        </button>
+        <span className="text-[10px] text-foreground/40">
+          Nothing is posted until you review it
+        </span>
+      </div>
+    </div>
+  );
+}
+
 const WELCOME =
-  "Ops Assistant online. I can see aggregated booking, revenue, room, review, and operations data for the last 60 days. Ask me anything — or request a chart.";
+  "Ops Assistant online. I can see live operations (approval queues, expiring payment holds, room statuses) plus 60 days of booking, revenue, review, and housekeeping data. Ask anything, request a chart, or ask me to draft an announcement.";
 
 const markdownComponents = {
   p: ({ children }) => <p className="leading-relaxed">{children}</p>,
@@ -29,6 +152,11 @@ const markdownComponents = {
   code: ({ className, children }) => {
     if (className?.includes("language-chart")) {
       return <AssistantChart code={String(children ?? "")} />;
+    }
+    if (className?.includes("language-action")) {
+      const action = parseActionBlock(children);
+      if (action) return <AssistantActionCard action={action} />;
+      // Malformed action JSON — fall through to a plain code block.
     }
     const isBlock = Boolean(className);
     if (isBlock) {
@@ -101,6 +229,7 @@ export default function AdminAssistantWidget() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [contextReady, setContextReady] = useState(true);
+  const [dynamicPrompts, setDynamicPrompts] = useState([]);
   const listRef = useRef(null);
   const inputRef = useRef(null);
 
@@ -113,8 +242,10 @@ export default function AdminAssistantWidget() {
     let cancelled = false;
     setContextReady(false);
     buildAdminContext({ trainingMode })
-      .then(() => {
-        if (!cancelled) setContextReady(true);
+      .then((ctx) => {
+        if (cancelled) return;
+        setDynamicPrompts(computePrompts(ctx));
+        setContextReady(true);
       })
       .catch((e) => {
         console.error("AdminAssistantWidget: failed to build context", e);
@@ -263,7 +394,7 @@ export default function AdminAssistantWidget() {
           <div className="shrink-0 bg-white p-2.5">
             {isOnlyWelcome && (
               <div className="flex flex-wrap justify-center gap-2 pb-2 pt-3">
-                {QUICK_PROMPTS.map((q) => (
+                {(dynamicPrompts.length > 0 ? dynamicPrompts : STATIC_PROMPTS).map((q) => (
                   <button
                     key={q.label}
                     type="button"

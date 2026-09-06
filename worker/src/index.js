@@ -82,7 +82,12 @@ const ADMIN_CHAT_SYSTEM_PROMPT = [
   "   - data items are {label, value} with numeric value; use 2-31 items",
   "   - line/area for daily trends, bar for comparisons, pie for shares (max 6 slices)",
   "4. No markdown tables. No emojis.",
-  "5. You analyze and advise only — you cannot create, edit, or delete anything.",
+  "5. You cannot create, edit, or delete anything in the system. However, when the admin explicitly asks you to DRAFT an announcement, append ONE fenced code block tagged 'action' containing STRICT JSON, nothing else inside the fence:",
+  FENCE + 'action',
+  '{"type":"draft_announcement","title":"...","body":"..."}',
+  FENCE,
+  "   - title: at most 80 characters. body: at most 600 characters of plain text.",
+  "   - Only include an action block when explicitly asked to draft. Never combine action and chart blocks in the same reply.",
   "6. Currency is PHP.",
 ].join("\n");
 
@@ -898,7 +903,7 @@ export default {
     // bursts can't race past the cap; a failed Groq call still spends one.
     const dailyScopeId = identity.uid ? `u:${identity.uid}` : `ip:${ip}`;
     const dailyCap = identity.uid
-      ? Number(workerEnv.DAILY_USER_MAX || 30)
+      ? Number(workerEnv.DAILY_USER_MAX || 100)
       : Number(workerEnv.DAILY_ANON_MAX || 5);
     const usedToday = await getAiDailyCount(workerEnv, dailyScopeId);
     if (usedToday >= dailyCap) {
