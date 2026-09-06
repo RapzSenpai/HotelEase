@@ -20,6 +20,7 @@ import {
   setMaintenanceStatus,
 } from "@/services/maintenanceService";
 import { auditAction, AUDIT_ACTIONS } from "@/services/auditService";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   AlertTriangle,
   Power,
@@ -30,6 +31,11 @@ import {
 } from "lucide-react";
 
 export default function AdminSystemSettingsPage() {
+  // Session sandbox flag — distinct from the system-wide training toggle below.
+  // Maintenance Mode has no training variant (it is global by design), so it
+  // must be locked while a training session is active.
+  const { trainingMode: sessionTrainingMode } = useAuth();
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -364,11 +370,21 @@ export default function AdminSystemSettingsPage() {
         </CardHeader>
 
         <CardContent className="space-y-4">
+          {sessionTrainingMode && (
+            <div className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/5 p-3 text-xs text-foreground/80">
+              <AlertTriangle className="h-4 w-4 shrink-0 text-warning mt-0.5" />
+              <p>
+                Maintenance Mode is <span className="font-semibold">global</span> and affects the
+                production site even while training mode is active — it cannot be changed during a
+                training session. Exit training mode to manage it.
+              </p>
+            </div>
+          )}
           <div className="flex flex-wrap items-center gap-3">
             <Button
               variant={maintenanceEnabled ? "destructive" : "default"}
               onClick={onToggleMaintenance}
-              disabled={maintenanceSaving}
+              disabled={maintenanceSaving || sessionTrainingMode}
               className="gap-2"
             >
               <Power className="h-4 w-4" />
@@ -436,7 +452,7 @@ export default function AdminSystemSettingsPage() {
             <div className="flex justify-end">
               <Button
                 onClick={onSaveMaintenance}
-                disabled={maintenanceSaving}
+                disabled={maintenanceSaving || sessionTrainingMode}
                 className="w-full sm:w-auto"
               >
                 {maintenanceSaving ? "Saving..." : "Save Maintenance Settings"}

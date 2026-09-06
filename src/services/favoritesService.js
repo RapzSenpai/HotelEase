@@ -10,22 +10,25 @@ import {
   setDoc,
 } from "firebase/firestore";
 import { db } from "@/firebase/firebase.config";
+import { getCol } from "@/lib/db-utils";
 
-function favoritesCollection(userId) {
-  return collection(db, "users", userId, "favorites");
+// Favorites live under the user doc — prod users/{uid}/favorites, sandbox
+// training_guests/{uid}/favorites — so routing follows the users collection.
+function favoritesCollection(userId, trainingMode = null) {
+  return collection(db, getCol("users", trainingMode), userId, "favorites");
 }
 
-function favoriteDoc(userId, roomId) {
-  return doc(db, "users", userId, "favorites", roomId);
+function favoriteDoc(userId, roomId, trainingMode = null) {
+  return doc(db, getCol("users", trainingMode), userId, "favorites", roomId);
 }
 
-export function subscribeToFavorites(userId, callback) {
+export function subscribeToFavorites(userId, callback, { trainingMode = null } = {}) {
   if (!userId) {
     callback([]);
     return () => {};
   }
 
-  const q = query(favoritesCollection(userId), orderBy("createdAt", "desc"));
+  const q = query(favoritesCollection(userId, trainingMode), orderBy("createdAt", "desc"));
 
   return onSnapshot(
     q,
@@ -39,25 +42,25 @@ export function subscribeToFavorites(userId, callback) {
   );
 }
 
-export async function addFavorite(userId, roomId) {
+export async function addFavorite(userId, roomId, { trainingMode = null } = {}) {
   if (!userId || !roomId) throw new Error("User and room are required.");
-  await setDoc(favoriteDoc(userId, roomId), {
+  await setDoc(favoriteDoc(userId, roomId, trainingMode), {
     roomId,
     createdAt: serverTimestamp(),
   });
   return true;
 }
 
-export async function removeFavorite(userId, roomId) {
+export async function removeFavorite(userId, roomId, { trainingMode = null } = {}) {
   if (!userId || !roomId) throw new Error("User and room are required.");
-  await deleteDoc(favoriteDoc(userId, roomId));
+  await deleteDoc(favoriteDoc(userId, roomId, trainingMode));
   return true;
 }
 
-export async function toggleFavorite(userId, roomId) {
+export async function toggleFavorite(userId, roomId, { trainingMode = null } = {}) {
   if (!userId || !roomId) throw new Error("User and room are required.");
 
-  const ref = favoriteDoc(userId, roomId);
+  const ref = favoriteDoc(userId, roomId, trainingMode);
   const snap = await getDoc(ref);
   if (snap.exists()) {
     await deleteDoc(ref);

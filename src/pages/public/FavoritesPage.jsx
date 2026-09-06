@@ -146,14 +146,18 @@ export default function FavoritesPage() {
       return;
     }
 
-    const unsubscribe = subscribeToFavorites(user.uid, (data) => {
-      setFavorites(data);
-    });
+    const unsubscribe = subscribeToFavorites(
+      user.uid,
+      (data) => {
+        setFavorites(data);
+      },
+      { trainingMode },
+    );
 
     return () => {
       if (typeof unsubscribe === "function") unsubscribe();
     };
-  }, [user, role]);
+  }, [user, role, trainingMode]);
 
   useEffect(() => {
     let isMounted = true;
@@ -187,7 +191,7 @@ export default function FavoritesPage() {
   async function handleRemoveFavorite(roomId) {
     if (!user || role !== "guest") return;
     try {
-      await removeFavorite(user.uid, roomId);
+      await removeFavorite(user.uid, roomId, { trainingMode });
     } catch (e) {
       console.error("Failed to remove favorite:", e);
     }

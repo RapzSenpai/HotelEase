@@ -226,8 +226,14 @@ service cloud.firestore {
                         ['fullName', 'email', 'phone', 'photoUrl', 'updatedAt', 'lastLoginAt',
                          'lastLoginIp', 'isOnline', 'lastSeenAt', 'emailVerified', 'verifiedAt']));
       allow delete: if isProdFOOrAdmin() || isTrainingFOOrAdmin();
+
+      // Favorites subcollection — trainees can manage their own favorites in
+      // the sandbox (mirrors the prod users/{uid}/favorites pattern).
+      match /favorites/{roomId} {
+        allow read, create, delete: if isOwner(uid);
+      }
     }
-    
+
     match /training_bookings/{id} {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated() && 
@@ -280,6 +286,16 @@ service cloud.firestore {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated();
       allow update, delete: if isAuthenticated();
+    }
+
+    // Sandbox mirrors for admin diagnostics — trainee "admins" can exercise
+    // alerts and audit trails without touching production collections.
+    match /training_system_alerts/{id} {
+      allow read, write: if isAuthenticated();
+    }
+
+    match /training_audit_logs/{id} {
+      allow read, create: if isAuthenticated();
     }
 
     // Public config
