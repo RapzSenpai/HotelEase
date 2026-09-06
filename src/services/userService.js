@@ -1,5 +1,5 @@
 import { collection, deleteDoc, doc, getDoc, getDocs, serverTimestamp, setDoc, updateDoc, onSnapshot, query, where } from "firebase/firestore";
-import { db } from "@/firebase/firebase.config";
+import { db, auth } from "@/firebase/firebase.config";
 import { getCol } from "@/lib/db-utils";
 
 /**
@@ -136,23 +136,35 @@ const DELETE_PROXY_KEY = import.meta.env.VITE_DELETE_KEY;
 /**
  * Permanently delete a user: Firebase Auth account + Firestore user docs.
  *
- * The web client is forbidden from deleting Auth accounts, so this goes through
- * the Cloudflare Worker (server-side) which holds the service-account key and a
- * shared DELETE_KEY. Requires VITE_GROQ_PROXY_URL + VITE_DELETE_KEY in .env.
+ * Calls the Cloudflare Worker proxy (/delete-user), authenticated via the
+ * signed-in admin's Firebase ID token (or legacy DELETE_KEY fallback).
  */
 export async function deleteUserFully(uid) {
   if (!uid || typeof uid !== "string") throw new Error("Invalid uid passed to deleteUserFully");
-  if (!DELETE_PROXY_URL || !DELETE_PROXY_KEY) {
-    throw new Error("Full user deletion is not configured (missing VITE_GROQ_PROXY_URL / VITE_DELETE_KEY).");
+  if (!DELETE_PROXY_URL) {
+    throw new Error("Full user deletion is not configured (missing VITE_GROQ_PROXY_URL).");
+  }
+
+  const user = auth?.currentUser;
+  let token = null;
+  if (user && !user.isAnonymous) {
+    token = await user.getIdToken().catch(() => null);
+  }
+
+  const headers = {
+    "Content-Type": "application/json",
+  };
+
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  } else if (DELETE_PROXY_KEY) {
+    headers["X-DELETE-KEY"] = DELETE_PROXY_KEY;
   }
 
   const base = DELETE_PROXY_URL.replace(/\/+$/, "");
   const response = await fetch(`${base}/delete-user`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-DELETE-KEY": DELETE_PROXY_KEY,
-    },
+    headers,
     body: JSON.stringify({ uid }),
   });
 
