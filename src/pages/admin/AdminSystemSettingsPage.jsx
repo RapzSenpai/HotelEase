@@ -144,8 +144,7 @@ export default function AdminSystemSettingsPage() {
             System Settings
           </h1>
           <p className="text-foreground/60">
-            Manage global system behaviour. Training Mode has moved to its own
-            page in the sidebar.
+            Manage global system behaviour and maintenance mode.
           </p>
         </div>
       </div>
