@@ -17,7 +17,7 @@ import {
   Users,
   Building2,
   Settings,
-  RotateCcw,
+  GraduationCap,
   Mail,
   MessageSquareQuote,
   XCircle,
@@ -130,7 +130,7 @@ const ADMIN_LINKS = [
       { to: "/admin/performance", label: "Performance", icon: Gauge },
       { to: "/admin/audit-logs", label: "Audit Logs", icon: Shield },
       { to: "/admin/settings", label: "System Settings", icon: Settings },
-      { to: "/admin/training-reset", label: "Training Reset", icon: RotateCcw },
+      { to: "/admin/training", label: "Training Mode", icon: GraduationCap },
     ],
   },
 ];

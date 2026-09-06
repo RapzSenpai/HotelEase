@@ -50,7 +50,7 @@ const AdminSystemHealthPage = lazy(() => import("@/pages/admin/AdminSystemHealth
 const AdminPerformancePage = lazy(() => import("@/pages/admin/AdminPerformancePage"));
 const AdminAuditLogsPage = lazy(() => import("@/pages/admin/AdminAuditLogsPage"));
 const AdminAlertsPage = lazy(() => import("@/pages/admin/AdminAlertsPage"));
-const AdminTrainingDataResetPage = lazy(() => import("@/pages/admin/AdminTrainingDataResetPage"));
+const AdminTrainingModePage = lazy(() => import("@/pages/admin/AdminTrainingModePage"));
 
 // Common pages
 const UnauthorizedPage = lazy(() => import("@/pages/common/UnauthorizedPage"));
@@ -370,10 +370,10 @@ export default function App() {
           }
         />
         <Route
-          path="/admin/training-reset"
+          path="/admin/training"
           element={
             <PrivateRoute allowedRoles={["admin"]}>
-              <SuspenseWrapper><AdminTrainingDataResetPage /></SuspenseWrapper>
+              <SuspenseWrapper><AdminTrainingModePage /></SuspenseWrapper>
             </PrivateRoute>
           }
         />

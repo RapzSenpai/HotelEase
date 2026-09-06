@@ -11,11 +11,6 @@ import {
   CardContent,
 } from "@/components/ui/card";
 import {
-  generateTrainingSessionCode,
-  getTrainingSystemState,
-  setTrainingModeEnabled,
-} from "@/services/trainingService";
-import {
   getMaintenanceStatus,
   setMaintenanceStatus,
 } from "@/services/maintenanceService";
@@ -25,26 +20,16 @@ import {
   AlertTriangle,
   Power,
   Clock,
-  GraduationCap,
-  KeyRound,
   CalendarDays,
 } from "lucide-react";
 
 export default function AdminSystemSettingsPage() {
-  // Session sandbox flag — distinct from the system-wide training toggle below.
-  // Maintenance Mode has no training variant (it is global by design), so it
-  // must be locked while a training session is active.
+  // Session sandbox flag — Maintenance Mode has no training variant (it is
+  // global by design), so it must be locked while a training session is active.
   const { trainingMode: sessionTrainingMode } = useAuth();
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-
-  const [trainingMode, setTrainingMode] = useState(false);
-  const [sessionCode, setSessionCode] = useState(null);
-  const [sessionExpiryIso, setSessionExpiryIso] = useState(null);
-
-  const [ttlHours, setTtlHours] = useState(24);
-  const [sessionBusy, setSessionBusy] = useState(false);
 
   // Maintenance mode state
   const [maintenanceEnabled, setMaintenanceEnabled] = useState(false);
@@ -60,16 +45,6 @@ export default function AdminSystemSettingsPage() {
       try {
         setLoading(true);
         setError(null);
-        
-        // Load training system state
-        const sys = await getTrainingSystemState();
-        if (!isMounted) return;
-
-        setTrainingMode(Boolean(sys.enabled));
-        setSessionCode(sys.sessionCode);
-        setSessionExpiryIso(
-          sys.sessionExpiryIso?.toString?.() ?? sys.sessionExpiryIso ?? null,
-        );
 
         // Load maintenance status
         const maint = await getMaintenanceStatus();
@@ -92,41 +67,6 @@ export default function AdminSystemSettingsPage() {
       isMounted = false;
     };
   }, []);
-
-  async function onToggle() {
-    setError(null);
-    try {
-      await setTrainingModeEnabled(!trainingMode);
-      const newVal = !trainingMode;
-      const sys = await getTrainingSystemState();
-      setTrainingMode(Boolean(sys.enabled));
-      setSessionCode(sys.sessionCode);
-      setSessionExpiryIso(
-        sys.sessionExpiryIso?.toString?.() ?? sys.sessionExpiryIso ?? null,
-      );
-      auditAction(AUDIT_ACTIONS.TRAINING_MODE_TOGGLE, {
-        targetType: "system",
-        changes: { enabled: newVal },
-        description: `Training mode ${newVal ? "enabled" : "disabled"}`,
-      });
-    } catch (e) {
-      setError(e?.message || "Failed to toggle training mode.");
-    }
-  }
-
-  async function onGenerateSessionCode() {
-    setError(null);
-    setSessionBusy(true);
-    try {
-      const res = await generateTrainingSessionCode({ ttlHours });
-      setSessionCode(res.sessionCode);
-      setSessionExpiryIso(res.expiryIso);
-    } catch (e) {
-      setError(e?.message || "Failed to generate session code.");
-    } finally {
-      setSessionBusy(false);
-    }
-  }
 
   async function onToggleMaintenance() {
     setError(null);
@@ -204,7 +144,8 @@ export default function AdminSystemSettingsPage() {
             System Settings
           </h1>
           <p className="text-foreground/60">
-            Manage training mode and maintenance mode for your system.
+            Manage global system behaviour. Training Mode has moved to its own
+            page in the sidebar.
           </p>
         </div>
       </div>
@@ -215,120 +156,6 @@ export default function AdminSystemSettingsPage() {
           {error}
         </div>
       ) : null}
-
-      {/* ── Training Mode ── */}
-      <Card className="overflow-hidden">
-        <CardHeader className="flex flex-row items-start justify-between gap-4">
-          <div className="space-y-1">
-            <CardTitle className="flex items-center gap-2">
-              <div className="p-1 rounded-md bg-primary/10 text-primary">
-                <GraduationCap className="h-4 w-4" />
-              </div>
-              Training Mode
-            </CardTitle>
-            <CardDescription>
-              When enabled, booking and guest actions use the{" "}
-              <span className="font-mono text-foreground/70">training_*</span>{" "}
-              collections.
-            </CardDescription>
-          </div>
-          <span
-            className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold w-fit shrink-0 ${
-              trainingMode
-                ? "border-primary/20 bg-primary/10 text-primary"
-                : "border-border bg-muted/10 text-muted-foreground"
-            }`}
-          >
-            <span
-              className={`h-1.5 w-1.5 rounded-full ${
-                trainingMode ? "bg-primary" : "bg-muted-foreground/50"
-              }`}
-            />
-            {trainingMode ? "Active" : "Off"}
-          </span>
-        </CardHeader>
-
-        <CardContent className="space-y-4">
-          <div className="flex flex-wrap items-center gap-3">
-            <Button
-              variant={trainingMode ? "default" : "outline"}
-              onClick={onToggle}
-              disabled={loading}
-              className="gap-2"
-            >
-              <Power className="h-4 w-4" />
-              {trainingMode ? "Disable Training Mode" : "Enable Training Mode"}
-            </Button>
-            <span className="text-xs text-muted-foreground">
-              Training data stays isolated from production at all times.
-            </span>
-          </div>
-
-          <div className="border-t border-border pt-4">
-            <div className="flex items-center gap-2 mb-1">
-              <KeyRound className="h-4 w-4 text-primary" />
-              <h4 className="text-sm font-semibold">Session Codes</h4>
-            </div>
-            <p className="text-sm text-muted-foreground mb-4">
-              Students use a session code to join the training sandbox. Codes
-              expire automatically.
-            </p>
-
-            <div className="grid gap-3 sm:grid-cols-[180px_1fr] sm:items-end">
-              <div className="space-y-1.5">
-                <Label htmlFor="ttlHours">Expiry (hours)</Label>
-                <Input
-                  id="ttlHours"
-                  type="number"
-                  min={1}
-                  value={ttlHours}
-                  onChange={(e) => setTtlHours(e.target.value)}
-                />
-              </div>
-              <div className="flex sm:justify-end">
-                <Button
-                  type="button"
-                  onClick={onGenerateSessionCode}
-                  disabled={sessionBusy || !trainingMode}
-                  className="gap-2"
-                >
-                  <KeyRound className="h-4 w-4" />
-                  {sessionBusy ? "Generating..." : "Generate New Code"}
-                </Button>
-              </div>
-            </div>
-
-            {sessionCode ? (
-              <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-primary/25 bg-primary/5 px-4 py-3">
-                <div className="space-y-0.5">
-                  <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    Active session code
-                  </div>
-                  <div className="text-xl font-bold tracking-[0.2em] text-primary">
-                    {sessionCode}
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    Expires:{" "}
-                    {sessionExpiryIso
-                      ? new Date(sessionExpiryIso).toLocaleString()
-                      : "—"}
-                  </div>
-                </div>
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-success/10 border border-success/20 px-2.5 py-1 text-xs font-semibold text-success">
-                  <span className="h-1.5 w-1.5 rounded-full bg-success" />
-                  Live
-                </span>
-              </div>
-            ) : (
-              <div className="mt-3 rounded-lg border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
-                {trainingMode
-                  ? "No active session code yet. Generate one above."
-                  : "Enable Training Mode to generate a session code."}
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
 
       {/* ── Maintenance Mode ── */}
       <Card className={`overflow-hidden ${maintenanceEnabled ? "border-destructive/40 bg-destructive/5" : ""}`}>
@@ -384,7 +211,7 @@ export default function AdminSystemSettingsPage() {
             <Button
               variant={maintenanceEnabled ? "destructive" : "default"}
               onClick={onToggleMaintenance}
-              disabled={maintenanceSaving || sessionTrainingMode}
+              disabled={loading || maintenanceSaving || sessionTrainingMode}
               className="gap-2"
             >
               <Power className="h-4 w-4" />
@@ -452,7 +279,7 @@ export default function AdminSystemSettingsPage() {
             <div className="flex justify-end">
               <Button
                 onClick={onSaveMaintenance}
-                disabled={maintenanceSaving || sessionTrainingMode}
+                disabled={loading || maintenanceSaving || sessionTrainingMode}
                 className="w-full sm:w-auto"
               >
                 {maintenanceSaving ? "Saving..." : "Save Maintenance Settings"}
