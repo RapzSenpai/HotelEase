@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { Shield, Database, Eye, UserCheck, Mail } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
+import PageHero from "@/components/common/PageHero";
 
 const sections = [
   {
@@ -89,17 +90,13 @@ const sections = [
 
 export default function PrivacyPage() {
   return (
-    <div className="mx-auto w-full max-w-3xl space-y-8">
+    <div className="mx-auto w-full max-w-3xl space-y-10">
       {/* Header */}
-      <div className="text-center">
-        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
-          <Shield className="h-6 w-6 text-primary" />
-        </div>
-        <h1 className="font-playfair text-3xl font-semibold text-foreground">Privacy Policy</h1>
-        <p className="mt-2 text-sm text-foreground/55">
-          Your privacy matters to us. This page explains how HotelEase handles your personal data.
-        </p>
-      </div>
+      <PageHero
+        eyebrow="Data Protection"
+        title="Privacy Policy"
+        subtitle="Your privacy matters to us. This page explains how HotelEase handles your personal data."
+      />
 
       {/* Sections */}
       <div className="space-y-4">
@@ -107,8 +104,8 @@ export default function PrivacyPage() {
           <Card key={section.title} className="overflow-hidden">
             <CardContent className="p-5">
               <div className="flex items-start gap-3.5">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-                  <section.icon className="h-4.5 w-4.5 text-primary" />
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/15">
+                  <section.icon className="h-5 w-5 text-primary" />
                 </div>
                 <div className="min-w-0 space-y-2 text-sm leading-relaxed text-foreground/75">
                   <h2 className="text-base font-semibold text-foreground">{section.title}</h2>

@@ -6,6 +6,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import PageHero from "@/components/common/PageHero";
 
 const teamMembers = [
   {
@@ -42,21 +43,13 @@ const teamMembers = [
 
 export default function AboutPage() {
   return (
-    <div className="w-full space-y-12">
+    <div className="w-full space-y-10">
       {/* Hero */}
-      <section className="relative overflow-hidden rounded-2xl border border-border bg-primary/5 px-6 py-14 text-center sm:px-10">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(245,197,24,0.08),transparent_60%)]" />
-        <div className="relative">
-          <p className="text-xs font-semibold uppercase tracking-[0.25em] text-primary">BSHM-PMS</p>
-          <h1 className="mt-3 font-playfair text-4xl font-semibold tracking-tight text-foreground sm:text-5xl">
-            Welcome to HotelEase
-          </h1>
-          <p className="mx-auto mt-4 max-w-2xl text-base leading-relaxed text-foreground/65">
-            HotelEase is the digital Property Management System of the BSHM Department, designed to simulate real
-            hotel operations and help students practice reservation, front-office, and guest-service workflows.
-          </p>
-        </div>
-      </section>
+      <PageHero
+        eyebrow="BSHM-PMS"
+        title="Welcome to HotelEase"
+        subtitle="HotelEase is the digital Property Management System of the BSHM Department, designed to simulate real hotel operations and help students practice reservation, front-office, and guest-service workflows."
+      />
 
       {/* Mission & Vision */}
       <section className="grid gap-5 md:grid-cols-2">
@@ -111,7 +104,7 @@ export default function AboutPage() {
             {teamMembers.slice(0, 3).map((member) => (
               <Card key={member.name} className="group overflow-hidden transition-shadow hover:shadow-md">
                 <CardContent className="flex items-start gap-4 p-5">
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 transition-colors group-hover:bg-primary/20">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/15 transition-colors group-hover:bg-primary/25">
                     <member.icon className="h-5 w-5 text-primary" />
                   </div>
                   <div className="min-w-0">
@@ -132,7 +125,7 @@ export default function AboutPage() {
             {teamMembers.slice(3, 5).map((member) => (
               <Card key={member.name} className="group overflow-hidden transition-shadow hover:shadow-md">
                 <CardContent className="flex items-start gap-4 p-5">
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 transition-colors group-hover:bg-primary/20">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/15 transition-colors group-hover:bg-primary/25">
                     <member.icon className="h-5 w-5 text-primary" />
                   </div>
                   <div className="min-w-0">
