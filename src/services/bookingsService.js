@@ -283,7 +283,8 @@ export async function approveBooking(bookingId, { trainingMode = null } = {}) {
 
         const paymentType = result.booking.paymentType || "Full";
 
-        sendBookingConfirmation({
+        // Training guests have no email address — skip the doomed EmailJS call.
+        if (!trainingMode) sendBookingConfirmation({
           toEmail,
           toName,
           roomName: result.roomName,

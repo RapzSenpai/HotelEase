@@ -124,6 +124,26 @@ export async function validateTrainingSessionCode(code) {
   return { ok: true };
 }
 
+/**
+ * Delete the current trainee's own sandbox leftovers: their notifications and
+ * their training_guests profile. Called during logout BEFORE the anonymous
+ * auth account is deleted — the rules checks need request.auth to still
+ * resolve, and the profile delete satisfies isOwner(uid). Keeps the admin
+ * Training tab showing only active trainees instead of every past session.
+ */
+export async function deleteOwnTrainingProfile(uid) {
+  if (!uid) return;
+  try {
+    const notifsSnap = await getDocs(collection(db, "notifications", uid, "items"));
+    await Promise.all(
+      notifsSnap.docs.map((n) => deleteDoc(doc(db, "notifications", uid, "items", n.id))),
+    );
+  } catch (e) {
+    console.warn("[trainingService] Notification cleanup skipped:", e);
+  }
+  await deleteDoc(doc(db, TRAINING_GUESTS_COL, uid));
+}
+
 async function clearCollection(colName) {
   const qSnap = await getDocs(collection(db, colName));
   const deletions = qSnap.docs.map((d) => deleteDoc(doc(db, colName, d.id)));

@@ -20,6 +20,7 @@ import { createSession } from "@/services/sessionService";
 import {
   getTrainingSystemState,
   validateTrainingSessionCode,
+  deleteOwnTrainingProfile,
 } from "@/services/trainingService";
 import { mapAuthError } from "@/lib/authErrors";
 import {
@@ -263,7 +264,15 @@ export function AuthProvider({ children }) {
     async function login({ email, password }) {
       setAuthError(null);
       setLoading(true);
-      assignedRoleRef.current = null; 
+      assignedRoleRef.current = null;
+      // A stale training override from a previous sandbox session must never
+      // route a real login into the training collections (register/logout
+      // already clear it — login is the remaining entry point).
+      try {
+        localStorage.removeItem("bshm_training_override");
+      } catch {
+        // ignore
+      }
       try {
         await signInWithEmailAndPassword(auth, email, password);
       } catch (e) {
@@ -360,6 +369,12 @@ export function AuthProvider({ children }) {
         }
         
         if (currentUser?.isAnonymous) {
+          // Training sandbox session: remove the trainee's own profile doc and
+          // notifications first — the rules need request.auth to still resolve,
+          // and this keeps the admin Training tab free of past-session users.
+          await deleteOwnTrainingProfile(currentUser.uid).catch((e) => {
+            console.error("Training profile cleanup failed:", e);
+          });
           // This also signs the user out automatically.
           await currentUser.delete();
         } else {

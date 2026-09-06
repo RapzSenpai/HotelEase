@@ -255,14 +255,17 @@ service cloud.firestore {
     
     match /training_payments/{id} {
       allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && !isAnonymous();
+      // Sandbox: any authenticated user (including anonymous trainees playing
+      // FO) may create — mirrors training_rooms/training_reviews.
+      allow create: if isAuthenticated();
       allow update: if isProdFOOrAdmin() || isTrainingFOOrAdmin() || isAuthenticated();
       allow delete: if isProdFOOrAdmin() || isTrainingFOOrAdmin();
     }
 
     match /training_housekeeping_logs/{id} {
       allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && !isAnonymous();
+      // Sandbox: any authenticated user (including anonymous trainees) may create.
+      allow create: if isAuthenticated();
       allow update: if isProdFOOrAdmin() || isTrainingFOOrAdmin() || isAuthenticated();
       allow delete: if isProdFOOrAdmin() || isTrainingFOOrAdmin();
     }
