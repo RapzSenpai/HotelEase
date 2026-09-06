@@ -192,22 +192,15 @@ export default function AdminTrainingModePage() {
         </div>
       </div>
 
-      {/* Workflow strip */}
-      <div className="grid gap-2 sm:grid-cols-4">
+      {/* Workflow strip — fused into one panel, sections split by dividers */}
+      <div className="grid grid-cols-1 sm:grid-cols-4 divide-y sm:divide-y-0 divide-x divide-border rounded-xl border border-border bg-background shadow-sm overflow-hidden">
         {STEPS.map((step) => {
           const done =
             (step.n === 1 && trainingMode) ||
             (step.n === 2 && Boolean(sessionCode)) ||
             (step.n === 3 && !sandboxEmpty && trainingMode);
           return (
-            <div
-              key={step.n}
-              className={`flex items-center gap-2.5 rounded-xl border px-3 py-2.5 ${
-                done
-                  ? "border-success/30 bg-success/5"
-                  : "border-border bg-background"
-              }`}
-            >
+            <div key={step.n} className="flex items-center gap-2.5 px-4 py-3.5">
               <span
                 className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
                   done
