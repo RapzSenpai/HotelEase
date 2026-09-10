@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, memo, useMemo, useCallback } from "react";
+import { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -28,6 +28,7 @@ import { listBookingsForUser, getAvailableRooms } from "@/services/bookingsServi
 import { useAuth } from "@/contexts/AuthContext";
 import { trackEvent, GA_EVENTS } from "@/services/gaService";
 import { optimizeCloudinaryUrl } from "@/lib/cloudinaryTransform";
+import { StarRating, StarRatingInput } from "@/components/common/StarRating";
 import {
   Wifi,
   Wind,
@@ -111,53 +112,7 @@ function amenityIcon(label) {
 // Sub-components
 // ---------------------------------------------------------------------------
 
-const StarDisplay = memo(function StarDisplay({ rating, max = 5 }) {
-  return (
-    <span aria-label={`${rating} out of ${max} stars`}>
-      {Array.from({ length: max }, (_, i) =>
-        i < rating ? (
-          <span key={i} className="text-primary text-base leading-none">
-            ★
-          </span>
-        ) : (
-          <span key={i} className="text-foreground/40 text-base leading-none">
-            ☆
-          </span>
-        ),
-      )}
-    </span>
-  );
-});
 
-const StarSelector = memo(function StarSelector({ value, onChange }) {
-  const [hovered, setHovered] = useState(0);
-  const display = hovered || value;
-  return (
-    <div className="flex gap-1" onMouseLeave={() => setHovered(0)}>
-      {Array.from({ length: 5 }, (_, i) => {
-        const star = i + 1;
-        return (
-          <span
-            key={star}
-            role="button"
-            aria-label={`${star} star${star !== 1 ? "s" : ""}`}
-            tabIndex={0}
-            className={`text-2xl leading-none cursor-pointer select-none transition-colors duration-150 ${
-              star <= display ? "text-primary" : "text-foreground/40"
-            }`}
-            onMouseEnter={() => setHovered(star)}
-            onClick={() => onChange(star)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") onChange(star);
-            }}
-          >
-            {star <= display ? "★" : "☆"}
-          </span>
-        );
-      })}
-    </div>
-  );
-});
 
 function PhotoCarousel({ photos, roomName, isFavorite, onToggleFavorite, user, role }) {
   const [current, setCurrent] = useState(0);
@@ -279,7 +234,14 @@ export default function RoomDetailPage() {
   const [checkIn, setCheckIn] = useState(searchParams.get("checkIn") || "");
   const [checkOut, setCheckOut] = useState(searchParams.get("checkOut") || "");
 
-  const minCheckOutStr = checkIn || todayStr;
+  // Check-out must be at least one day after check-in; otherwise the Book-Now
+  // availability re-check silently fails and misreports the room as taken.
+  const minCheckOutStr = (() => {
+    if (!checkIn) return todayStr;
+    const d = new Date(`${checkIn}T00:00:00`);
+    d.setDate(d.getDate() + 1);
+    return getLocalDateString(d);
+  })();
   const nights = useMemo(() => calcNights(checkIn, checkOut), [checkIn, checkOut]);
   const datesSelected = Boolean(checkIn && checkOut && nights > 0);
 
@@ -836,7 +798,7 @@ export default function RoomDetailPage() {
                                   {formatDate(review.createdAt)}
                                 </span>
                               </div>
-                              <StarDisplay rating={Number(review.rating ?? 0)} />
+                              <StarRating rating={Number(review.rating ?? 0)} />
                               {review.feedback && (
                                 <p className="text-sm text-foreground/65 leading-relaxed">
                                   {review.feedback}
@@ -938,7 +900,7 @@ export default function RoomDetailPage() {
                       {formatDate(review.createdAt)}
                     </span>
                   </div>
-                  <StarDisplay rating={Number(review.rating ?? 0)} />
+                  <StarRating rating={Number(review.rating ?? 0)} />
                   {review.feedback && (
                     <p className="text-sm text-foreground/65 leading-relaxed">
                       {review.feedback}
@@ -975,7 +937,7 @@ export default function RoomDetailPage() {
               <span className="text-xs font-medium text-foreground/50 uppercase tracking-wider">
                 Your Rating<RequiredIndicator />
               </span>
-              <StarSelector value={formRating} onChange={setFormRating} />
+              <StarRatingInput value={formRating} onChange={setFormRating} />
             </div>
             <div className="space-y-1.5">
               <label

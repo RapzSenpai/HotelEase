@@ -5,19 +5,19 @@ import { Label } from "@/components/ui/label";
 import RequiredIndicator from "@/components/common/RequiredIndicator";
 import { useAuth } from "@/contexts/AuthContext";
 import { Link, NavLink, useNavigate } from "react-router-dom";
-import { Eye, EyeOff, AlertTriangle } from "lucide-react";
+import { Eye, EyeOff } from "lucide-react";
 import { Select } from "radix-ui";
 import { mapAuthError } from "@/lib/authErrors";
 import { useLoginLockout } from "@/hooks/useLoginLockout";
+import { toast } from "sonner";
 
 export default function LoginPage() {
   const navigate = useNavigate();
-  const { login, signInWithTrainingCode, authError, loading, role } = useAuth();
+  const { login, signInWithTrainingCode, loading, role } = useAuth();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [localError, setLocalError] = useState(null);
   const [showTraining, setShowTraining] = useState(false);
 
   // Brute-force protection (persists across refresh via sessionStorage)
@@ -37,10 +37,11 @@ export default function LoginPage() {
 
   async function onSubmit(e) {
     e.preventDefault();
-    setLocalError(null);
 
     if (isLocked) {
-      setLocalError(`Too many failed attempts. Please wait ${remainingSeconds}s.`);
+      toast.error("Too many failed attempts", {
+        description: `Please wait ${remainingSeconds}s before trying again.`,
+      });
       return;
     }
 
@@ -51,10 +52,17 @@ export default function LoginPage() {
       else if (role === "admin") navigate("/admin");
       else navigate("/my-bookings");
     } catch (err) {
-      if (registerFailure()) {
-        setLocalError(`Too many failed attempts. Locked for ${lockSeconds} seconds.`);
+      const justLocked = registerFailure();
+      const message = mapAuthError(err) || "Login failed.";
+      if (justLocked) {
+        toast.error("Too many failed attempts", {
+          description: `Account locked for ${lockSeconds} seconds.`,
+        });
       } else {
-        setLocalError(mapAuthError(err) || "Login failed.");
+        const remaining = maxAttempts - (failedAttempts + 1);
+        toast.error(message, {
+          description: `${remaining} attempt${remaining !== 1 ? "s" : ""} remaining before lockout.`,
+        });
       }
     }
   }
@@ -113,20 +121,6 @@ export default function LoginPage() {
             </Button>
           </div>
         </div>
-
-        {(localError || authError) ? (
-          <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-foreground">
-            <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5 text-destructive" />
-            <span>{localError || authError}</span>
-          </div>
-        ) : null}
-
-        {!isLocked && failedAttempts > 0 && failedAttempts < maxAttempts && (
-          <div className="flex items-center gap-2 rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm text-foreground">
-            <AlertTriangle className="h-4 w-4 shrink-0 text-warning" />
-            <span>{maxAttempts - failedAttempts} attempt{maxAttempts - failedAttempts !== 1 ? "s" : ""} remaining before lockout.</span>
-          </div>
-        )}
 
         <Button type="submit" size="default" className="w-full" disabled={loading || isLocked}>
           {isLocked ? `Locked — ${remainingSeconds}s` : loading ? "Signing in..." : "Login"}
@@ -228,7 +222,6 @@ export default function LoginPage() {
                 className="w-full"
                 disabled={trainingSubmitting || !trainingCode || !trainingRole}
                 onClick={async () => {
-                  setLocalError(null);
                   setTrainingSubmitting(true);
                   try {
                     await signInWithTrainingCode({
@@ -239,7 +232,7 @@ export default function LoginPage() {
                     else if (trainingRole === "admin") navigate("/admin");
                     else navigate("/my-bookings");
                   } catch (err) {
-                    setLocalError(mapAuthError(err) || "Training login failed.");
+                    toast.error(mapAuthError(err) || "Training login failed.");
                   } finally {
                     setTrainingSubmitting(false);
                   }

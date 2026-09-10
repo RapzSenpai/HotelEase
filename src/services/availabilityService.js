@@ -3,6 +3,7 @@ import {
   deleteDoc,
   doc,
   getDocs,
+  onSnapshot,
   query,
   serverTimestamp,
   setDoc,
@@ -109,4 +110,23 @@ export async function getRoomAvailabilityCards(roomId) {
   const q = query(collection(db, A_COL), where("roomId", "==", roomId));
   const snap = await getDocs(q);
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+
+/**
+ * Live subscription to a single room's availability markers (guest booking
+ * calendar). Guests can read room_availability, so this stays accurate when
+ * other guests book or staff approve/cancel while the page is open.
+ */
+export function subscribeRoomAvailabilityCards(roomId, callback) {
+  const q = query(collection(db, A_COL), where("roomId", "==", roomId));
+  return onSnapshot(
+    q,
+    (snap) => {
+      callback(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    },
+    (error) => {
+      console.error("[availabilityService] subscribeRoomAvailabilityCards error:", error);
+      callback([]);
+    },
+  );
 }

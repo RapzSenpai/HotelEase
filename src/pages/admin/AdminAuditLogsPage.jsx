@@ -6,7 +6,20 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { subscribeToAuditLogs, downloadAuditLogsCSV, AUDIT_ACTIONS } from "@/services/auditService";
-import { Search, Download, Filter, Shield, Clock, User, FileText, RefreshCw, Copy } from "lucide-react";
+import {
+  Search,
+  Download,
+  Shield,
+  Clock,
+  User,
+  FileText,
+  Copy,
+  ChevronDown,
+  ChevronRight,
+  ChevronsUpDown,
+  LayoutList,
+  AlignJustify,
+} from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -91,7 +104,7 @@ export default function AdminAuditLogsPage() {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  
+
   // Filters
   const [actionTypeFilter, setActionTypeFilter] = useState("all");
   const [targetTypeFilter, setTargetTypeFilter] = useState("all");
@@ -100,14 +113,20 @@ export default function AdminAuditLogsPage() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [viewingLog, setViewingLog] = useState(null);
 
-  // Reset fetch/loading state when the query signature changes. Done during
-  // render (not synchronously inside the effect) to keep effects side-effect free.
+  // View mode: "compact" = 1-line rows, "detailed" = expanded cards
+  const [viewMode, setViewMode] = useState("compact");
+  // Per-row expand state (used in compact mode)
+  const [expandedIds, setExpandedIds] = useState(new Set());
+
+  // Reset fetch/loading state when query signature changes
   const filterKey = `${actionTypeFilter}|${targetTypeFilter}|${limit}|${trainingMode}|${refreshKey}`;
   const [prevFilterKey, setPrevFilterKey] = useState(filterKey);
   if (prevFilterKey !== filterKey) {
     setPrevFilterKey(filterKey);
     setLoading(true);
     setError(null);
+    // collapse all rows when filters change
+    setExpandedIds(new Set());
   }
 
   useEffect(() => {
@@ -136,7 +155,6 @@ export default function AdminAuditLogsPage() {
 
   const filteredLogs = useMemo(() => {
     if (!searchQuery) return logs;
-    
     const search = searchQuery.toLowerCase();
     return logs.filter(
       (log) =>
@@ -146,6 +164,23 @@ export default function AdminAuditLogsPage() {
         log.description?.toLowerCase().includes(search)
     );
   }, [logs, searchQuery]);
+
+  function toggleExpanded(id) {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function expandAll() {
+    setExpandedIds(new Set(filteredLogs.map((l) => l.id)));
+  }
+
+  function collapseAll() {
+    setExpandedIds(new Set());
+  }
 
   function handleExport() {
     try {
@@ -169,6 +204,8 @@ export default function AdminAuditLogsPage() {
       toast.error("Failed to copy changes");
     }
   }
+
+  const allExpanded = expandedIds.size >= filteredLogs.length && filteredLogs.length > 0;
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
@@ -301,16 +338,63 @@ export default function AdminAuditLogsPage() {
       {loading ? (
         <div className="space-y-3">
           {[1, 2, 3, 4, 5].map((i) => (
-            <div key={i} className="h-20 rounded-xl border border-border bg-background animate-pulse" />
+            <div key={i} className="h-12 rounded-xl border border-border bg-background animate-pulse" />
           ))}
         </div>
       ) : (
         <>
-          {/* Results Count */}
-          <div className="flex items-center justify-between px-1">
+          {/* Results Count + View Controls */}
+          <div className="flex flex-wrap items-center justify-between gap-2 px-1">
             <p className="text-xs font-medium text-muted-foreground">
-              Showing <span className="font-bold text-foreground">{filteredLogs.length}</span> of <span className="font-bold text-foreground">{logs.length}</span> audit logs
+              Showing <span className="font-bold text-foreground">{filteredLogs.length}</span> of{" "}
+              <span className="font-bold text-foreground">{logs.length}</span> audit logs
             </p>
+
+            <div className="flex items-center gap-2">
+              {/* Expand / Collapse All — only relevant in compact mode */}
+              {viewMode === "compact" && filteredLogs.length > 0 && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs gap-1.5"
+                  onClick={allExpanded ? collapseAll : expandAll}
+                >
+                  <ChevronsUpDown className="h-3.5 w-3.5" />
+                  {allExpanded ? "Collapse All" : "Expand All"}
+                </Button>
+              )}
+
+              {/* View mode toggle */}
+              <div className="flex items-center rounded-md border border-border overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setViewMode("compact")}
+                  title="Compact view"
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs transition-colors ${
+                    viewMode === "compact"
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-background text-muted-foreground hover:bg-muted/40"
+                  }`}
+                >
+                  <LayoutList className="h-3.5 w-3.5" />
+                  Compact
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode("detailed")}
+                  title="Detailed view"
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs border-l border-border transition-colors ${
+                    viewMode === "detailed"
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-background text-muted-foreground hover:bg-muted/40"
+                  }`}
+                >
+                  <AlignJustify className="h-3.5 w-3.5" />
+                  Detailed
+                </button>
+              </div>
+            </div>
           </div>
 
           {/* Logs List */}
@@ -319,11 +403,102 @@ export default function AdminAuditLogsPage() {
               <FileText className="w-12 h-12 text-muted-foreground opacity-20" />
               <p className="text-muted-foreground">No audit logs found matching your criteria.</p>
             </div>
+          ) : viewMode === "compact" ? (
+            /* ── COMPACT MODE ── */
+            <div className="rounded-lg border border-border overflow-hidden divide-y divide-border">
+              {filteredLogs.map((log) => {
+                const isExpanded = expandedIds.has(log.id);
+                const hasChanges = log.changes && Object.keys(log.changes).length > 0;
+                return (
+                  <div key={log.id}>
+                    {/* Single-line clickable row */}
+                    <button
+                      type="button"
+                      onClick={() => toggleExpanded(log.id)}
+                      className="w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-muted/40 transition-colors group"
+                    >
+                      {/* chevron */}
+                      <span className="shrink-0 text-muted-foreground group-hover:text-foreground transition-colors">
+                        {isExpanded ? (
+                          <ChevronDown className="h-3.5 w-3.5" />
+                        ) : (
+                          <ChevronRight className="h-3.5 w-3.5" />
+                        )}
+                      </span>
+
+                      {/* action badge */}
+                      <Badge
+                        variant="outline"
+                        className={`shrink-0 font-mono text-[10px] px-1.5 py-0.5 ${getActionColor(log.actionType)}`}
+                      >
+                        {log.actionType}
+                      </Badge>
+
+                      {/* description */}
+                      <span className="flex-1 min-w-0 truncate text-xs text-foreground/80">
+                        {log.description}
+                      </span>
+
+                      {/* timestamp */}
+                      <span className="shrink-0 whitespace-nowrap text-[11px] text-muted-foreground">
+                        {formatTimestamp(log.timestamp)}
+                      </span>
+                    </button>
+
+                    {/* Expanded detail panel */}
+                    {isExpanded && (
+                      <div className="bg-muted/5 border-t border-border px-4 py-3 space-y-2">
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[11px] text-muted-foreground">
+                          <span className="inline-flex items-center gap-1.5">
+                            <User className="h-3 w-3" />
+                            <span className="font-medium text-foreground/80">
+                              {log.userEmail || "Unknown user"}
+                            </span>
+                          </span>
+                          {log.userRole && (
+                            <Badge
+                              variant="secondary"
+                              className="text-[9px] px-1.5 py-0.5 font-medium uppercase tracking-wider"
+                            >
+                              {log.userRole}
+                            </Badge>
+                          )}
+                          {log.targetId && (
+                            <>
+                              <span>·</span>
+                              <span className="inline-flex items-center gap-1.5">
+                                <FileText className="h-3 w-3" />
+                                <span className="capitalize font-medium text-foreground/75">
+                                  {log.targetType}
+                                </span>
+                                <code className="rounded bg-muted/40 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
+                                  {log.targetId}
+                                </code>
+                              </span>
+                            </>
+                          )}
+                        </div>
+
+                        {hasChanges && (
+                          <button
+                            type="button"
+                            onClick={() => setViewingLog(log)}
+                            className="inline-flex items-center gap-1 rounded-md bg-primary px-2 py-1 text-[10px] font-semibold text-primary-foreground transition-colors hover:bg-primary/85"
+                          >
+                            View Changes
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           ) : (
+            /* ── DETAILED MODE ── */
             <div className="space-y-2">
               {filteredLogs.map((log) => {
-                const hasChanges =
-                  log.changes && Object.keys(log.changes).length > 0;
+                const hasChanges = log.changes && Object.keys(log.changes).length > 0;
                 return (
                   <div
                     key={log.id}

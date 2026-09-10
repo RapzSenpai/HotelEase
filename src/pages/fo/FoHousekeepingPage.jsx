@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { History } from "lucide-react";
+import { StarRating } from "@/components/common/StarRating";
 import { subscribeToRooms } from "@/services/roomsService";
 import { listUsers } from "@/services/userService";
 import HousekeepingKanban from "@/components/housekeeping/HousekeepingKanban";
@@ -16,6 +17,7 @@ import {
   updateRoomStatus,
   assignHousekeepingStaff,
   bulkUpdateRoomStatus,
+  saveHousekeepingPhotos,
   subscribeToHousekeepingLogsForRoom,
 } from "@/services/housekeepingService";
 import { useSearchParams, useNavigate } from "react-router-dom";
@@ -65,6 +67,19 @@ export default function FoHousekeepingPage() {
       if (typeof unsubscribe === "function") unsubscribe();
     };
   }, [trainingMode]);
+
+  // Photos are persisted to the room doc as they upload, so after a reload the
+  // in-memory draft is empty but the room still has them. Merge room.photoUrls
+  // with the live draft (draft wins) at render time — no effect needed.
+  const effectiveVerificationPhotosByRoom = useMemo(() => {
+    const merged = {};
+    rooms.forEach((room) => {
+      if (Array.isArray(room.photoUrls) && room.photoUrls.length > 0) {
+        merged[room.id] = room.photoUrls;
+      }
+    });
+    return { ...merged, ...verificationPhotosByRoom };
+  }, [rooms, verificationPhotosByRoom]);
 
   useEffect(() => {
     let isMounted = true;
@@ -161,13 +176,17 @@ export default function FoHousekeepingPage() {
 
   function handleVerificationPhotosChange(roomId, photos) {
     setVerificationPhotosByRoom((prev) => ({ ...prev, [roomId]: photos }));
+    // Persist immediately so a page reload or status move never loses photos.
+    saveHousekeepingPhotos({ roomId, photoUrls: photos, trainingMode }).catch(() => {
+      // Non-fatal: the in-memory draft is kept; the next change retries.
+    });
   }
 
   async function moveRoom(room, nextStatus) {
     try {
       setError(null);
       const assignment = getAssignmentForRoom(room);
-      const photoUrls = verificationPhotosByRoom[room.id] || [];
+      const photoUrls = effectiveVerificationPhotosByRoom[room.id] || [];
 
       await updateRoomStatus({
         roomId: room.id,
@@ -341,7 +360,7 @@ export default function FoHousekeepingPage() {
               <HousekeepingKanban
                 rooms={visibleRooms}
                 getAssignmentForRoom={getAssignmentForRoom}
-                verificationPhotosByRoom={verificationPhotosByRoom}
+                verificationPhotosByRoom={effectiveVerificationPhotosByRoom}
                 onVerificationPhotosChange={handleVerificationPhotosChange}
                 selectedRoomIds={selectedRoomIds}
                 onToggleSelect={toggleSelectRoom}
@@ -358,7 +377,7 @@ export default function FoHousekeepingPage() {
                 getAssignmentForRoom={getAssignmentForRoom}
                 staffUsers={staffUsers}
                 onReassign={onReassign}
-                verificationPhotosByRoom={verificationPhotosByRoom}
+                verificationPhotosByRoom={effectiveVerificationPhotosByRoom}
                 onVerificationPhotosChange={handleVerificationPhotosChange}
                 selectedRoomIds={selectedRoomIds}
                 onToggleSelect={toggleSelectRoom}
@@ -438,6 +457,22 @@ export default function FoHousekeepingPage() {
                           ))}
                         </div>
                       )}
+                      {l.rating ? (
+                        <div className="pt-1 flex items-center gap-2 text-sm">
+                          <StarRating
+                            rating={Math.min(5, Math.max(1, Number(l.rating) || 0))}
+                            starClassName="h-3.5 w-3.5 fill-amber-400 text-amber-400"
+                          />
+                          <span className="font-normal text-foreground/60">
+                            Guest housekeeping rating
+                          </span>
+                          {l.ratingFeedback ? (
+                            <span className="block text-xs italic font-normal text-foreground/70">
+                              &ldquo;{l.ratingFeedback}&rdquo;
+                            </span>
+                          ) : null}
+                        </div>
+                      ) : null}
                       {l.note ? (
                         <div className="text-foreground/70">
                           Note: {l.note}

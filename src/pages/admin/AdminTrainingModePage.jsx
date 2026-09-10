@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   Card,
   CardHeader,
@@ -24,7 +25,6 @@ import {
   GraduationCap,
   KeyRound,
   Loader2,
-  Power,
   Sparkles,
   Trash2,
 } from "lucide-react";
@@ -234,54 +234,49 @@ export default function AdminTrainingModePage() {
 
       {/* ── Session Control ── */}
       <Card className="overflow-hidden">
-        <CardHeader className="flex flex-row items-start justify-between gap-4">
-          <div className="space-y-1">
-            <CardTitle className="flex items-center gap-2">
-              <div className="p-1 rounded-md bg-primary/10 text-primary">
-                <GraduationCap className="h-4 w-4" />
-              </div>
-              Session Control
-            </CardTitle>
-            <CardDescription>
-              When enabled, booking and guest actions use the{" "}
-              <span className="font-mono text-foreground/70">training_*</span>{" "}
-              collections. Training data stays isolated from production at all
-              times.
-            </CardDescription>
+        <CardHeader>
+          <div className="flex items-start gap-4">
+            <div className="flex-1 min-w-0 space-y-1">
+              <CardTitle className="flex items-center gap-2">
+                <div className="p-1 rounded-md bg-primary/10 text-primary">
+                  <GraduationCap className="h-4 w-4" />
+                </div>
+                Session Control
+              </CardTitle>
+              <CardDescription>
+                When enabled, booking and guest actions use the{" "}
+                <span className="font-mono text-foreground/70">training_*</span>{" "}
+                collections. Training data stays isolated from production at all
+                times.
+              </CardDescription>
+            </div>
+            <div className="flex items-center gap-3 shrink-0">
+              <span
+                className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold w-fit ${
+                  trainingMode
+                    ? "border-primary/20 bg-primary/10 text-primary"
+                    : "border-border bg-muted/10 text-muted-foreground"
+                }`}
+              >
+                <span
+                  className={`h-1.5 w-1.5 rounded-full ${
+                    trainingMode ? "bg-primary" : "bg-muted-foreground/50"
+                  }`}
+                />
+                {trainingMode ? "Active" : "Off"}
+              </span>
+              <Switch
+                checked={trainingMode}
+                onCheckedChange={() => onToggle()}
+                disabled={loading}
+                aria-label="Toggle training mode"
+              />
+            </div>
           </div>
-          <span
-            className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold w-fit shrink-0 ${
-              trainingMode
-                ? "border-primary/20 bg-primary/10 text-primary"
-                : "border-border bg-muted/10 text-muted-foreground"
-            }`}
-          >
-            <span
-              className={`h-1.5 w-1.5 rounded-full ${
-                trainingMode ? "bg-primary" : "bg-muted-foreground/50"
-              }`}
-            />
-            {trainingMode ? "Active" : "Off"}
-          </span>
         </CardHeader>
 
         <CardContent className="space-y-4">
-          <div className="flex flex-wrap items-center gap-3">
-            <Button
-              variant={trainingMode ? "default" : "outline"}
-              onClick={onToggle}
-              disabled={loading}
-              className="gap-2"
-            >
-              <Power className="h-4 w-4" />
-              {trainingMode ? "Disable Training Mode" : "Enable Training Mode"}
-            </Button>
-            {loading && (
-              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-            )}
-          </div>
-
-          <div className="border-t border-border pt-4">
+          <div>
             <div className="flex items-center gap-2 mb-1">
               <KeyRound className="h-4 w-4 text-primary" />
               <h4 className="text-sm font-semibold">Session Codes</h4>

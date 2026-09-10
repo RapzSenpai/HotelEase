@@ -30,7 +30,9 @@ import {
   CalendarClock,
   LogIn,
   Search,
+  AlertTriangle,
 } from "lucide-react";
+import { getOverdueDays } from "@/services/bookingsService";
 
 const STATUS_FILTERS = [
   { id: "all", label: "All Rooms" },
@@ -255,7 +257,12 @@ export default function FoDashboardPage() {
           ? `${avgMinutes}m`
           : "—";
 
-    return { occupancyRate, checkInsToday, checkOutsDue, avgStatusLabel };
+    const overdueCheckOuts = bookings.filter((booking) => {
+      if (booking.status !== "Checked In") return false;
+      return getOverdueDays(booking.checkOutDate) > 0;
+    }).length;
+
+    return { occupancyRate, checkInsToday, checkOutsDue, overdueCheckOuts, avgStatusLabel };
   }, [visibleRooms, statCounts.occupied, bookings]);
 
   const filteredRooms = useMemo(() => {
@@ -367,6 +374,33 @@ export default function FoDashboardPage() {
 
       {!loading && (
         <>
+          {/* Overdue Checkouts Alert Banner */}
+          {timeMetrics.overdueCheckOuts > 0 && (
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-destructive/40 bg-destructive/10 p-4 shadow-sm">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-destructive/20 text-destructive">
+                  <AlertTriangle className="h-5 w-5" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-semibold text-destructive">
+                    {timeMetrics.overdueCheckOuts} Overdue Stay{timeMetrics.overdueCheckOuts !== 1 ? "s" : ""} Detected
+                  </h4>
+                  <p className="text-xs text-foreground/75 mt-0.5">
+                    Checked-in bookings have exceeded their check-out deadline. Review folios, extend stays, or finalize departure.
+                  </p>
+                </div>
+              </div>
+              <Button
+                variant="destructive"
+                size="sm"
+                className="shrink-0 text-xs font-semibold"
+                onClick={() => navigate("/fo/check-out")}
+              >
+                Resolve Overdue Checkouts
+              </Button>
+            </div>
+          )}
+
           <Card className="overflow-hidden">
             <div className="grid divide-y divide-border grid-cols-2 lg:grid-cols-4 lg:divide-x lg:divide-y-0">
               <div className="flex items-center gap-3 p-3.5">

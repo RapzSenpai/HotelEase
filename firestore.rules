@@ -64,6 +64,15 @@ service cloud.firestore {
       return exists(path) && get(path).data.guestId == request.auth.uid;
     }
 
+    // Guests may review only rooms from their own completed (Checked Out) bookings.
+    function guestCanReviewBooking(bookingId) {
+      let path = /databases/$(database)/documents/bookings/$(bookingId);
+      return bookingId is string &&
+             exists(path) &&
+             get(path).data.guestId == request.auth.uid &&
+             get(path).data.status == 'Checked Out';
+    }
+
     // --- PRODUCTION COLLECTIONS (Protected) ---
 
     match /users/{uid} {
@@ -93,13 +102,37 @@ service cloud.firestore {
       // change the mid-stay fields — not price, name, capacity, or any other data.
       allow update: if (isProdFOOrAdmin() && !isAnonymous()) ||
                        (isAuthenticated() && !isAnonymous() &&
-                        request.resource.data.status == "Dirty / Needs Cleaning" &&
-                        request.resource.data.isMidStayRequest == true &&
-                        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-                          'status', 'isMidStayRequest', 'midStayNote', 'midStayGuestId',
-                          'midStayGuestName', 'midStayBookingId', 'midStayRequestedAt',
-                          'updatedAt', 'statusChangedAt'
-                        ]));
+                        (
+                          // Guest: raise a mid-stay housekeeping request (room -> Dirty),
+                          // tied to one of their own active bookings for THIS room.
+                          (request.resource.data.status == "Dirty / Needs Cleaning" &&
+                           request.resource.data.isMidStayRequest == true &&
+                           request.resource.data.midStayBookingId is string &&
+                           ownsProdBooking(request.resource.data.midStayBookingId) &&
+                           get(/databases/$(database)/documents/bookings/$(request.resource.data.midStayBookingId)).data.roomId == roomId &&
+                           request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                             'status', 'isMidStayRequest', 'midStayNote', 'midStayGuestId',
+                             'midStayGuestName', 'midStayBookingId', 'midStayRequestId',
+                             'midStayRequestedAt', 'updatedAt', 'statusChangedAt'
+                           ])) ||
+                          // Guest: cancel their own PENDING mid-stay request (Dirty -> Occupied)
+                          (resource.data.status == "Dirty / Needs Cleaning" &&
+                           resource.data.isMidStayRequest == true &&
+                           resource.data.midStayBookingId is string &&
+                           ownsProdBooking(resource.data.midStayBookingId) &&
+                           get(/databases/$(database)/documents/bookings/$(resource.data.midStayBookingId)).data.roomId == roomId &&
+                           request.resource.data.status == "Occupied / Checked In" &&
+                           !request.resource.data.keys().hasAny([
+                             'isMidStayRequest', 'midStayNote', 'midStayGuestId',
+                             'midStayGuestName', 'midStayBookingId', 'midStayRequestId',
+                             'midStayRequestedAt'
+                           ]) &&
+                           request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                             'status', 'isMidStayRequest', 'midStayNote', 'midStayGuestId',
+                             'midStayGuestName', 'midStayBookingId', 'midStayRequestId',
+                             'midStayRequestedAt', 'updatedAt', 'statusChangedAt'
+                           ]))
+                        ));
     }
 
     match /bookings/{id} {
@@ -335,8 +368,42 @@ service cloud.firestore {
     
     // Additional Production Collections
     match /housekeeping_logs/{id} {
-      allow read, create: if isAuthenticated();
-      allow update, delete: if isProdFOOrAdmin() && !isAnonymous();
+      allow read: if isAuthenticated();
+      // Guests may create ONLY their own mid-stay request/cancellation log
+      // entries (the service stamps requestId + isMidStayRequest); FO/Admin
+      // create entries for every room status change.
+      allow create: if (isProdFOOrAdmin() && !isAnonymous()) ||
+                       (isAuthenticated() && !isAnonymous() &&
+                        request.resource.data.changedByRole == 'guest' &&
+                        request.resource.data.isMidStayRequest == true &&
+                        request.resource.data.toStatus in ['Dirty / Needs Cleaning', 'Occupied / Checked In'] &&
+                        request.resource.data.bookingId is string &&
+                        ownsProdBooking(request.resource.data.bookingId) &&
+                        request.resource.data.changedByUserId == request.auth.uid &&
+                        request.resource.data.roomId is string &&
+                        request.resource.data.photoUrls is list &&
+                        request.resource.data.keys().hasOnly([
+                          'roomId', 'bookingId', 'requestId', 'fromStatus', 'toStatus',
+                          'changedByRole', 'changedByUserId', 'changedByName',
+                          'isMidStayRequest', 'note', 'photoUrls', 'createdAt', 'updatedAt'
+                        ]));
+      // Guests may rate a COMPLETED housekeeping job once: update only the
+      // rating fields on the completion log (toStatus == "Available") of a
+      // mid-stay request tied to their own booking.
+      allow update: if (isProdFOOrAdmin() && !isAnonymous()) ||
+                       (isAuthenticated() && !isAnonymous() &&
+                        resource.data.isMidStayRequest == true &&
+                        resource.data.toStatus == 'Available' &&
+                        resource.data.bookingId is string &&
+                        ownsProdBooking(resource.data.bookingId) &&
+                        !resource.data.keys().hasAny(['rating']) &&
+                        request.resource.data.rating is number &&
+                        request.resource.data.rating >= 1 &&
+                        request.resource.data.rating <= 5 &&
+                        request.resource.data.diff(resource.data).affectedKeys().hasOnly(
+                          ['rating', 'ratingFeedback', 'ratedAt']
+                        ));
+      allow delete: if isProdFOOrAdmin() && !isAnonymous();
     }
 
     match /announcements/{id} {
@@ -346,14 +413,29 @@ service cloud.firestore {
 
     match /reviews/{id} {
       allow read: if true;
-      allow create: if isAuthenticated() && !isAnonymous();
-      allow update, delete: if (isOwner(resource.data.uid) || isProdFOOrAdmin()) && !isAnonymous();
+      // One review per guest per room (enforced client-side via a deterministic
+      // doc id `${guestId}_${roomId}`); guests may only review rooms from their
+      // own completed (Checked Out) bookings, with a valid 1-5 rating.
+      allow create: if isAuthenticated() && !isAnonymous() &&
+                       request.resource.data.guestId == request.auth.uid &&
+                       request.resource.data.roomId is string &&
+                       request.resource.data.guestName is string &&
+                       request.resource.data.rating is number &&
+                       request.resource.data.rating >= 1 &&
+                       request.resource.data.rating <= 5 &&
+                       request.resource.data.feedback is string &&
+                       request.resource.data.bookingId is string &&
+                       guestCanReviewBooking(request.resource.data.bookingId) &&
+                       request.resource.data.keys().hasOnly([
+                         'roomId', 'bookingId', 'guestId', 'guestName', 'rating',
+                         'feedback', 'createdAt', 'updatedAt'
+                       ]);
+      allow update, delete: if (isOwner(resource.data.guestId) || isProdFOOrAdmin()) && !isAnonymous();
     }
 
     match /notifications/{userId}/items/{notifId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
-      allow create: if isAuthenticated() &&
-                       request.resource.data.type in ["booking_request","booking_approved","booking_rejected","booking_cancelled","room_dirty","announcement","support_message","cancellation_requested","cancellation_approved","cancellation_rejected","payment_proof_required","housekeeping_in_progress","housekeeping_done"] &&
+      allow create: if isAuthenticated() &&                           request.resource.data.type in ["booking_request","booking_approved","booking_rejected","booking_cancelled","room_dirty","announcement","support_message","cancellation_requested","cancellation_approved","cancellation_rejected","payment_proof_required","housekeeping_in_progress","housekeeping_done","housekeeping_cancelled","housekeeping_rated"] &&
                        request.resource.data.isRead == false &&
                        request.resource.data.keys().hasAll(['title', 'message', 'link', 'createdAt']);
     }

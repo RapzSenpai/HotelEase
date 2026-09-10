@@ -16,11 +16,13 @@
  */
 
 import {
-  addDoc,
   collection,
+  doc,
+  getDoc,
   getDocs,
   orderBy,
   query,
+  runTransaction,
   serverTimestamp,
   where,
 } from "firebase/firestore";
@@ -55,6 +57,10 @@ export async function listReviewsForRoom(roomId, { trainingMode = null } = {}) {
 /**
  * Submit a new review document to Firestore.
  *
+ * One review per guest per room is enforced by using a deterministic doc id
+ * (`${guestId}_${roomId}`) plus a transactional existence check, so a guest
+ * cannot spam duplicates even from DevTools.
+ *
  * @param {{
  *   roomId: string,
  *   bookingId: string,
@@ -81,25 +87,41 @@ export async function createReview(payload) {
     throw new Error("createReview: roomId and guestId are required.");
   }
 
-  const col = reviewsCollection(trainingMode);
-  const colRef = collection(db, col);
+  // Belt-and-braces: also catch legacy reviews created before deterministic ids.
+  const already = await hasUserReviewedRoom(guestId, roomId, { trainingMode });
+  if (already) {
+    throw new Error("You have already reviewed this room.");
+  }
 
-  const docRef = await addDoc(colRef, {
-    roomId: roomId ?? "",
-    bookingId: bookingId ?? "",
-    guestId: guestId ?? "",
-    guestName: guestName ?? "Guest",
-    rating: Number(rating ?? 1),
-    feedback: feedback ?? "",
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
+  const col = reviewsCollection(trainingMode);
+  const reviewId = `${guestId}_${roomId}`;
+  const reviewRef = doc(db, col, reviewId);
+
+  await runTransaction(db, async (transaction) => {
+    const existing = await transaction.get(reviewRef);
+    if (existing.exists()) {
+      throw new Error("You have already reviewed this room.");
+    }
+    transaction.set(reviewRef, {
+      roomId: roomId ?? "",
+      bookingId: bookingId ?? "",
+      guestId: guestId ?? "",
+      guestName: guestName ?? "Guest",
+      rating: Number(rating ?? 1),
+      feedback: feedback ?? "",
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
   });
 
-  return { id: docRef.id };
+  return { id: reviewId };
 }
 
 /**
  * Check whether a guest has already reviewed a specific room.
+ *
+ * Fast path: deterministic doc id. Fallback: query for legacy reviews created
+ * before the deterministic-id scheme existed.
  *
  * @param {string} guestId
  * @param {string} roomId
@@ -110,6 +132,13 @@ export async function hasUserReviewedRoom(guestId, roomId, { trainingMode = null
   if (!guestId || !roomId) return false;
 
   const col = reviewsCollection(trainingMode);
+  try {
+    const snap = await getDoc(doc(db, col, `${guestId}_${roomId}`));
+    if (snap.exists()) return true;
+  } catch {
+    // fall through to the legacy query
+  }
+
   const q = query(
     collection(db, col),
     where("guestId", "==", guestId),

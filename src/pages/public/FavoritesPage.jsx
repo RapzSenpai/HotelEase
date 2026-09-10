@@ -1,18 +1,32 @@
 import { useEffect, useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { NavLink } from "react-router-dom";
 import { subscribeToFavorites, removeFavorite } from "@/services/favoritesService";
 import { getRoom } from "@/services/roomsService";
+import { getRoomAvailabilityCards } from "@/services/availabilityService";
 import { useAuth } from "@/contexts/AuthContext";
 import { SkeletonCard } from "@/components/ui/skeleton";
-import { Heart, Trash2, X, Clock, CheckCircle2, XCircle } from "lucide-react";
+import { Heart, Trash2, Clock } from "lucide-react";
 
 function formatRate(rate) {
   if (rate == null || rate === "") return null;
   const num = Number(rate);
   if (isNaN(num)) return null;
   return num.toLocaleString("en-PH", { minimumFractionDigits: 0 });
+}
+
+function getLocalDateString(date = new Date()) {
+  const offset = date.getTimezoneOffset();
+  const localDate = new Date(date.getTime() - offset * 60 * 1000);
+  return localDate.toISOString().split("T")[0];
+}
+
+function formatFreeDate(dateStr) {
+  if (!dateStr) return "";
+  return new Date(`${dateStr}T00:00:00`).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  });
 }
 
 function timeAgo(date) {
@@ -31,10 +45,9 @@ function timeAgo(date) {
   return then.toLocaleDateString("en-PH", { month: "short", day: "numeric" });
 }
 
-function FavoriteRoomCard({ room, favorite, onRemove }) {
+function FavoriteRoomCard({ room, favorite, onRemove, hint }) {
   const photos = Array.isArray(room.photos) ? room.photos : [];
   const firstPhoto = photos.length > 0 ? photos[0] : null;
-  const isAvailable = room.status === "Available";
   const saved = timeAgo(favorite?.createdAt);
 
   return (
@@ -53,21 +66,6 @@ function FavoriteRoomCard({ room, favorite, onRemove }) {
           </div>
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent" />
-
-        {/* Availability chip */}
-        <div className="absolute left-3 top-3">
-          {isAvailable ? (
-            <span className="inline-flex items-center gap-1 rounded-full bg-success/90 px-2.5 py-1 text-xs font-medium text-white shadow-sm backdrop-blur-sm">
-              <CheckCircle2 className="h-3 w-3" />
-              Available
-            </span>
-          ) : (
-            <span className="inline-flex items-center gap-1 rounded-full bg-foreground/60 px-2.5 py-1 text-xs font-medium text-white shadow-sm backdrop-blur-sm">
-              <XCircle className="h-3 w-3" />
-              Unavailable
-            </span>
-          )}
-        </div>
       </div>
 
       {/* Card Body */}
@@ -100,6 +98,21 @@ function FavoriteRoomCard({ room, favorite, onRemove }) {
             <div className="flex items-center gap-1.5 text-xs text-foreground/40">
               <Clock className="h-3 w-3" />
               <span>Saved {saved}</span>
+            </div>
+          )}
+
+          {/* Availability hint — first night free within the next 30 days */}
+          {hint && (
+            <div
+              className={`flex items-center gap-1.5 text-xs font-medium ${
+                hint.none ? "text-foreground/40" : "text-success"
+              }`}
+            >
+              {hint.none ? (
+                <span>Booked out next 30 days</span>
+              ) : (
+                <span>Free from {formatFreeDate(hint.freeFrom)}</span>
+              )}
             </div>
           )}
         </div>
@@ -136,7 +149,8 @@ export default function FavoritesPage() {
   const [favorites, setFavorites] = useState([]);
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeFilter, setActiveFilter] = useState("all");
+  // roomId -> { freeFrom: "YYYY-MM-DD" } | { none: true } — computed once per room
+  const [hints, setHints] = useState({});
 
   useEffect(() => {
     if (!user || role !== "guest") {
@@ -175,7 +189,9 @@ export default function FavoritesPage() {
         const roomPromises = favorites.map((fav) => getRoom(fav.roomId, { trainingMode }));
         const roomData = await Promise.all(roomPromises);
         if (!isMounted) return;
-        setRooms(roomData.filter((r) => r !== null));
+        // Archived rooms are hidden — their only signal used to be the
+        // availability chip, which is gone; they can't be booked anyway.
+        setRooms(roomData.filter((r) => r !== null && r.isActive !== false));
       } catch (e) {
         console.error("Failed to load favorite rooms:", e);
         if (isMounted) setRooms([]);
@@ -197,6 +213,45 @@ export default function FavoritesPage() {
     }
   }
 
+  // Find the first free night within the next 30 days for each favorite room.
+  // Prod only — training uses the open sandbox where markers don't exist.
+  useEffect(() => {
+    if (trainingMode) {
+      setHints({});
+      return undefined;
+    }
+    let isMounted = true;
+    async function computeHints() {
+      const next = {};
+      const start = new Date();
+      start.setDate(start.getDate() + 1); // scan from tomorrow
+      for (const room of rooms) {
+        try {
+          const cards = await getRoomAvailabilityCards(room.id);
+          const blocked = new Set(cards.map((c) => c.date));
+          const d = new Date(start);
+          let freeFrom = null;
+          for (let i = 0; i < 30; i++) {
+            const key = getLocalDateString(d);
+            if (!blocked.has(key)) {
+              freeFrom = key;
+              break;
+            }
+            d.setDate(d.getDate() + 1);
+          }
+          next[room.id] = freeFrom ? { freeFrom } : { none: true };
+        } catch (e) {
+          console.error("Failed to compute availability hint:", e);
+        }
+      }
+      if (isMounted) setHints(next);
+    }
+    if (rooms.length > 0) computeHints();
+    return () => {
+      isMounted = false;
+    };
+  }, [rooms, trainingMode]);
+
   const roomsWithFavorites = useMemo(() => {
     const favMap = {};
     for (const fav of favorites) {
@@ -204,29 +259,6 @@ export default function FavoritesPage() {
     }
     return rooms.map((r) => ({ room: r, favorite: favMap[r.id] || null }));
   }, [rooms, favorites]);
-
-  const filteredRooms = useMemo(() => {
-    if (activeFilter === "available") {
-      return roomsWithFavorites.filter((r) => r.room.status === "Available");
-    }
-    if (activeFilter === "unavailable") {
-      return roomsWithFavorites.filter((r) => r.room.status !== "Available");
-    }
-    return roomsWithFavorites;
-  }, [roomsWithFavorites, activeFilter]);
-
-  const availableCount = useMemo(
-    () => roomsWithFavorites.filter((r) => r.room.status === "Available").length,
-    [roomsWithFavorites],
-  );
-  const unavailableCount = roomsWithFavorites.length - availableCount;
-
-  function countForFilter(filter) {
-    if (filter === "all") return roomsWithFavorites.length;
-    if (filter === "available") return availableCount;
-    if (filter === "unavailable") return unavailableCount;
-    return 0;
-  }
 
   if (!user || role !== "guest") {
     return (
@@ -273,68 +305,20 @@ export default function FavoritesPage() {
         </div>
       )}
 
-      {/* Filter bar + Room Grid */}
+      {/* Room Grid */}
       {!loading && rooms.length > 0 && (
-        <>
-          {/* Filters */}
-          <div className="flex flex-wrap gap-2 border-b border-border pb-3">
-            {[
-              { id: "all", label: "All" },
-              { id: "available", label: "Available Now" },
-              { id: "unavailable", label: "Unavailable" },
-            ].map((filter) => {
-              const count = countForFilter(filter.id);
-              const isActive = activeFilter === filter.id;
-              return (
-                <button
-                  key={filter.id}
-                  type="button"
-                  onClick={() => setActiveFilter(filter.id)}
-                  className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-                    isActive
-                      ? "bg-primary text-primary-foreground"
-                      : "text-foreground/60 hover:bg-surface-hover hover:text-foreground/90"
-                  }`}
-                >
-                  {filter.label}
-                  {count > 0 && (
-                    <span
-                      className={`rounded-full px-1.5 py-0.5 text-xs leading-none ${
-                        isActive
-                          ? "bg-primary-foreground/20 text-primary-foreground"
-                          : "bg-muted/20 text-foreground/50"
-                      }`}
-                    >
-                      {count}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* No results for filter */}
-          {filteredRooms.length === 0 && (
-            <div className="rounded-xl border border-border bg-background p-8 text-center text-sm text-foreground/50">
-              No {activeFilter === "available" ? "available" : "unavailable"} rooms in your favorites.
+        <div className="columns-1 gap-6 space-y-6 sm:columns-2 lg:columns-3">
+          {roomsWithFavorites.map(({ room, favorite }) => (
+            <div key={room.id} className="mb-6 break-inside-avoid">
+              <FavoriteRoomCard
+                room={room}
+                favorite={favorite}
+                onRemove={handleRemoveFavorite}
+                hint={hints[room.id]}
+              />
             </div>
-          )}
-
-          {/* Room Grid */}
-          {filteredRooms.length > 0 && (
-            <div className="columns-1 gap-6 space-y-6 sm:columns-2 lg:columns-3">
-              {filteredRooms.map(({ room, favorite }) => (
-                <div key={room.id} className="mb-6 break-inside-avoid">
-                  <FavoriteRoomCard
-                    room={room}
-                    favorite={favorite}
-                    onRemove={handleRemoveFavorite}
-                  />
-                </div>
-              ))}
-            </div>
-          )}
-        </>
+          ))}
+        </div>
       )}
     </div>
   );

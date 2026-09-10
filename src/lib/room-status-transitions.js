@@ -7,7 +7,10 @@ export const HOUSEKEEPING_KANBAN_COLUMNS = [
 const HOUSEKEEPING_TRANSITIONS = {
   "Dirty / Needs Cleaning": ["Being Cleaned"],
   "Being Cleaned": ["Pending Approval", "Dirty / Needs Cleaning"],
-  "Pending Approval": ["Being Cleaned"],
+  // "Available" is the approve step — button-only today (no column exists to
+  // drop into), kept in sync with FO_STATUS_TRANSITIONS so the validation maps
+  // agree with the Approve button.
+  "Pending Approval": ["Being Cleaned", "Available"],
 };
 
 export function getValidHousekeepingTransitions(fromStatus) {

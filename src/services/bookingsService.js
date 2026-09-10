@@ -339,6 +339,23 @@ export async function checkInBooking(bookingId, { trainingMode = null } = {}) {
       statusChangedAt: serverTimestamp(),
     });
 
+    return { ok: true, booking };
+  }).then(async (result) => {
+    // PROD: refresh availability marker status after check-in so the guest
+    // calendar shows "Checked In" instead of the stale "Approved".
+    if (!trainingMode) {
+      try {
+        await setBookingMarked({
+          roomId: result.booking.roomId,
+          bookingId,
+          checkIn: result.booking.checkInDate,
+          checkOut: result.booking.checkOutDate,
+          status: "Checked In",
+        });
+      } catch (e) {
+        console.warn("Availability marker refresh failed:", e);
+      }
+    }
     return { ok: true };
   });
 }
@@ -395,6 +412,140 @@ export async function checkOutBooking(bookingId, { trainingMode = null } = {}) {
     }
     return { ok: true };
   });
+}
+
+/**
+ * Calculates how many whole days a booking is past its checkout date.
+ * Hotel standard check-out deadline is 12:00 NN.
+ * Returns 0 if not overdue.
+ */
+export function getOverdueDays(checkOutDateLike) {
+  const checkOut = toDate(checkOutDateLike);
+  if (!checkOut) return 0;
+
+  // Set checkout threshold to 12:00 NN on the checkout date
+  const deadline = new Date(checkOut);
+  deadline.setHours(12, 0, 0, 0);
+
+  const now = new Date();
+  if (now <= deadline) return 0;
+
+  const diffMs = now.getTime() - deadline.getTime();
+  const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+  return Math.max(0, diffDays);
+}
+
+/**
+ * Front Office action: Extend an active Checked-In booking to a new check-out date.
+ * Validates conflicts on the extended nights and writes availability markers.
+ */
+export async function extendStayBooking(bookingId, { newCheckOutDate, additionalCost = 0, trainingMode = null } = {}) {
+  if (!bookingId || !newCheckOutDate) throw new Error("Booking ID and new check-out date are required.");
+
+  const newOut = toDate(newCheckOutDate);
+  if (!newOut) throw new Error("Invalid new check-out date.");
+
+  const bCol = bookingsCollection(trainingMode);
+  const bookingRef = doc(db, bCol, bookingId);
+  const bookingSnap = await getDoc(bookingRef);
+  if (!bookingSnap.exists()) throw new Error("Booking not found.");
+
+  const booking = bookingSnap.data();
+  if (booking.status !== "Checked In") {
+    throw new Error("Only Checked-In bookings can have their stay extended.");
+  }
+
+  const currentOut = toDate(booking.checkOutDate);
+  const checkIn = toDate(booking.checkInDate);
+
+  if (newOut <= currentOut) {
+    throw new Error("New check-out date must be later than the current check-out date.");
+  }
+
+  // Check conflicts for the extended date range [currentOut, newOut]
+  const curOutStr = currentOut.toISOString().split("T")[0];
+  const newOutStr = newOut.toISOString().split("T")[0];
+  const blockedRoomIds = await getAvailableRoomIds(curOutStr, newOutStr, { trainingMode });
+  if (blockedRoomIds.has(booking.roomId)) {
+    throw new Error("Cannot extend stay: The room is reserved by another booking for the extended dates.");
+  }
+
+  const newTotalNights = calcNights(checkIn, newOut);
+  const addedNights = calcNights(currentOut, newOut);
+  const updatedTotalCost = Number(booking.totalCost ?? 0) + Number(additionalCost);
+
+  await updateDoc(bookingRef, {
+    checkOutDate: Timestamp.fromDate(newOut),
+    nights: newTotalNights,
+    totalCost: updatedTotalCost,
+    subtotal: updatedTotalCost,
+    baseTotal: Number(booking.baseTotal ?? booking.totalCost) + Number(additionalCost),
+    isExtended: true,
+    extendedNights: (booking.extendedNights || 0) + addedNights,
+    updatedAt: serverTimestamp(),
+  });
+
+  // PROD: mark the newly extended nights as Checked In
+  if (!trainingMode) {
+    try {
+      await setBookingMarked({
+        roomId: booking.roomId,
+        bookingId,
+        checkIn: currentOut,
+        checkOut: newOut,
+        status: "Checked In",
+      });
+    } catch (e) {
+      console.warn("Availability marker update for extension failed:", e);
+    }
+  }
+
+  // Notify guest
+  if (booking.guestId) {
+    try {
+      await createNotification(booking.guestId, {
+        type: "stay_extended",
+        title: "Stay Extended",
+        message: `Your stay in ${booking.roomName || "your room"} has been extended until ${newOut.toLocaleDateString()}.`,
+        link: "/my-bookings",
+      });
+    } catch (e) {
+      console.error("Notif error", e);
+    }
+  }
+
+  return { ok: true, newCheckOutDate: newOut, totalNights: newTotalNights, totalCost: updatedTotalCost };
+}
+
+/**
+ * Front Office action: Add an incidental fee (e.g. Late Checkout / Overstay Fee)
+ * to a booking folio before checkout.
+ */
+export async function addOverstayFee(bookingId, { feeAmount, feeReason = "Overstay / Late Check-Out Fee", trainingMode = null } = {}) {
+  const fee = Number(feeAmount);
+  if (!bookingId || !Number.isFinite(fee) || fee <= 0) {
+    throw new Error("Please provide a valid positive fee amount.");
+  }
+
+  const bCol = bookingsCollection(trainingMode);
+  const bookingRef = doc(db, bCol, bookingId);
+  const bookingSnap = await getDoc(bookingRef);
+  if (!bookingSnap.exists()) throw new Error("Booking not found.");
+
+  const booking = bookingSnap.data();
+  const currentCost = Number(booking.totalCost ?? 0);
+  const currentOverstayFee = Number(booking.overstayFee ?? 0);
+  const newTotal = currentCost + fee;
+
+  await updateDoc(bookingRef, {
+    overstayFee: currentOverstayFee + fee,
+    overstayReason: feeReason,
+    totalCost: newTotal,
+    subtotal: newTotal,
+    updatedAt: serverTimestamp(),
+  });
+
+  return { ok: true, newTotalCost: newTotal, overstayFee: currentOverstayFee + fee };
 }
 
 export async function createBooking(payload) {
@@ -645,6 +796,20 @@ export async function rejectBooking(
     const booking = bookingSnap.data();
     const roomSnap = await getDoc(doc(db, getCol("rooms", trainingMode), booking.roomId));
     const roomName = roomSnap.exists() ? roomSnap.data().name || roomSnap.data().type || "Room" : "Room";
+
+    // PROD: free the availability markers for this booking's nights. A
+    // rejected booking must never leave orphan blocks on room_availability
+    // (same pattern as cancelBooking / approveCancellation / expiry sweep).
+    if (!trainingMode && booking.roomId) {
+      try {
+        await clearBookingMarked({
+          roomId: booking.roomId,
+          dates: nightKeys(booking.checkInDate, booking.checkOutDate),
+        });
+      } catch (e) {
+        console.warn("Availability marker cleanup failed:", e);
+      }
+    }
 
     await createNotification(booking.guestId, {
       type: "booking_rejected",

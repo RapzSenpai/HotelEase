@@ -40,6 +40,10 @@ describe("Housekeeping transitions", () => {
     expect(isValidHousekeepingTransition("Pending Approval", "Being Cleaned")).toBe(true);
   });
 
+  it("allows Pending Approval -> Available (approve)", () => {
+    expect(isValidHousekeepingTransition("Pending Approval", "Available")).toBe(true);
+  });
+
   it("does not allow Dirty -> Pending Approval (must go through Being Cleaned)", () => {
     expect(isValidHousekeepingTransition("Dirty / Needs Cleaning", "Pending Approval")).toBe(false);
   });

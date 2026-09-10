@@ -19,9 +19,11 @@ import {
   CheckCircle, 
   RefreshCw,
   Zap,
-  Shield
+  Shield,
+  Users
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { subscribeToUsers } from "@/services/userService";
 
 export default function AdminSystemHealthPage() {
   // System health and error logs are production-only collections (no sandbox
@@ -35,6 +37,10 @@ export default function AdminSystemHealthPage() {
   // Real performance-derived metrics
   const [realLatency, setRealLatency] = useState(null);
   const [realConnectivity, setRealConnectivity] = useState(null);
+
+  // Live user presence — both derived from one subscribeToUsers stream
+  const [onlineNow, setOnlineNow] = useState(null);      // isOnline: true
+  const [activeToday, setActiveToday] = useState(null);  // lastLoginAt within 24h
 
   async function loadErrorLogs() {
     try {
@@ -60,6 +66,27 @@ export default function AdminSystemHealthPage() {
       .then((logs) => setErrorLogs(logs))
       .catch((error) => console.error("Failed to load error logs:", error));
 
+    // Live user presence — single subscription powers both metrics
+    const unsubUsers = subscribeToUsers({
+      trainingMode: false, // always production users for health page
+      onData: (users) => {
+        const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
+        setOnlineNow(users.filter((u) => u.isOnline === true).length);
+        setActiveToday(
+          users.filter((u) => {
+            const ts = u.lastLoginAt;
+            if (!ts) return false;
+            const d = typeof ts.toDate === "function" ? ts.toDate() : new Date(ts);
+            return d.getTime() >= oneDayAgo;
+          }).length
+        );
+      },
+      onError: () => {
+        setOnlineNow(null);
+        setActiveToday(null);
+      },
+    });
+
     // Real performance metrics (setState deferred onto a microtask so the
     // effect body stays free of synchronous setState calls).
     const summary = summarizeSamples();
@@ -69,7 +96,10 @@ export default function AdminSystemHealthPage() {
     );
     probeConnectivity().then((r) => setRealConnectivity(r));
 
-    return unsubscribe;
+    return () => {
+      unsubscribe();
+      unsubUsers();
+    };
   }, []);
 
   async function handleRefresh() {
@@ -80,6 +110,7 @@ export default function AdminSystemHealthPage() {
     const conn = await probeConnectivity();
     setRealConnectivity(conn);
     await loadErrorLogs();
+    // User presence is kept live by subscribeToUsers — no manual refresh needed
     setRefreshing(false);
   }
 
@@ -197,27 +228,36 @@ export default function AdminSystemHealthPage() {
             </div>
           </div>
 
-          {/* Active Sessions */}
+          {/* Online Now — live isOnline: true count */}
           <div className="flex items-center gap-3 px-4 py-4">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-green-500/10 text-green-600">
               <Activity className="h-5 w-5" />
             </div>
             <div className="min-w-0">
-              <div className="text-xs text-foreground/50">Active Sessions</div>
-              <div className="text-lg font-semibold leading-tight">{health?.activeSessions ?? "—"}</div>
-              <div className="truncate text-[11px] text-foreground/50">Currently active</div>
+              <div className="text-xs text-foreground/50">Online Now</div>
+              <div className="flex items-center gap-2">
+                <span className="text-lg font-semibold leading-tight">
+                  {onlineNow != null ? onlineNow : "—"}
+                </span>
+                {onlineNow != null && onlineNow > 0 && (
+                  <span className="inline-flex h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+                )}
+              </div>
+              <div className="truncate text-[11px] text-foreground/50">Users active right now</div>
             </div>
           </div>
 
-          {/* System Uptime */}
+          {/* Active Today — lastLoginAt within 24h */}
           <div className="flex items-center gap-3 px-4 py-4">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-              <Server className="h-5 w-5" />
+              <Users className="h-5 w-5" />
             </div>
             <div className="min-w-0">
-              <div className="text-xs text-foreground/50">Uptime</div>
-              <div className="text-lg font-semibold leading-tight">{health?.uptime ?? "—"}</div>
-              <div className="truncate text-[11px] text-foreground/50">Last 30 days</div>
+              <div className="text-xs text-foreground/50">Active Today</div>
+              <div className="text-lg font-semibold leading-tight">
+                {activeToday != null ? activeToday : "—"}
+              </div>
+              <div className="truncate text-[11px] text-foreground/50">Logged in (last 24h)</div>
             </div>
           </div>
         </div>

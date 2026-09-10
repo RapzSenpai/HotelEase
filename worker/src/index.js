@@ -4,6 +4,9 @@
  * Routes:
  *   POST /delete-user   → deletes a user's Firebase Auth account + Firestore docs
  *                         (FIREBASE_SERVICE_ACCOUNT + DELETE_KEY secrets)
+ *   scheduled (cron)    → hourly stale-hold sweep: cancels Awaiting Payment
+ *                         bookings past their deadline and frees their
+ *                         room_availability markers (FIREBASE_SERVICE_ACCOUNT)
  *   POST /insights      → one-shot analyst report over an admin-built data
  *                         snapshot { context } (GROQ_API_KEY secret)
  *   POST /admin-chat    → multi-turn ops assistant over { messages, context };
@@ -508,6 +511,178 @@ async function getFirestoreUserRole(accessToken, projectId, uid) {
   return data?.fields?.role?.stringValue || null;
 }
 
+// ===========================================================================
+// Scheduled stale-hold sweep (Cloudflare Cron Triggers)
+//
+// The client-side checkAndExpireStaleBookings() only runs when staff load
+// RoomsPage / FoBookingsPage — guests never trigger it and nothing else does.
+// Abandoned "Awaiting Payment" holds would therefore keep their nights blocked
+// in room_availability until a staff member happens to open a page. This cron
+// cancels them server-side (hourly) and frees their availability markers.
+// ===========================================================================
+
+/** Pull a single field out of a Firestore REST `fields` map. */
+function fsValue(fields, path) {
+  const v = fields?.[path];
+  if (!v) return undefined;
+  if (v.stringValue !== undefined) return v.stringValue;
+  if (v.timestampValue !== undefined) return v.timestampValue;
+  if (v.integerValue !== undefined) return Number(v.integerValue);
+  if (v.doubleValue !== undefined) return Number(v.doubleValue);
+  if (v.booleanValue !== undefined) return v.booleanValue;
+  return undefined;
+}
+
+/** Run a structuredQuery against a collection; returns [{ id, fields }]. */
+async function runFirestoreQuery(accessToken, projectId, collectionId, structuredQuery) {
+  const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:runQuery`;
+  const resp = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({ structuredQuery }),
+  });
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => "");
+    throw new Error(`Firestore runQuery ${collectionId} failed (${resp.status}): ${text.slice(0, 300)}`);
+  }
+  const results = await resp.json().catch(() => []);
+  return (Array.isArray(results) ? results : [])
+    .filter((r) => r?.document)
+    .map((r) => ({
+      id: (r.document.name || "").split("/").pop() || "",
+      fields: r.document.fields || {},
+    }));
+}
+
+/** PATCH a Firestore document, updating exactly the listed field paths. */
+async function patchFirestoreDoc(accessToken, projectId, collectionId, docId, fields, masks) {
+  const maskParams = masks
+    .map((m, i) => `${i === 0 ? "?" : "&"}updateMask.fieldPaths=${encodeURIComponent(m)}`)
+    .join("");
+  const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/${collectionId}/${encodeURIComponent(docId)}${maskParams}`;
+  const resp = await fetch(url, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({ fields }),
+  });
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => "");
+    throw new Error(`Firestore PATCH ${collectionId}/${docId} failed (${resp.status}): ${text.slice(0, 300)}`);
+  }
+}
+
+const EXPIRY_SWEEP_MAX_PER_COLLECTION = 100;
+
+/**
+ * Cancel Awaiting Payment bookings whose payment deadline has passed and free
+ * their room_availability markers. Sweeps prod `bookings` + `training_bookings`.
+ */
+async function expireStaleHolds(workerEnv) {
+  const sa = workerEnv.FIREBASE_SERVICE_ACCOUNT;
+  if (!sa) return { ok: false, reason: "FIREBASE_SERVICE_ACCOUNT not configured" };
+
+  let projectId;
+  try {
+    projectId = JSON.parse(sa).project_id;
+  } catch {
+    return { ok: false, reason: "FIREBASE_SERVICE_ACCOUNT is not valid JSON" };
+  }
+  if (!projectId) return { ok: false, reason: "project_id missing" };
+
+  const accessToken = await getGoogleAccessToken(sa);
+  const nowIso = new Date().toISOString();
+
+  const summary = { expiredBookings: 0, releasedMarkers: 0, errors: 0 };
+
+  // PROD holds live in `bookings` and block nights via `room_availability`
+  // markers; training holds live in the open `training_bookings` sandbox and
+  // block nights via the bookings themselves (no markers to clean).
+  for (const col of ["bookings", "training_bookings"]) {
+    try {
+      const expired = await runFirestoreQuery(accessToken, projectId, col, {
+        from: [{ collectionId: col }],
+        where: {
+          compositeFilter: {
+            op: "AND",
+            filters: [
+              {
+                fieldFilter: {
+                  field: { fieldPath: "status" },
+                  op: "EQUAL",
+                  value: { stringValue: "Awaiting Payment" },
+                },
+              },
+              {
+                fieldFilter: {
+                  field: { fieldPath: "paymentDeadline" },
+                  op: "LESS_THAN",
+                  value: { timestampValue: nowIso },
+                },
+              },
+            ],
+          },
+        },
+      });
+
+      for (const booking of expired.slice(0, EXPIRY_SWEEP_MAX_PER_COLLECTION)) {
+        const bookingId = booking.id;
+        try {
+          await patchFirestoreDoc(
+            accessToken,
+            projectId,
+            col,
+            bookingId,
+            {
+              status: { stringValue: "Cancelled" },
+              rejectionReason: { stringValue: "Payment deadline expired" },
+              updatedAt: { timestampValue: nowIso },
+            },
+            ["status", "rejectionReason", "updatedAt"],
+          );
+          summary.expiredBookings += 1;
+
+          // Release the PROD availability markers tied to this hold.
+          if (col === "bookings" && fsValue(booking.fields, "roomId")) {
+            const markers = await runFirestoreQuery(accessToken, projectId, "room_availability", {
+              from: [{ collectionId: "room_availability" }],
+              where: {
+                fieldFilter: {
+                  field: { fieldPath: "bookingId" },
+                  op: "EQUAL",
+                  value: { stringValue: bookingId },
+                },
+              },
+            });
+            for (const marker of markers) {
+              try {
+                await deleteFirestoreDoc(accessToken, projectId, `room_availability/${marker.id}`);
+                summary.releasedMarkers += 1;
+              } catch (e) {
+                summary.errors += 1;
+                console.error(`[sweep] marker delete failed ${marker.id}:`, String(e?.message || e));
+              }
+            }
+          }
+        } catch (e) {
+          summary.errors += 1;
+          console.error(`[sweep] expiry failed for ${col}/${bookingId}:`, String(e?.message || e));
+        }
+      }
+    } catch (e) {
+      summary.errors += 1;
+      console.error(`[sweep] query failed for ${col}:`, String(e?.message || e));
+    }
+  }
+
+  return { ok: true, ...summary };
+}
+
 async function handleDeleteUser(request, workerEnv) {
   const sa = workerEnv.FIREBASE_SERVICE_ACCOUNT;
   if (!sa) {
@@ -930,5 +1105,17 @@ export default {
     }
 
     return handleChatRequest(request, workerEnv);
+  },
+
+  // Cron (see [triggers] in wrangler.toml): hourly stale-hold sweep so
+  // abandoned Awaiting Payment bookings release their nights even when no
+  // staff page has been loaded.
+  async scheduled(event, workerEnv) {
+    try {
+      const result = await expireStaleHolds(workerEnv);
+      console.log(`[scheduled] stale-hold sweep → ${JSON.stringify(result)}`);
+    } catch (e) {
+      console.error("[scheduled] stale-hold sweep failed:", String(e?.message || e));
+    }
   },
 };

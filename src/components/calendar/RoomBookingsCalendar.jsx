@@ -3,7 +3,7 @@ import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 
 import { listBookingsForRoom } from "@/services/bookingsService";
-import { getRoomAvailabilityCards } from "@/services/availabilityService";
+import { subscribeRoomAvailabilityCards } from "@/services/availabilityService";
 
 const statusToColor = {
   Pending: "#F97316", // warning/orange
@@ -50,21 +50,20 @@ export default function RoomBookingsCalendar({ roomId, trainingMode = false }) {
       }));
     }
 
-    async function load() {
-      try {
-        setLoading(true);
-        setError(null);
-        if (!normalizedRoomId) {
-          setEvents([]);
-          setLoading(false);
-          return;
-        }
+    if (!normalizedRoomId) {
+      setEvents([]);
+      setLoading(false);
+      return undefined;
+    }
 
-        let mapped;
-        if (trainingMode) {
-          // Legacy path: full booking objects from the open training sandbox.
+    if (trainingMode) {
+      // Legacy path: full booking objects from the open training sandbox.
+      async function load() {
+        try {
+          setLoading(true);
+          setError(null);
           const bookings = await listBookingsForRoom(normalizedRoomId, { trainingMode });
-          mapped = bookings.map((b) => {
+          const mapped = bookings.map((b) => {
             const start = b.checkInDate?.toDate ? b.checkInDate.toDate() : b.checkInDate;
             const end = b.checkOutDate?.toDate ? b.checkOutDate.toDate() : b.checkOutDate;
             return {
@@ -77,25 +76,33 @@ export default function RoomBookingsCalendar({ roomId, trainingMode = false }) {
               allDay: true,
             };
           });
-        } else {
-          // PROD: PII-free night markers (guests can't read other guests' bookings).
-          const cards = await getRoomAvailabilityCards(normalizedRoomId);
-          mapped = fromMarkers(cards);
+          if (!isMounted) return;
+          setEvents(mapped);
+        } catch (e) {
+          if (!isMounted) return;
+          setError(e?.message || "Failed to load room bookings.");
+        } finally {
+          if (isMounted) setLoading(false);
         }
-
-        if (!isMounted) return;
-        setEvents(mapped);
-      } catch (e) {
-        if (!isMounted) return;
-        setError(e?.message || "Failed to load room bookings.");
-      } finally {
-        if (isMounted) setLoading(false);
       }
+      load();
+      return () => {
+        isMounted = false;
+      };
     }
 
-    if (roomId) load();
+    // PROD: live PII-free night markers — stays in sync as guests book and
+    // staff approve / check in / cancel while the page is open.
+    setLoading(true);
+    setError(null);
+    const unsubscribe = subscribeRoomAvailabilityCards(normalizedRoomId, (cards) => {
+      if (!isMounted) return;
+      setEvents(fromMarkers(cards));
+      setLoading(false);
+    });
     return () => {
       isMounted = false;
+      if (typeof unsubscribe === "function") unsubscribe();
     };
   }, [roomId, normalizedRoomId, trainingMode]);
 

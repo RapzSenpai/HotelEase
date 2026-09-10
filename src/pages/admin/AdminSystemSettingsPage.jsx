@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Card,
@@ -18,7 +19,6 @@ import { auditAction, AUDIT_ACTIONS } from "@/services/auditService";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   AlertTriangle,
-  Power,
   Clock,
   CalendarDays,
 } from "lucide-react";
@@ -158,41 +158,51 @@ export default function AdminSystemSettingsPage() {
 
       {/* ── Maintenance Mode ── */}
       <Card className={`overflow-hidden ${maintenanceEnabled ? "border-destructive/40 bg-destructive/5" : ""}`}>
-        <CardHeader className="flex flex-row items-start justify-between gap-4">
-          <div className="space-y-1">
-            <CardTitle className="flex items-center gap-2">
-              <div
-                className={`p-1 rounded-md ${
+        <CardHeader>
+          <div className="flex items-start gap-4">
+            <div className="flex-1 min-w-0 space-y-1">
+              <CardTitle className="flex items-center gap-2">
+                <div
+                  className={`p-1 rounded-md ${
+                    maintenanceEnabled
+                      ? "bg-destructive/10 text-destructive"
+                      : "bg-primary/10 text-primary"
+                  }`}
+                >
+                  <AlertTriangle className="h-4 w-4" />
+                </div>
+                Maintenance Mode
+              </CardTitle>
+              <CardDescription>
+                When enabled, all non-admin users see a maintenance message and
+                cannot access the system. Admin users are always allowed through.
+              </CardDescription>
+            </div>
+            <div className="flex items-center gap-3 shrink-0">
+              <span
+                className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold w-fit ${
                   maintenanceEnabled
-                    ? "bg-destructive/10 text-destructive"
-                    : "bg-primary/10 text-primary"
+                    ? "border-destructive/30 bg-destructive/10 text-destructive"
+                    : "border-border bg-muted/10 text-muted-foreground"
                 }`}
               >
-                <AlertTriangle className="h-4 w-4" />
-              </div>
-              Maintenance Mode
-            </CardTitle>
-            <CardDescription>
-              When enabled, all non-admin users see a maintenance message and
-              cannot access the system. Admin users are always allowed through.
-            </CardDescription>
+                <span
+                  className={`h-1.5 w-1.5 rounded-full ${
+                    maintenanceEnabled
+                      ? "bg-destructive"
+                      : "bg-muted-foreground/50"
+                  }`}
+                />
+                {maintenanceEnabled ? "Active" : "Off"}
+              </span>
+              <Switch
+                checked={maintenanceEnabled}
+                onCheckedChange={() => onToggleMaintenance()}
+                disabled={loading || maintenanceSaving || sessionTrainingMode}
+                aria-label="Toggle maintenance mode"
+              />
+            </div>
           </div>
-          <span
-            className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold w-fit shrink-0 ${
-              maintenanceEnabled
-                ? "border-destructive/30 bg-destructive/10 text-destructive"
-                : "border-border bg-muted/10 text-muted-foreground"
-            }`}
-          >
-            <span
-              className={`h-1.5 w-1.5 rounded-full ${
-                maintenanceEnabled
-                  ? "bg-destructive"
-                  : "bg-muted-foreground/50"
-              }`}
-            />
-            {maintenanceEnabled ? "Active" : "Off"}
-          </span>
         </CardHeader>
 
         <CardContent className="space-y-4">
@@ -206,25 +216,12 @@ export default function AdminSystemSettingsPage() {
               </p>
             </div>
           )}
-          <div className="flex flex-wrap items-center gap-3">
-            <Button
-              variant={maintenanceEnabled ? "destructive" : "default"}
-              onClick={onToggleMaintenance}
-              disabled={loading || maintenanceSaving || sessionTrainingMode}
-              className="gap-2"
-            >
-              <Power className="h-4 w-4" />
-              {maintenanceEnabled
-                ? "Turn Off Maintenance"
-                : "Turn On Maintenance"}
-            </Button>
-            {maintenanceEnabled && (
-              <span className="inline-flex items-center gap-1.5 text-xs font-medium text-destructive">
-                <Clock className="h-3.5 w-3.5" />
-                Site is currently in maintenance mode
-              </span>
-            )}
-          </div>
+          {maintenanceEnabled && (
+            <span className="inline-flex items-center gap-1.5 text-xs font-medium text-destructive">
+              <Clock className="h-3.5 w-3.5" />
+              Site is currently in maintenance mode
+            </span>
+          )}
 
           <div className="space-y-3 border-t border-border pt-4">
             <div className="space-y-1.5">

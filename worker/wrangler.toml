@@ -14,6 +14,12 @@ compatibility_date = "2026-01-01"
 binding = "AI_LIMITS"
 id = "bcd303296228470a8c99654377e3611e"
 
+# Hourly stale-hold sweep: cancels abandoned Awaiting Payment bookings past
+# their 48h deadline and frees their room_availability markers (see scheduled
+# handler in src/index.js). Needs the FIREBASE_SERVICE_ACCOUNT secret.
+[triggers]
+crons = ["0 * * * *"]
+
 # Set secrets securely (never in code / git):
 #   npx wrangler secret put GROQ_API_KEY
 #   npx wrangler secret put FIREBASE_SERVICE_ACCOUNT

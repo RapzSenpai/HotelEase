@@ -2,13 +2,13 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import PageLoader from "@/components/common/PageLoader";
 import { useAuth } from "@/contexts/AuthContext";
 import { getBooking } from "@/services/bookingsService";
 import { getRoom } from "@/services/roomsService";
 import { completeSimulatedPayment } from "@/services/paymentGatewayService";
 import { calculatePartialPayment } from "@/lib/paymentDetails";
+import PaymentMethodIcon from "@/components/common/PaymentMethodIcon";
 import { mapFirebaseError } from "@/lib/errors";
 import {
   ArrowLeft,
@@ -107,7 +107,9 @@ export default function SimulatedPaymentPage() {
     return (
       <div className="mx-auto max-w-lg px-4 py-10">
         <div className="rounded-xl border border-success/30 bg-success/10 p-8 space-y-4 text-center">
-          <CheckCircle2 className="h-14 w-14 text-success mx-auto" />
+          <div className="flex justify-center">
+            <PaymentMethodIcon method={booking?.paymentMethod} className="h-14 w-14" />
+          </div>
           <div className="space-y-1">
             <h1 className="text-2xl font-bold">Payment Successful</h1>
             <p className="text-sm text-foreground/70">
@@ -160,13 +162,16 @@ export default function SimulatedPaymentPage() {
         <Button variant="ghost" size="sm" onClick={() => navigate("/my-bookings")}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <h1 className="text-xl font-bold">Simulated Payment</h1>
-        <Badge variant="warning" className="ml-auto">
-          Sandbox
-        </Badge>
+        <h1 className="text-xl font-bold">Payment Checkout</h1>
+        {booking.paymentMethod ? (
+          <span className="ml-auto flex items-center gap-1.5 rounded-full border border-border bg-muted/30 px-3 py-1 text-xs font-medium text-foreground/70">
+            <PaymentMethodIcon method={booking.paymentMethod} className="h-4 w-4" />
+            {booking.paymentMethod}
+          </span>
+        ) : null}
       </div>
 
-      {/* Sandbox notice */}
+      {/* Simulated payment notice — single source of truth for the sandbox state */}
       <div className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/5 p-3 text-xs text-foreground/70">
         <ShieldCheck className="h-4 w-4 shrink-0 text-warning mt-0.5" />
         <p>
@@ -215,7 +220,10 @@ export default function SimulatedPaymentPage() {
           ) : null}
           <div className="space-y-0.5">
             <p className="text-xs text-foreground/50 uppercase tracking-wide">Method</p>
-            <p className="font-medium">{booking.paymentMethod}</p>
+            <p className="font-medium flex items-center gap-1.5">
+              <PaymentMethodIcon method={booking.paymentMethod} className="h-4 w-4" />
+              {booking.paymentMethod}
+            </p>
           </div>
         </div>
 
@@ -248,7 +256,7 @@ export default function SimulatedPaymentPage() {
           ) : (
             <>
               <CreditCard className="mr-2 h-4 w-4" />
-              Confirm Payment — PHP {amountDue.toLocaleString()}
+              Confirm {booking.paymentMethod} Payment — PHP {amountDue.toLocaleString()}
             </>
           )}
         </Button>

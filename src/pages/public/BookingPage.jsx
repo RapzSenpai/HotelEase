@@ -14,6 +14,10 @@ import { getRoomCapacity, calculateBookingPricing } from "@/lib/roomCapacity";
 import RoomBookingsCalendar from "@/components/calendar/RoomBookingsCalendar";
 import { SkeletonCard } from "@/components/ui/skeleton";
 import { Calendar as CalendarIcon, Upload, CheckCircle2, ChevronLeft, ChevronRight, Clock, CreditCard } from "lucide-react";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Checkbox } from "@/components/ui/checkbox";
+import PaymentMethodIcon from "@/components/common/PaymentMethodIcon";
+import { getPaymentMethodMeta } from "@/lib/paymentMethodMeta";
 import {
   HOTEL_GCASH_NUMBER,
   HOTEL_GCASH_QR_IMAGE_URL,
@@ -30,6 +34,12 @@ const STEPS = [
   { index: 2, label: "Payment Info" },
   { index: 3, label: "Confirmation" },
 ];
+
+function getLocalDateString(date = new Date()) {
+  const offset = date.getTimezoneOffset();
+  const localDate = new Date(date.getTime() - offset * 60 * 1000);
+  return localDate.toISOString().split("T")[0];
+}
 
 function StepIndicator({ current }) {
   return (
@@ -163,6 +173,16 @@ export default function BookingPage() {
     if (typeof roomId === "string" && roomId) return roomId;
     return null;
   }, [room?.id, roomId]);
+
+  // Check-in can't be in the past; check-out must be at least one day after
+  // check-in (mirrors RoomsPage / RoomDetailPage pickers).
+  const todayStr = useMemo(() => getLocalDateString(), []);
+  const minCheckOutStr = useMemo(() => {
+    if (!checkIn) return todayStr;
+    const d = new Date(`${checkIn}T00:00:00`);
+    d.setDate(d.getDate() + 1);
+    return getLocalDateString(d);
+  }, [checkIn, todayStr]);
 
   const nights = useMemo(() => {
     if (!checkIn || !checkOut) return 0;
@@ -440,7 +460,12 @@ export default function BookingPage() {
                   Check-in <RequiredIndicator /> <span className="text-foreground/50 font-normal">(2:00 PM)</span>
                 </Label>
                 <div className="relative">
-                  <Input id="checkIn" type="date" required className={`pr-10 border-border text-sm [&::-webkit-calendar-picker-indicator]:hidden ${step1Touched && !checkIn ? "border-destructive focus-visible:ring-destructive" : ""}`} value={checkIn} onChange={(e) => setCheckIn(e.target.value)} onClick={(e) => e.currentTarget.showPicker?.()} onFocus={(e) => e.target.blur()} />
+                  <Input id="checkIn" type="date" required min={todayStr} className={`pr-10 border-border text-sm [&::-webkit-calendar-picker-indicator]:hidden ${step1Touched && !checkIn ? "border-destructive focus-visible:ring-destructive" : ""}`} value={checkIn} onChange={(e) => {
+                    setCheckIn(e.target.value);
+                    if (checkOut && e.target.value && new Date(`${checkOut}T00:00:00`) <= new Date(`${e.target.value}T00:00:00`)) {
+                      setCheckOut("");
+                    }
+                  }} onClick={(e) => e.currentTarget.showPicker?.()} onFocus={(e) => e.target.blur()} />
                   <CalendarIcon className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-foreground/40 pointer-events-none" />
                 </div>
               </div>
@@ -449,7 +474,7 @@ export default function BookingPage() {
                   Check-out <RequiredIndicator /> <span className="text-foreground/50 font-normal">(12:00 NN)</span>
                 </Label>
                 <div className="relative">
-                  <Input id="checkOut" type="date" required className={`pr-10 border-border text-sm [&::-webkit-calendar-picker-indicator]:hidden ${step1Touched && !checkOut ? "border-destructive focus-visible:ring-destructive" : ""}`} value={checkOut} onChange={(e) => setCheckOut(e.target.value)} onClick={(e) => e.currentTarget.showPicker?.()} onFocus={(e) => e.target.blur()} />
+                  <Input id="checkOut" type="date" required min={minCheckOutStr} disabled={!checkIn} className={`pr-10 border-border text-sm [&::-webkit-calendar-picker-indicator]:hidden disabled:cursor-not-allowed ${step1Touched && !checkOut ? "border-destructive focus-visible:ring-destructive" : ""}`} value={checkOut} onChange={(e) => setCheckOut(e.target.value)} onClick={(e) => e.currentTarget.showPicker?.()} onFocus={(e) => e.target.blur()} />
                   <CalendarIcon className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-foreground/40 pointer-events-none" />
                 </div>
               </div>
@@ -557,28 +582,53 @@ export default function BookingPage() {
               <div className="text-base font-semibold">Payment Information</div>
               <div className="space-y-2">
                 <span className="text-xs font-semibold uppercase tracking-wide text-foreground/60">Payment Method</span>
-                <div className="grid grid-cols-2 gap-2">
-                  {PAYMENT_METHODS.map((method) => (
-                    <label key={method} className={`flex items-center gap-2 cursor-pointer rounded-lg border p-3 transition-colors ${paymentMethod === method ? "border-primary bg-primary/5" : "border-border hover:border-primary/40 hover:bg-muted/30"}`}>
-                      <input type="radio" name="paymentMethod" value={method} checked={paymentMethod === method} onChange={(e) => setPaymentMethod(e.target.value)} className="accent-primary" />
-                      <span className="text-sm font-medium">{method}</span>
-                    </label>
-                  ))}
-                </div>
+                <RadioGroup
+                  value={paymentMethod}
+                  onValueChange={setPaymentMethod}
+                  className="grid grid-cols-1 sm:grid-cols-2 gap-3"
+                >
+                  {PAYMENT_METHODS.map((method) => {
+                    const meta = getPaymentMethodMeta(method);
+                    const selected = paymentMethod === method;
+                    return (
+                      <label
+                        key={method}
+                        className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3.5 transition-colors ${
+                          selected
+                            ? "border-primary bg-primary/5 shadow-xs"
+                            : "border-border hover:border-primary/40 hover:bg-muted/30"
+                        }`}
+                      >
+                        <RadioGroupItem value={method} className="mt-0.5" />
+                        <PaymentMethodIcon method={method} className={`mt-0.5 ${selected ? "text-primary" : "text-foreground/60"}`} />
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-sm font-medium leading-tight">{method}</span>
+                          {meta?.description ? (
+                            <span className="block text-xs text-foreground/60 mt-1 leading-snug">{meta.description}</span>
+                          ) : null}
+                        </span>
+                      </label>
+                    );
+                  })}
+                </RadioGroup>
               </div>
               {renderPaymentInstructions(paymentMethod, amountDue)}
               <div className="space-y-2">
                 <span className="text-xs font-semibold uppercase tracking-wide text-foreground/60">Payment Type</span>
-                <div className="flex flex-wrap gap-4">
+                <RadioGroup
+                  value={paymentType}
+                  onValueChange={setPaymentType}
+                  className="flex flex-wrap gap-4"
+                >
                   <label className="flex items-center gap-2 cursor-pointer">
-                    <input type="radio" name="paymentType" value="Full" checked={paymentType === "Full"} onChange={(e) => setPaymentType(e.target.value)} className="accent-primary" />
+                    <RadioGroupItem value="Full" />
                     <span className="text-sm">Full Payment (&#8369;{totalCost.toLocaleString()})</span>
                   </label>
                   <label className="flex items-center gap-2 cursor-pointer">
-                    <input type="radio" name="paymentType" value="Partial" checked={paymentType === "Partial"} onChange={(e) => setPaymentType(e.target.value)} className="accent-primary" />
+                    <RadioGroupItem value="Partial" />
                     <span className="text-sm">Partial Payment (&#8369;{partialAmount.toLocaleString()})</span>
                   </label>
-                </div>
+                </RadioGroup>
               </div>
               {submitError && (
                 <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-foreground">{submitError}</div>
@@ -586,11 +636,10 @@ export default function BookingPage() {
               {/* Terms & Conditions agreement */}
               <div className="space-y-2 rounded-lg border border-border/40 bg-muted/10 p-3">
                 <label className="flex items-start gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     checked={termsAccepted}
-                    onChange={(e) => setTermsAccepted(e.target.checked)}
-                    className="mt-0.5 h-4 w-4 shrink-0 accent-primary"
+                    onCheckedChange={(checked) => setTermsAccepted(checked === true)}
+                    className="mt-0.5"
                   />
                   <span className="text-sm text-foreground/80">
                     By checking this box, I confirm that I have read and agree to the

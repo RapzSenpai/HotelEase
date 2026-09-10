@@ -9,7 +9,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Heart, Calendar as CalendarIcon, Search, X, CheckCircle2, XCircle, Sparkles, ChevronDown } from "lucide-react";
+import { Heart, Calendar as CalendarIcon, Search, X, CheckCircle2, XCircle, ChevronDown } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { getAvailableRooms, checkAndExpireStaleBookings } from "@/services/bookingsService";
 import ChatbotWidget from "@/components/chatbot/ChatbotWidget";
@@ -148,26 +148,13 @@ const RoomCard = memo(function RoomCard({
     ? `?checkIn=${checkIn}&checkOut=${checkOut}`
     : "";
 
-  // Determine availability display
-  const roomStatus = room.status || "Available";
-  const isAvailable = availabilityChecked ? checkedAvailable : roomStatus === "Available";
-
-  // Map raw statuses to guest-friendly labels
-  const statusDisplay = useMemo(() => {
-    if (availabilityChecked) {
-      return isAvailable
-        ? { label: "Available", color: "bg-success/90", icon: "check" }
-        : { label: "Unavailable", color: "bg-destructive/90", icon: "x" };
-    }
-    if (roomStatus === "Available") {
-      return { label: "Available", color: "bg-success/90", icon: "check" };
-    }
-    if (roomStatus === "Occupied") {
-      return { label: "Occupied", color: "bg-destructive/90", icon: "x" };
-    }
-    // Being Cleaned, Dirty / Needs Cleaning, Pending Approval → Needs Cleaning
-    return { label: "Needs Cleaning", color: "bg-info/90", icon: "sparkle" };
-  }, [roomStatus, availabilityChecked, isAvailable]);
+  // Date-scoped availability chip — only shown after a real availability
+  // check. Without dates there is no single truthful status, so no chip.
+  const statusDisplay = availabilityChecked
+    ? checkedAvailable
+      ? { label: "Available", color: "bg-success/90", icon: "check" }
+      : { label: "Unavailable", color: "bg-destructive/90", icon: "x" }
+    : null;
 
   return (
     <div
@@ -188,15 +175,16 @@ const RoomCard = memo(function RoomCard({
           </div>
         )}
 
-        {/* Availability chip */}
-        <div className="absolute left-3 top-3 z-10">
-          <span className={`inline-flex items-center gap-1 rounded-full ${statusDisplay.color} px-2.5 py-1 text-xs font-medium text-white shadow-sm backdrop-blur-sm`}>
-            {statusDisplay.icon === "check" && <CheckCircle2 className="h-3 w-3" />}
-            {statusDisplay.icon === "x" && <XCircle className="h-3 w-3" />}
-            {statusDisplay.icon === "sparkle" && <Sparkles className="h-3 w-3" />}
-            {statusDisplay.label}
-          </span>
-        </div>
+        {/* Availability chip (only after dates are checked) */}
+        {statusDisplay && (
+          <div className="absolute left-3 top-3 z-10">
+            <span className={`inline-flex items-center gap-1 rounded-full ${statusDisplay.color} px-2.5 py-1 text-xs font-medium text-white shadow-sm backdrop-blur-sm`}>
+              {statusDisplay.icon === "check" && <CheckCircle2 className="h-3 w-3" />}
+              {statusDisplay.icon === "x" && <XCircle className="h-3 w-3" />}
+              {statusDisplay.label}
+            </span>
+          </div>
+        )}
 
         {/* Favorite button */}
         {user && role === "guest" && (
@@ -311,9 +299,13 @@ export default function RoomsPage() {
 
   const todayStr = useMemo(() => getLocalDateString(), []);
 
+  // Check-out must be at least one day after check-in; the date input's min
+  // enforces it so a same-day range can never silently return zero rooms.
   const minCheckOutStr = useMemo(() => {
     if (!checkIn) return todayStr;
-    return checkIn;
+    const d = new Date(`${checkIn}T00:00:00`);
+    d.setDate(d.getDate() + 1);
+    return getLocalDateString(d);
   }, [checkIn, todayStr]);
 
   const handleCheckInChange = (val) => {
@@ -338,6 +330,14 @@ export default function RoomsPage() {
   // RENO-1: on-action availability check triggered by button click
   const handleCheckAvailability = useCallback(async () => {
     if (!checkIn || !checkOut) return;
+    // Guard against a same-day (or inverted) range, which would otherwise
+    // silently show "No rooms are available" with no explanation.
+    if (new Date(`${checkOut}T00:00:00`) <= new Date(`${checkIn}T00:00:00`)) {
+      setAvailabilityError("Check-out must be after check-in.");
+      setAvailabilityChecked(false);
+      setAvailableRoomIds(new Set());
+      return;
+    }
     setAvailabilityLoading(true);
     setAvailabilityError(null);
     try {
@@ -522,14 +522,14 @@ export default function RoomsPage() {
         </div>
 
         {/* Availability status line */}
-        {availabilityChecked && (
+        {availabilityChecked && !availabilityError && (
           <p className="text-xs text-foreground/50">
             Showing rooms available{" "}
             <span className="font-medium text-foreground">{checkIn} → {checkOut}</span>
-            {availabilityError && (
-              <span className="ml-2 text-destructive">{availabilityError}</span>
-            )}
           </p>
+        )}
+        {availabilityError && (
+          <p className="text-xs text-destructive">{availabilityError}</p>
         )}
         {!datesReady && (
           <p className="text-xs text-foreground/40">
@@ -597,7 +597,9 @@ export default function RoomsPage() {
               {activeRooms.length !== 1 ? "s" : ""}
               {availabilityChecked ? " · filtered by dates" : ""}
             </p>
-            {!filtersAreDefault && (
+            {/* Only show the small row button when the grid is visible — the
+                empty state already renders its own larger Clear Filters button. */}
+            {!filtersAreDefault && filteredRooms.length > 0 && (
               <Button
                 type="button"
                 variant="outline"

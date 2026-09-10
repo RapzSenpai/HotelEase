@@ -230,11 +230,18 @@ export async function buildAdminContext({ trainingMode = null, force = false } =
   // Ops counters (current window where timestamps exist).
   let hkLogs30 = 0;
   let midStay30 = 0;
+  let hkRatings30 = 0;
+  let hkRatingSum30 = 0;
   for (const log of hkLogs) {
     const t = toDate(log.createdAt)?.getTime() ?? null;
     if (t != null && t >= curFromMs && t < curToMs) {
       hkLogs30 += 1;
       if (log.isMidStayRequest === true) midStay30 += 1;
+      const stars = Math.round(Number(log.rating ?? 0));
+      if (stars >= 1 && stars <= 5) {
+        hkRatings30 += 1;
+        hkRatingSum30 += stars;
+      }
     }
   }
   const messageCounts = {};
@@ -348,6 +355,10 @@ export async function buildAdminContext({ trainingMode = null, force = false } =
     operations: {
       housekeepingLogsLast30: hkLogs30,
       midStayRequestsLast30: midStay30,
+      cleanlinessRatingsLast30: {
+        count: hkRatings30,
+        avgRating: hkRatings30 > 0 ? round1(hkRatingSum30 / hkRatings30) : null,
+      },
       messagesByStatus: messageCounts,
       testimonialsByStatus: testimonialCounts,
     },

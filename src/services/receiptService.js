@@ -106,6 +106,7 @@ export const generateReceipt = (data) => {
     body: [
       ['Base Room Charges', formatAmount(baseTotal)],
       ...(hasExtraPax ? [['Extra Guest Surcharge', formatAmount(data.extraPaxTotal)]] : []),
+      ...(data.overstayFee > 0 ? [[data.overstayReason || 'Overstay / Late Check-Out Fee', formatAmount(data.overstayFee)]] : []),
       ['Total Amount', formatAmount(data.total ?? data.subtotal)],
       ['Amount Paid', formatAmount(data.amountPaid)],
       ['Balance Due', formatAmount(data.balance)],
