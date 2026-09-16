@@ -1,4 +1,4 @@
-import { doc, updateDoc, arrayUnion, getDoc } from "firebase/firestore";
+import { doc, updateDoc, getDoc } from "firebase/firestore";
 import { db } from "@/firebase/firebase.config";
 import { getCol } from "@/lib/db-utils";
 
@@ -82,65 +82,6 @@ export async function createSession(uid, { trainingMode = false } = {}) {
 }
 
 /**
- * Update session last active timestamp
- * @param {string} uid - User ID
- * @param {string} sessionId - Session ID
- * @param {Object} options
- * @param {boolean} options.trainingMode - Whether to use training collection
- * @returns {Promise<void>}
- */
-export async function updateSessionActivity(uid, sessionId, { trainingMode = false } = {}) {
-  const col = getCol("users", trainingMode);
-  const ref = doc(db, col, uid);
-  
-  // This would require reading the user doc, updating the specific session, and writing back
-  // For simplicity, we'll just update lastActiveAt in a separate field
-  await updateDoc(ref, {
-    currentSessionId: sessionId,
-    lastSessionActiveAt: new Date().toISOString(),
-  });
-}
-
-/**
- * Revoke a specific session
- * @param {string} uid - User ID
- * @param {string} sessionId - Session ID to revoke
- * @param {Object} options
- * @param {boolean} options.trainingMode - Whether to use training collection
- * @returns {Promise<void>}
- */
-export async function revokeSession(uid, sessionId, { trainingMode = false } = {}) {
-  const col = getCol("users", trainingMode);
-  const ref = doc(db, col, uid);
-  
-  // Mark session as inactive
-  // Note: This requires reading the user doc first to get the session array
-  // For now, we'll use a simpler approach with a separate revokedSessions array
-  await updateDoc(ref, {
-    revokedSessions: arrayUnion(sessionId),
-  });
-}
-
-/**
- * Revoke all sessions except current
- * @param {string} uid - User ID
- * @param {string} currentSessionId - Current session ID to keep active
- * @param {Object} options
- * @param {boolean} options.trainingMode - Whether to use training collection
- * @returns {Promise<void>}
- */
-export async function revokeAllOtherSessions(uid, currentSessionId, { trainingMode = false } = {}) {
-  const col = getCol("users", trainingMode);
-  const ref = doc(db, col, uid);
-  
-  // Store the session to keep as the only active one
-  await updateDoc(ref, {
-    activeSessionId: currentSessionId,
-    sessionRevokeTimestamp: new Date().toISOString(),
-  });
-}
-
-/**
  * Force logout a user (revoke all sessions)
  * @param {string} uid - User ID
  * @param {Object} options
@@ -164,11 +105,3 @@ export async function forceLogoutUser(uid, { trainingMode = false } = {}) {
  * @param {boolean} options.trainingMode - Whether to use training collection
  * @returns {Promise<void>}
  */
-export async function clearForceLogout(uid, { trainingMode = false } = {}) {
-  const col = getCol("users", trainingMode);
-  const ref = doc(db, col, uid);
-  
-  await updateDoc(ref, {
-    forceLogout: false,
-  });
-}

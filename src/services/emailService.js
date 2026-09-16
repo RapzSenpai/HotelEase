@@ -26,7 +26,6 @@ export async function sendBookingConfirmation({ toEmail, toName, roomName, check
     };
 
     await emailjs.send(serviceId, templateId, templateParams, publicKey);
-    console.log('EmailJS: Booking confirmation email sent successfully');
   } catch (error) {
     // Log error but don't throw - email failure should not block booking approval
     console.error('EmailJS: Failed to send booking confirmation email:', error);

@@ -200,10 +200,6 @@ export async function recordPayment(payload) {
       updatedAt: serverTimestamp(),
     });
 
-    console.log(
-      `[paymentsService] transaction queued — paymentId: "${paymentRef.id}", newDeposit: ${newDeposit}`,
-    );
-
     return {
       id: paymentRef.id,
       newDeposit,

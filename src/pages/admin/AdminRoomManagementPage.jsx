@@ -110,6 +110,9 @@ function PhotoUploader({ photos, onChange }) {
     e.target.value = "";
 
     const newUploading = files.map((f) => ({
+      // Stable id so the progress rows keep their identity as uploads come
+      // and go (index keys re-use the wrong row when one is removed).
+      id: crypto.randomUUID(),
       name: f.name,
       progress: 0,
       error: null,
@@ -169,7 +172,7 @@ function PhotoUploader({ photos, onChange }) {
       {photos.length > 0 && (
         <div className="flex flex-wrap gap-2">
           {photos.map((url, idx) => (
-            <div key={idx} className="relative group">
+            <div key={url} className="relative group">
               <img
                 src={url}
                 alt={`Room photo ${idx + 1}`}
@@ -204,8 +207,8 @@ function PhotoUploader({ photos, onChange }) {
 
       {uploading
         .filter((u) => !u.done)
-        .map((u, idx) => (
-          <div key={idx} className="space-y-1">
+        .map((u) => (
+          <div key={u.id} className="space-y-1">
             <div className="flex items-center justify-between text-xs text-foreground/70">
               <span className="truncate max-w-[160px]">{u.name}</span>
               {u.error ? (
