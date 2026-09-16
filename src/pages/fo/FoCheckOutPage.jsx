@@ -19,13 +19,6 @@ import {
 } from "@/services/paymentsService";
 import { generateReceipt } from "@/services/receiptService";
 import { CheckCircle, AlertTriangle, CalendarPlus, DollarSign, Calendar, ArrowUpDown, Filter } from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
 import { listRooms } from "@/services/roomsService";
 import { listUsers } from "@/services/userService";
 import { useAuth } from "@/contexts/AuthContext";
@@ -33,6 +26,7 @@ import { trackEvent, GA_EVENTS } from "@/services/gaService";
 import { toast } from "sonner";
 import CheckoutBookingList from "@/components/fo/CheckoutBookingList";
 import CheckoutExtendStayDialog from "@/components/fo/CheckoutExtendStayDialog";
+import CheckoutOverstayFeeDialog from "@/components/fo/CheckoutOverstayFeeDialog";
 
 function formatMethod(p) {
   // Check top-level `note` field first (written by updated paymentsService),
@@ -151,10 +145,6 @@ export default function FoCheckOutPage() {
   const [extendDialogOpen, setExtendDialogOpen] = useState(false);
 
   const [feeDialogOpen, setFeeDialogOpen] = useState(false);
-  const [customFeeAmount, setCustomFeeAmount] = useState("");
-  const [customFeeReason, setCustomFeeReason] = useState("Overstay / Late Check-Out Fee");
-  const [addingFee, setAddingFee] = useState(false);
-  const [feeError, setFeeError] = useState(null);
 
   const [filterMode, setFilterMode] = useState("all"); // "all" | "overdue"
 
@@ -293,30 +283,17 @@ export default function FoCheckOutPage() {
   }
 
   // ── Add Overstay / Late Fee handler ───────────────────────────────────────
-  async function handleAddOverstayFee() {
-    const fee = Number(customFeeAmount);
-    if (!Number.isFinite(fee) || fee <= 0) {
-      setFeeError("Please enter a valid positive fee amount.");
-      return;
-    }
-
-    try {
-      setAddingFee(true);
-      setFeeError(null);
-      await addOverstayFee(selectedBookingId, {
-        feeAmount: fee,
-        feeReason: customFeeReason,
-        trainingMode,
-      });
-      toast.success(`Added ₱${fee.toLocaleString()} fee to guest folio.`);
-      setFeeDialogOpen(false);
-      setCustomFeeAmount("");
-      await refreshAll(selectedBookingId);
-    } catch (e) {
-      setFeeError(e?.message || "Failed to add overstay fee.");
-    } finally {
-      setAddingFee(false);
-    }
+  // The dialog owns the fields, the quick amounts and the validation; this
+  // stays the write, and must reject so the dialog can show the failure.
+  async function handleAddOverstayFee({ amount, reason }) {
+    await addOverstayFee(selectedBookingId, {
+      feeAmount: amount,
+      feeReason: reason,
+      trainingMode,
+    });
+    toast.success(`Added ₱${amount.toLocaleString()} fee to guest folio.`);
+    setFeeDialogOpen(false);
+    await refreshAll(selectedBookingId);
   }
 
   // ── Record payment ────────────────────────────────────────────────────────
@@ -483,10 +460,7 @@ export default function FoCheckOutPage() {
                         size="sm"
                         variant="outline"
                         className="h-7 text-xs flex items-center gap-1.5 border-destructive/30 hover:bg-destructive/15 text-destructive"
-                        onClick={() => {
-                          setFeeDialogOpen(true);
-                          setFeeError(null);
-                        }}
+                        onClick={() => setFeeDialogOpen(true)}
                       >
                         <DollarSign className="h-3.5 w-3.5" />
                         Add Overstay Fee
@@ -524,10 +498,7 @@ export default function FoCheckOutPage() {
                         size="sm"
                         variant="outline"
                         className="h-7 text-xs flex items-center gap-1"
-                        onClick={() => {
-                          setFeeDialogOpen(true);
-                          setFeeError(null);
-                        }}
+                        onClick={() => setFeeDialogOpen(true)}
                       >
                         <DollarSign className="h-3 w-3" />
                         Add Fee
@@ -846,108 +817,13 @@ export default function FoCheckOutPage() {
       />
 
       {/* ── Add Overstay Fee Dialog ── */}
-      <Dialog open={feeDialogOpen} onOpenChange={setFeeDialogOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <DollarSign className="h-5 w-5 text-destructive" />
-              Add Overstay / Late Check-Out Fee
-            </DialogTitle>
-          </DialogHeader>
-
-          {selectedBooking && (
-            <div className="space-y-4 py-2 text-sm">
-              <p className="text-xs text-foreground/70 leading-relaxed">
-                Add an incidental charge or late checkout penalty to this booking folio. It will be added to the outstanding balance and itemized on the official receipt.
-              </p>
-
-              <div className="space-y-2">
-                <Label htmlFor="feeReason">Fee Reason / Description</Label>
-                <Input
-                  id="feeReason"
-                  value={customFeeReason}
-                  onChange={(e) => setCustomFeeReason(e.target.value)}
-                  placeholder="e.g. Overstay Penalty / Late Departure Fee"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="feeAmount">Fee Amount (PHP)</Label>
-                <Input
-                  id="feeAmount"
-                  type="number"
-                  min={1}
-                  value={customFeeAmount}
-                  onChange={(e) => {
-                    setCustomFeeAmount(e.target.value);
-                    if (feeError) setFeeError(null);
-                  }}
-                  placeholder="e.g. 500"
-                />
-              </div>
-
-              {/* Quick suggestion buttons */}
-              <div className="space-y-1">
-                <span className="text-[11px] text-foreground/50">Quick amounts:</span>
-                <div className="flex gap-2">
-                  {[300, 500, 1000].map((amt) => (
-                    <Button
-                      key={amt}
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-6 text-xs px-2.5"
-                      onClick={() => setCustomFeeAmount(String(amt))}
-                    >
-                      ₱{amt.toLocaleString()}
-                    </Button>
-                  ))}
-                  {roomById.get(selectedBooking.roomId)?.ratePerNight && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-6 text-xs px-2.5"
-                      onClick={() => {
-                        const halfDay = Math.round(Number(roomById.get(selectedBooking.roomId).ratePerNight) / 2);
-                        setCustomFeeAmount(String(halfDay));
-                        setCustomFeeReason("Late Check-Out Fee (Half Day)");
-                      }}
-                    >
-                      Half Day (₱{Math.round(Number(roomById.get(selectedBooking.roomId).ratePerNight) / 2).toLocaleString()})
-                    </Button>
-                  )}
-                </div>
-              </div>
-
-              {feeError && (
-                <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-2.5 text-xs text-destructive">
-                  {feeError}
-                </div>
-              )}
-            </div>
-          )}
-
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setFeeDialogOpen(false)}
-              disabled={addingFee}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={handleAddOverstayFee}
-              disabled={addingFee || !customFeeAmount}
-            >
-              {addingFee ? "Adding..." : "Add Fee to Folio"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <CheckoutOverstayFeeDialog
+        open={feeDialogOpen}
+        onOpenChange={setFeeDialogOpen}
+        booking={selectedBooking}
+        roomRate={Number(roomById.get(selectedBooking?.roomId)?.ratePerNight ?? 0)}
+        onSubmit={handleAddOverstayFee}
+      />
     </div>
   );
 }
