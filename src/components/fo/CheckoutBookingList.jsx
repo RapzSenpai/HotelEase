@@ -16,11 +16,11 @@ export default function CheckoutBookingList({
   overdueCount,
   filterMode,
   onFilterChange,
-  bookings,
+  bookings = [],
   selectedBookingId,
   onSelect,
-  guestsMap,
-  roomById,
+  guestsMap = {},
+  roomById = new Map(),
 }) {
   return (
     <div className="lg:col-span-2 space-y-3">

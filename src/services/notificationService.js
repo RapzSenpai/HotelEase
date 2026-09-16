@@ -20,9 +20,9 @@ import { getCol } from "@/lib/db-utils";
 /**
  * Creates a notification for a specific user.
  */
-export async function createNotification(userId, { type, title, message, link }) {
+export async function createNotification(userId, { type, title, message, link }, { trainingMode = null } = {}) {
   if (!userId) return;
-  const notifRef = doc(collection(db, getCol("notifications"), userId, "items"));
+  const notifRef = doc(collection(db, getCol("notifications", trainingMode), userId, "items"));
   await setDoc(notifRef, {
     id: notifRef.id,
     type,
@@ -37,19 +37,19 @@ export async function createNotification(userId, { type, title, message, link })
 /**
  * Marks a specific notification as read.
  */
-export async function markAsRead(userId, notifId) {
+export async function markAsRead(userId, notifId, { trainingMode = null } = {}) {
   if (!userId || !notifId) return;
-  const notifRef = doc(db, getCol("notifications"), userId, "items", notifId);
+  const notifRef = doc(db, getCol("notifications", trainingMode), userId, "items", notifId);
   await updateDoc(notifRef, { isRead: true });
 }
 
 /**
  * Marks all unread notifications as read.
  */
-export async function markAllAsRead(userId) {
+export async function markAllAsRead(userId, { trainingMode = null } = {}) {
   if (!userId) return;
   const q = query(
-    collection(db, getCol("notifications"), userId, "items"),
+    collection(db, getCol("notifications", trainingMode), userId, "items"),
     where("isRead", "==", false)
   );
   
@@ -67,11 +67,11 @@ export async function markAllAsRead(userId) {
 /**
  * Subscribes to the latest 20 notifications for a user.
  */
-export function subscribeToNotifications(userId, callback) {
+export function subscribeToNotifications(userId, callback, { trainingMode = null } = {}) {
   if (!userId) return () => {};
 
   const q = query(
-    collection(db, getCol("notifications"), userId, "items"),
+    collection(db, getCol("notifications", trainingMode), userId, "items"),
     orderBy("createdAt", "desc"),
     limit(20)
   );

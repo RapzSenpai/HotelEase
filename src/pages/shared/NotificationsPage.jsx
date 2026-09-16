@@ -90,12 +90,17 @@ function groupNotifications(notifs) {
   return groups;
 }
 
+const EMPTY_NOTIFICATIONS = [];
+
 export default function NotificationsPage() {
-  const { user, role } = useAuth();
+  const { user, role, trainingMode } = useAuth();
   const homePath = getLogoHomePath(role);
   const navigate = useNavigate();
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
+  const subscriptionKey = `${user?.uid ?? ""}:${trainingMode}`;
+  const [activeSubscriptionKey, setActiveSubscriptionKey] = useState(subscriptionKey);
+  const subscriptionIsCurrent = activeSubscriptionKey === subscriptionKey;
 
   // Clear loading when the authenticated user goes away (during render, not the
   // effect) so the "sign in" empty state shows instead of an endless spinner.
@@ -108,8 +113,14 @@ export default function NotificationsPage() {
   useEffect(() => {
     if (!user?.uid) return;
 
+    // Reset before subscribing so rows from previous training mode cannot remain interactive.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setActiveSubscriptionKey(subscriptionKey);
+    setNotifications([]);
+    setLoading(true);
+
     const q = query(
-      collection(db, getCol("notifications"), user.uid, "items"),
+      collection(db, getCol("notifications", trainingMode), user.uid, "items"),
       orderBy("createdAt", "desc")
     );
 
@@ -128,14 +139,15 @@ export default function NotificationsPage() {
     );
 
     return () => unsub();
-  }, [user?.uid]);
+  }, [user?.uid, trainingMode, subscriptionKey]);
 
-  const { Today, Yesterday, Earlier } = useMemo(() => groupNotifications(notifications), [notifications]);
-  const unreadCount = notifications.filter(n => !n.isRead).length;
+  const visibleNotifications = subscriptionIsCurrent ? notifications : EMPTY_NOTIFICATIONS;
+  const { Today, Yesterday, Earlier } = useMemo(() => groupNotifications(visibleNotifications), [visibleNotifications]);
+  const unreadCount = visibleNotifications.filter(n => !n.isRead).length;
 
   const handleNotifClick = async (notif) => {
     if (!notif.isRead) {
-      await markAsRead(user.uid, notif.id);
+      await markAsRead(user.uid, notif.id, { trainingMode });
     }
     if (notif.link) {
       navigate(notif.link);
@@ -144,7 +156,7 @@ export default function NotificationsPage() {
 
   const handleMarkAllRead = async () => {
     if (unreadCount === 0) return;
-    await markAllAsRead(user.uid);
+    await markAllAsRead(user.uid, { trainingMode });
   };
 
   if (!user) return null;
@@ -159,7 +171,7 @@ export default function NotificationsPage() {
           </p>
         </div>
         
-        {notifications.length > 0 && (
+        {visibleNotifications.length > 0 && (
           <Button 
             onClick={handleMarkAllRead} 
             variant="outline" 
@@ -173,9 +185,9 @@ export default function NotificationsPage() {
         )}
       </div>
 
-      {loading ? (
+      {!subscriptionIsCurrent || loading ? (
         <SkeletonList rows={4} className="mt-8" />
-      ) : notifications.length === 0 ? (
+      ) : visibleNotifications.length === 0 ? (
         <div className="rounded-xl border border-border bg-background p-12 flex flex-col items-center justify-center text-center">
           <div className="h-16 w-16 rounded-full bg-muted/20 flex items-center justify-center mb-4">
             <Bell className="h-8 w-8 text-foreground/20" />

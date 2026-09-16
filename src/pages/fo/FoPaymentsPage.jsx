@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -66,6 +66,8 @@ export default function FoPaymentsPage() {
   const [method, setMethod] = useState("Cash");
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  // One key per form intent: double-clicks share it and collapse to one doc.
+  const idempotencyKeyRef = useRef(crypto.randomUUID());
 
   // ── Derived folio values ──────────────────────────────────────────────────
   const depositFromBooking = Number(selectedBooking?.payment?.deposit ?? 0);
@@ -167,6 +169,7 @@ export default function FoPaymentsPage() {
         referenceNumber: method === "GCash" ? note.trim() || null : null,
         checkNumber: method === "Check" ? note.trim() || null : null,
         trainingMode,
+        idempotencyKey: idempotencyKeyRef.current,
       });
 
       trackEvent(GA_EVENTS.PAYMENT_SUCCESS, {
@@ -187,6 +190,7 @@ export default function FoPaymentsPage() {
       // 3. Clear form fields
       setAmount("");
       setNote("");
+      idempotencyKeyRef.current = crypto.randomUUID();
     } catch (e) {
       console.error("[FoPaymentsPage] onAddPayment error:", e);
       setError(e?.message || "Failed to record payment.");

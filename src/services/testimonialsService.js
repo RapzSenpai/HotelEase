@@ -39,6 +39,7 @@ export async function createTestimonial({ guestId, guestName, rating, message })
     throw new Error("Rating must be between 1 and 5.");
   }
   if (!cleanMessage) throw new Error("Message is required.");
+  if (cleanMessage.length > 2000) throw new Error("Message must be at most 2000 characters.");
 
   const docRef = await addDoc(collection(db, TESTIMONIALS_COL), {
     guestId,

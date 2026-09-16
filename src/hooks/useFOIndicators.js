@@ -28,9 +28,9 @@ export function useFOIndicators({ trainingMode = null, role = null } = {}) {
     }, { trainingMode });
     unsubscribers.push(unsubPending);
 
-    // 2. Unread messages count — messages are admin-read-only per rules, so
-    //    only subscribe for the admin role.
-    if (role === "admin") {
+    // 2. Unread messages count — the inbox is shared by FO + Admin per rules,
+    //    so both roles subscribe.
+    if (role === "admin" || role === "fo") {
       const unsubMessages = subscribeToMessages((messages) => {
         const unreadCount = messages.filter((m) => m.status === "unread").length;
         setUnreadMessagesCount(unreadCount);
@@ -38,15 +38,9 @@ export function useFOIndicators({ trainingMode = null, role = null } = {}) {
       unsubscribers.push(unsubMessages);
     }
 
-    // 3. Approved bookings (ready for check-in)
-    const unsubApproved = subscribeToAllBookings((bookings) => {
-      const approvedBookings = bookings.filter((b) => b.status === "Approved");
-      setHasApprovedCheckIns(approvedBookings.length > 0);
-    }, { trainingMode });
-    unsubscribers.push(unsubApproved);
-
-    // 4. Due check-outs (checked-in guests whose check-out date is today or past)
-    const unsubCheckOuts = subscribeToAllBookings((bookings) => {
+    // One booking listener supplies all booking indicators.
+    const unsubBookings = subscribeToAllBookings((bookings) => {
+      setHasApprovedCheckIns(bookings.some((b) => b.status === "Approved"));
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       
@@ -61,8 +55,9 @@ export function useFOIndicators({ trainingMode = null, role = null } = {}) {
         return checkOutDate <= today;
       });
       setHasDueCheckOuts(dueCheckOuts.length > 0);
+      setHasPendingCancellations(bookings.some((b) => b.status === "Cancellation Requested"));
     }, { trainingMode });
-    unsubscribers.push(unsubCheckOuts);
+    unsubscribers.push(unsubBookings);
 
     // 5. Dirty / in-progress housekeeping rooms
     const unsubDirtyRooms = subscribeToRooms((rooms) => {
@@ -87,13 +82,6 @@ export function useFOIndicators({ trainingMode = null, role = null } = {}) {
       });
       unsubscribers.push(unsubTestimonials);
     }
-
-    // 7. Cancellation Requests (status === "Cancellation Requested")
-    const unsubCancellations = subscribeToAllBookings((bookings) => {
-      const cancellationRequests = bookings.filter((b) => b.status === "Cancellation Requested");
-      setHasPendingCancellations(cancellationRequests.length > 0);
-    }, { trainingMode });
-    unsubscribers.push(unsubCancellations);
 
     return () => {
       unsubscribers.forEach((unsub) => unsub());

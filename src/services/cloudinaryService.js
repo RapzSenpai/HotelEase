@@ -18,6 +18,12 @@ import { compressImage } from "@/lib/imageCompression";
 const CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
 const UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
 
+// Shared abuse gate: EVERY uploader (room photos, avatars, proof, housekeeping,
+// announcements) routes through here, so one check covers all callers. Matches
+// the preset limits documented above — the dashboard stays the real enforcer
+// for attackers calling Cloudinary directly.
+const MAX_UPLOAD_BYTES = 5 * 1024 * 1024; // 5 MB
+
 /**
  * Upload a single File object to Cloudinary.
  * @param {File} file
@@ -25,6 +31,12 @@ const UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
  * @returns {Promise<{ url: string, publicId: string }>}
  */
 export async function uploadImageToCloudinary(file, { onProgress, compressionPreset = "roomPhotos" } = {}) {
+  if (!file || typeof file.type !== "string" || !file.type.startsWith("image/")) {
+    throw new Error("Only image files can be uploaded.");
+  }
+  if (file.size > MAX_UPLOAD_BYTES) {
+    throw new Error("Image must be 5 MB or smaller.");
+  }
   file = await compressImage(file, compressionPreset);
   if (!CLOUD_NAME || !UPLOAD_PRESET) {
     throw new Error(

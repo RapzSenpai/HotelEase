@@ -1,5 +1,6 @@
 import {
   collection,
+  deleteDoc,
   doc,
   getDoc,
   getDocs,
@@ -7,6 +8,7 @@ import {
   runTransaction,
   serverTimestamp,
   Timestamp,
+  updateDoc,
   where,
 } from "firebase/firestore";
 import { db } from "@/firebase/firebase.config";
@@ -14,7 +16,11 @@ import { db } from "@/firebase/firebase.config";
 import { toLocalDate as toDate } from "@/lib/time-utils";
 import { getCol } from "@/lib/db-utils";
 import { isRoomActive, isRoomBookable } from "../roomsService";
-import { getBlockedRoomIds, setBookingMarked } from "../availabilityService";
+import {
+  claimBookingMarked,
+  getBlockedRoomIds,
+  MARKER_CONFLICT_MESSAGE,
+} from "../availabilityService";
 import { createNotification } from "../notificationService";
 import { listFoUsers } from "../userService";
 import { PROOF_REQUIRED_METHODS } from "@/lib/paymentDetails";
@@ -157,25 +163,49 @@ export async function createBooking(payload) {
 
     transaction.set(bookingRef, bookingData);
 
-    return { id: bookingRef.id, roomName: roomData.name || roomData.type || "Room" };
+    return { id: bookingRef.id, roomName: roomData.name || roomData.type || "Room", status: initialStatus };
   }).then(async (result) => {
+    // Claim the PII-free availability markers inside a SECOND transaction.
+    // The booking doc commits first so the marker-create rules (guest must own
+    // a live booking) evaluate against committed state; concurrent claims for
+    // the same room/nights then serialize and the loser aborts here.
     try {
-      // PROD: write the PII-free availability marker so guests can read
-      // occupancy without access to other guests' bookings. Training keeps
-      // reading the legacy sandbox directly, so no markers are needed there.
-      if (!trainingMode) {
-        await setBookingMarked({
-          roomId,
-          bookingId: result.id,
-          checkIn,
-          checkOut,
-          status: PROOF_REQUIRED_METHODS.includes(payload.paymentMethod)
-            ? "Awaiting Payment"
-            : "Pending",
-        });
-      }
+      await claimBookingMarked({
+        roomId,
+        bookingId: result.id,
+        checkIn,
+        checkOut,
+        status: result.status,
+        trainingMode,
+      });
     } catch (e) {
-      console.warn("Availability marker write failed (booking still created):", e);
+      // Unwind the just-created hold so a booking NEVER exists without its
+      // markers (a markerless hold looks free and reopens the double-booking
+      // hole). Pending losers cancel directly; Awaiting Payment losers can't
+      // self-cancel per rules, so they expire via the sweep — they hold no
+      // markers, so the room stays bookable either way. Training losers are
+      // deleted outright (sandbox rules let owners delete) so the dry run
+      // leaves no ghost holds behind.
+      try {
+        if (trainingMode) {
+          await deleteDoc(doc(db, BOOKINGS_COL, result.id));
+        } else {
+          await updateDoc(doc(db, BOOKINGS_COL, result.id), {
+            status: "Cancelled",
+            rejectionReason: e?.message === MARKER_CONFLICT_MESSAGE
+              ? "Dates taken by an earlier booking."
+              : "Availability claim failed.",
+            updatedAt: serverTimestamp(),
+          });
+        }
+      } catch (compensationError) {
+        console.error("Booking compensation failed after availability claim failure:", compensationError);
+        throw new Error(
+          e?.message || "Availability claim failed.",
+          { cause: compensationError },
+        );
+      }
+      throw e;
     }
 
     try {
@@ -196,7 +226,7 @@ export async function createBooking(payload) {
         title: "New Booking Request",
         message: `${guestName} requested ${result.roomName} from ${checkInStr} to ${checkOutStr}`,
         link: "/fo/bookings"
-      })));
+      }, { trainingMode })));
 
       // Guest notification: payment proof required — only for methods that need proof upload
       if (PROOF_REQUIRED_METHODS.includes(payload.paymentMethod)) {
@@ -205,7 +235,7 @@ export async function createBooking(payload) {
           title: "Payment Proof Required",
           message: `Upload payment proof to complete your booking for ${result.roomName}`,
           link: "/my-bookings"
-        });
+        }, { trainingMode });
       }
     } catch (e) { console.error("Notif error", e); }
     return result;

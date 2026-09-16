@@ -25,6 +25,7 @@ const TRAINING_PAYMENTS_COL = "training_payments";
 const TRAINING_HOUSEKEEPING_LOGS_COL = "training_housekeeping_logs";
 const TRAINING_ROOMS_COL = "training_rooms";
 const TRAINING_REVIEWS_COL = "training_reviews";
+const TRAINING_AVAILABILITY_COL = "training_availability";
 
 function generateSessionCode() {
   // Short human-friendly code; collisions are extremely unlikely for a class project.
@@ -175,6 +176,7 @@ export async function resetTrainingData() {
     clearCollection(TRAINING_HOUSEKEEPING_LOGS_COL),
     clearCollection(TRAINING_ROOMS_COL),
     clearCollection(TRAINING_REVIEWS_COL),
+    clearCollection(TRAINING_AVAILABILITY_COL),
   ]);
   return { ok: true };
 }

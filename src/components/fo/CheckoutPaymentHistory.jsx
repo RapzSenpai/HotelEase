@@ -19,7 +19,7 @@ function formatMethod(p) {
   return ref ? `${p.method || "—"} · ${ref}` : p.method || "—";
 }
 
-export default function CheckoutPaymentHistory({ payments, loading, error }) {
+export default function CheckoutPaymentHistory({ payments = [], loading, error }) {
   return (
     <div className="rounded-xl border border-border bg-background p-4 space-y-3">
       <div className="font-semibold">Payment History</div>

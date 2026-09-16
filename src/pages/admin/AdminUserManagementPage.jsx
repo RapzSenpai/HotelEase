@@ -102,11 +102,23 @@ export default function AdminUserManagementPage() {
       );
   }, [users, searchQuery, activeTab]);
 
+  // Last-admin shield (prod only): the worker refuses deleting the sole admin
+  // and rules need a prod admin for user writes — block demote/delete here too.
+  function isSoleProdAdmin(uid) {
+    if (isTrainingSource) return false;
+    const admins = users.filter((u) => u.role === "admin");
+    return admins.length <= 1 && admins.some((u) => u.id === uid);
+  }
+
   async function onSaveRole(uid) {
     const nextRole = roleEdits[uid];
     const currentRole = users.find((u) => u.id === uid)?.role;
     if (nextRole === currentRole) {
       toast.info("No changes made to role");
+      return;
+    }
+    if (currentRole === "admin" && nextRole !== "admin" && isSoleProdAdmin(uid)) {
+      toast.error("Cannot demote the last admin. Promote another admin first.");
       return;
     }
 
@@ -130,8 +142,12 @@ export default function AdminUserManagementPage() {
 
   async function confirmDelete() {
     if (!deletingUser) return;
-    
+
     const uid = deletingUser.id;
+    if (isSoleProdAdmin(uid)) {
+      toast.error("Cannot delete the last admin. Promote another admin first.");
+      return;
+    }
     try {
       await deleteUserFully(uid);
       auditAction(AUDIT_ACTIONS.USER_DELETE, {
@@ -146,6 +162,12 @@ export default function AdminUserManagementPage() {
       setIsDeleteDialogOpen(false);
       setDeletingUser(null);
     } catch (e) {
+      // A worker refusal (e.g. last-admin 409) must NOT fall through to the
+      // profile-only fallback — that would delete the admin anyway.
+      if (/last admin|own admin/i.test(e?.message || "")) {
+        toast.error(e?.message || "Delete refused.");
+        return;
+      }
       // Fallback: remove the Firestore profile only, then warn the admin that
       // the login account still exists (client SDK cannot delete Auth accounts).
       toast.error(`Full delete failed: ${e?.message || e}`);

@@ -131,7 +131,7 @@ export default function AdminAvailabilityPage() {
             <Loader2 className="h-4 w-4 animate-spin" /> Checking availability…
           </CardContent>
         </Card>
-      ) : (
+      ) : diff ? (
         <>
           <Card>
             <CardContent className="flex flex-wrap items-center gap-3 py-4 text-sm">
@@ -180,7 +180,7 @@ export default function AdminAvailabilityPage() {
             />
           </div>
         </>
-      )}
+      ) : null}
     </div>
   );
 }

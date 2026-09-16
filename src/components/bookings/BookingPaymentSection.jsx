@@ -204,10 +204,10 @@ export default function BookingPaymentSection({
 
             {/* File Input */}
             <div className="space-y-2">
-              <label htmlFor="proof-image" className="text-xs font-semibold uppercase text-foreground/70">Proof Image</label>
+              <label htmlFor={`proof-image-${booking.id}`} className="text-xs font-semibold uppercase text-foreground/70">Proof Image</label>
               <div className="relative">
                 <input
-                  id="proof-image"
+                  id={`proof-image-${booking.id}`}
                   type="file"
                   accept="image/*"
                   onChange={(e) => onPaymentFileChange(e.target.files?.[0] || null)}

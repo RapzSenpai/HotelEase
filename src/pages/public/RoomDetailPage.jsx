@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import TermsDialog from "@/components/common/TermsDialog";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -44,7 +43,8 @@ import {
   Lock,
   Building2,
   CheckCircle,
-  Clock,
+  ChevronLeft,
+  ChevronRight,
   ShieldCheck,
   AlertTriangle,
 } from "lucide-react";
@@ -105,6 +105,13 @@ export default function RoomDetailPage() {
   const todayStr = useMemo(() => getLocalDateString(), []);
   const [checkIn, setCheckIn] = useState(searchParams.get("checkIn") || "");
   const [checkOut, setCheckOut] = useState(searchParams.get("checkOut") || "");
+
+  // Sync when navigating in place with new ?checkIn&checkOut (RoomsPage links).
+  useEffect(() => {
+    setCheckIn(searchParams.get("checkIn") || "");
+    setCheckOut(searchParams.get("checkOut") || "");
+    setBookNowError(null);
+  }, [searchParams]);
 
   // Check-out must be at least one day after check-in; otherwise the Book-Now
   // availability re-check silently fails and misreports the room as taken.
@@ -170,21 +177,27 @@ export default function RoomDetailPage() {
   const [reviewFormOpen, setReviewFormOpen] = useState(false);
 
   // ---- fetch room ----
+  // ponytail: roomViewTrackedRef dedupes StrictMode double-effect in dev.
+  const roomViewTrackedRef = useRef(null);
   useEffect(() => {
     let isMounted = true;
     async function loadRoom() {
       try {
         setLoading(true);
         setError(null);
-        const data = await getRoom(roomId);
+        setRoom(null);
+        const data = await getRoom(roomId, { trainingMode });
         if (!isMounted) return;
         setRoom(data);
-        trackEvent(GA_EVENTS.ROOM_VIEW, {
-          item_id: roomId,
-          item_name: data?.name || data?.roomNumber || "",
-          item_category: data?.type || "",
-          price: data?.ratePerNight ?? 0,
-        });
+        if (roomViewTrackedRef.current !== `${trainingMode}:${roomId}`) {
+          roomViewTrackedRef.current = `${trainingMode}:${roomId}`;
+          trackEvent(GA_EVENTS.ROOM_VIEW, {
+            item_id: roomId,
+            item_name: data?.name || data?.roomNumber || "",
+            item_category: data?.type || "",
+            price: data?.ratePerNight ?? 0,
+          });
+        }
       } catch (e) {
         if (!isMounted) return;
         setError(mapFirebaseError(e) || "Failed to load room.");
@@ -196,30 +209,32 @@ export default function RoomDetailPage() {
     return () => {
       isMounted = false;
     };
-  }, [roomId]);
+  }, [roomId, trainingMode]);
 
   // ---- fetch reviews ----
-  const isMountedReviewsRef = useRef(true);
+  // ponytail: sequence guard so slow room A can't overwrite fast room B.
+  const reviewsSeqRef = useRef(0);
   async function loadReviews() {
-    if (isMountedReviewsRef.current) setReviewsLoading(true);
-    if (isMountedReviewsRef.current) setReviewsError(null);
+    const seq = ++reviewsSeqRef.current;
+    setReviewsLoading(true);
+    setReviewsError(null);
     try {
       const data = await listReviewsForRoom(roomId, { trainingMode });
-      if (isMountedReviewsRef.current) setReviews(data);
+      if (reviewsSeqRef.current !== seq) return;
+      setReviews(data);
     } catch (e) {
-      if (isMountedReviewsRef.current) setReviewsError(mapFirebaseError(e) || "Failed to load reviews.");
+      if (reviewsSeqRef.current !== seq) return;
+      setReviewsError(mapFirebaseError(e) || "Failed to load reviews.");
     } finally {
-      if (isMountedReviewsRef.current) setReviewsLoading(false);
+      if (reviewsSeqRef.current === seq) setReviewsLoading(false);
     }
   }
 
   useEffect(() => {
-    isMountedReviewsRef.current = true;
     if (!roomId) return;
     loadReviews();
-    return () => { isMountedReviewsRef.current = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roomId]);
+  }, [roomId, trainingMode]);
 
   // ---- check review eligibility ----
   useEffect(() => {
@@ -262,8 +277,7 @@ export default function RoomDetailPage() {
     return () => {
       isMounted = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, role, roomId]);
+  }, [user, role, roomId, trainingMode]);
 
   // ---- subscribe to favorites ----
   useEffect(() => {
@@ -275,12 +289,12 @@ export default function RoomDetailPage() {
 
     const unsubscribe = subscribeToFavorites(user.uid, (data) => {
       setFavorites(data);
-    });
+    }, { trainingMode });
 
     return () => {
       if (typeof unsubscribe === "function") unsubscribe();
     };
-  }, [user, role]);
+  }, [user, role, trainingMode]);
 
   // ---- update isFavorite when favorites or roomId changes ----
   useEffect(() => {
@@ -292,7 +306,7 @@ export default function RoomDetailPage() {
   async function handleToggleFavorite() {
     if (!user || role !== "guest") return;
     try {
-      await toggleFavorite(user.uid, roomId);
+      await toggleFavorite(user.uid, roomId, { trainingMode });
     } catch (e) {
       console.error("Failed to toggle favorite:", e);
     }
@@ -311,9 +325,10 @@ export default function RoomDetailPage() {
       feedback,
       trainingMode,
     });
-    setCanReview(false);
-    setReviewFormOpen(false);
     await loadReviews();
+    setCanReview(false);
+    setEligibleBookingId(null);
+    setReviewFormOpen(false);
   }
 
   // ---- RENO-2: defensive Book Now — re-validates availability before navigating ----
@@ -430,6 +445,7 @@ export default function RoomDetailPage() {
               <div className="lg:col-span-5">
                 <div className="lg:sticky lg:top-24">
                   <RoomPhotoCarousel
+                    key={roomId}
                     photos={photos}
                     roomName={room.name || room.type}
                     isFavorite={isFavorite}
@@ -629,7 +645,7 @@ export default function RoomDetailPage() {
       />
 
       {/* ── STICKY BOTTOM BAR ── */}
-      {!loading && (
+      {!loading && room && (
         <RoomBookingBar
           room={room}
           dates={{ checkIn, checkOut, todayStr, minCheckOutStr, nights, datesSelected }}

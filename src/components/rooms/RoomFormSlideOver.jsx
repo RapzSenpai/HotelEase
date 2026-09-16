@@ -72,6 +72,7 @@ export default function RoomFormSlideOver({
             </div>
             <button
               onClick={onClose}
+              aria-label="Close"
               className="p-1.5 rounded-md hover:bg-muted transition-colors"
             >
               <X className="h-4 w-4" />
@@ -116,8 +117,9 @@ export default function RoomFormSlideOver({
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-foreground/60">Room Type</Label>
+              <Label htmlFor="so-room-type" className="text-xs font-medium text-foreground/60">Room Type</Label>
               <select
+                id="so-room-type"
                 value={existingTypes.includes(form.type) ? form.type : (form.type ? "Custom" : "")}
                 onChange={(e) => {
                   const val = e.target.value;
@@ -154,8 +156,9 @@ export default function RoomFormSlideOver({
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-foreground/60">Room Status</Label>
+              <Label htmlFor="so-room-status" className="text-xs font-medium text-foreground/60">Room Status</Label>
               <select
+                id="so-room-status"
                 value={form.status}
                 onChange={(e) => setForm((p) => ({ ...p, status: e.target.value }))}
                 className={SELECT_TRIGGER_CLASS}

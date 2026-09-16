@@ -133,7 +133,7 @@ export async function updateRoomStatus({
           title: "Room Needs Cleaning 🧹",
           message: `${result.roomName} is ready for housekeeping.`,
           link: "/fo/housekeeping"
-        })));
+        }, { trainingMode })));
       } catch(e) { console.error("Notif error", e); }
     }
 
@@ -145,14 +145,14 @@ export async function updateRoomStatus({
             title: "Housekeeping in Progress 🧹",
             message: `Housekeeping staff is currently cleaning your room (${result.roomName}).`,
             link: "/housekeeping",
-          });
+          }, { trainingMode });
         } else if (result.newStatus === "Available") {
           await createNotification(result.guestIdForNotif, {
             type: "housekeeping_done",
             title: "Housekeeping Completed ✨",
             message: `Your room (${result.roomName}) has been cleaned! Check your booking to view photos or leave feedback.`,
             link: "/housekeeping",
-          });
+          }, { trainingMode });
         }
       } catch (e) {
         console.error("Guest mid-stay notif error", e);
@@ -583,4 +583,71 @@ export function subscribeToHousekeepingLogsForRoom(
         .catch(() => callback([]));
     },
   );
+}
+
+/**
+ * Guest-scoped subscription: logs for ONE booking only. The rules only let
+ * guests read their own booking's logs, so the query constrains bookingId —
+ * the backend filters instead of the client, and other guests' notes/photos
+ * never leave Firestore. (The card keeps its client-side filter too.)
+ */
+export function subscribeToHousekeepingLogsForBooking(
+  bookingId,
+  callback,
+  { trainingMode = null, roomId = null, guestId = null } = {},
+) {
+  if (!bookingId || typeof bookingId !== "string") {
+    callback([]);
+    return () => {};
+  }
+
+  const logsCol = housekeepingLogsCollection(trainingMode);
+  const bookingQuery = query(
+    collection(db, logsCol),
+    where("bookingId", "==", bookingId),
+    orderBy("createdAt", "desc"),
+  );
+  const legacyQuery = roomId && guestId
+    ? query(
+        collection(db, logsCol),
+        where("roomId", "==", roomId),
+        where("changedByUserId", "==", guestId),
+        where("isMidStayRequest", "==", true),
+      )
+    : null;
+
+  const sortLogs = (docs) => docs
+    .map((d) => ({ id: d.id, ...d.data() }))
+    .sort((a, b) => {
+      const aTime = a.createdAt?.toMillis?.() ?? a.createdAt?.seconds ?? 0;
+      const bTime = b.createdAt?.toMillis?.() ?? b.createdAt?.seconds ?? 0;
+      return bTime - aTime;
+    });
+
+  const sources = new Map();
+  const emit = () => {
+    const uniqueDocs = new Map();
+    [...sources.values()].flat().forEach((docSnap) => uniqueDocs.set(docSnap.id, docSnap));
+    callback(sortLogs([...uniqueDocs.values()]));
+  };
+  const subscribe = (source, q, fallbackQuery) => onSnapshot(
+    q,
+    (snap) => { sources.set(source, snap.docs); emit(); },
+    () => {
+      getDocs(fallbackQuery)
+        .then((fallbackSnap) => { sources.set(source, fallbackSnap.docs); emit(); })
+        .catch(() => { sources.set(source, []); emit(); });
+    },
+  );
+  const unsubs = [
+    subscribe(
+      "booking",
+      bookingQuery,
+      query(collection(db, logsCol), where("bookingId", "==", bookingId)),
+    ),
+  ];
+  if (legacyQuery) {
+    unsubs.push(subscribe("legacy", legacyQuery, legacyQuery));
+  }
+  return () => unsubs.forEach((unsubscribe) => unsubscribe());
 }

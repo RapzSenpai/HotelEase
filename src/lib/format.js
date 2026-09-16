@@ -12,7 +12,9 @@ export function formatDate(dateLike) {
   if (dateLike == null) return "—";
   const d = dateLike?.toDate ? dateLike.toDate() : new Date(dateLike);
   if (Number.isNaN(d?.getTime?.() ?? NaN)) return "—";
-  return d.toISOString().slice(0, 10);
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${month}-${day}`;
 }
 
 /** Local date + time (toLocaleString) for a Timestamp/Date, else "—". */

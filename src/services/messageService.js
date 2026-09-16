@@ -14,9 +14,16 @@ import emailjs from "@emailjs/browser";
 import { db } from "@/firebase/firebase.config";
 import { listFoUsers } from "@/services/userService";
 import { createNotification } from "@/services/notificationService";
+import { getCol } from "@/lib/db-utils";
 import { buildReplyBody } from "@/services/emailHtml";
 
 const MESSAGES_COL = "messages";
+
+// Shared guard: the ContactPage cooldown is UX only — every caller routes
+// through here, so the service enforces shape + per-device throttle once.
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const MESSAGE_COOLDOWN_MS = 30_000;
+const LAST_SENT_KEY = "hotelease_last_message_at";
 
 async function sendReplyEmail({ toEmail, name, subject, replyMessage }) {
   const serviceId = import.meta.env.VITE_EMAILJS_SERVICE_ID;
@@ -38,7 +45,10 @@ async function sendReplyEmail({ toEmail, name, subject, replyMessage }) {
   await emailjs.send(serviceId, templateId, templateParams, publicKey);
 }
 
-export async function submitMessage({ name, email, subject, message, guestId = null }) {
+export async function submitMessage({ name, email, subject, message, guestId = null, honeypot = "", trainingMode = null }) {
+  // Bot trap: fake success so automated senders don't learn the field name.
+  if (String(honeypot || "").trim()) return { id: null };
+
   const cleanName = String(name || "").trim();
   const cleanEmail = String(email || "").trim();
   const cleanSubject = String(subject || "").trim();
@@ -47,8 +57,25 @@ export async function submitMessage({ name, email, subject, message, guestId = n
   if (!cleanName || !cleanEmail || !cleanSubject || !cleanMessage) {
     throw new Error("Please complete all required fields.");
   }
+  if (!EMAIL_RE.test(cleanEmail)) {
+    throw new Error("Please enter a valid email.");
+  }
+  if (cleanMessage.length < 20 || cleanMessage.length > 2000) {
+    throw new Error("Message must be between 20 and 2000 characters.");
+  }
 
-  const ref = doc(collection(db, MESSAGES_COL));
+  try {
+    const lastSent = Number(localStorage.getItem(LAST_SENT_KEY) || 0);
+    const waitMs = MESSAGE_COOLDOWN_MS - (Date.now() - lastSent);
+    if (waitMs > 0) {
+      throw new Error(`Please wait ${Math.ceil(waitMs / 1000)} seconds before sending another message.`);
+    }
+  } catch (e) {
+    if (e?.message?.startsWith("Please wait")) throw e;
+    // ignore storage errors
+  }
+
+  const ref = doc(collection(db, getCol(MESSAGES_COL, trainingMode)));
   await setDoc(ref, {
     id: ref.id,
     name: cleanName,
@@ -63,8 +90,9 @@ export async function submitMessage({ name, email, subject, message, guestId = n
   });
 
   try {
+    try { localStorage.setItem(LAST_SENT_KEY, String(Date.now())); } catch { /* ignore */ }
     // Guest-safe: only read FO-role users (guests must not list other guests).
-    const foUsers = await listFoUsers();
+    const foUsers = await listFoUsers({ trainingMode });
     await Promise.all(
       foUsers.map((fo) =>
         createNotification(fo.id, {
@@ -72,7 +100,7 @@ export async function submitMessage({ name, email, subject, message, guestId = n
           title: "New Support Message 💬",
           message: `${cleanName} sent a message: ${cleanSubject}`,
           link: "/fo/messages",
-        }),
+        }, { trainingMode }),
       ),
     );
   } catch (e) {

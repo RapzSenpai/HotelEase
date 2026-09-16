@@ -10,7 +10,7 @@
  * Writes `<name>.webp` next to each source and prints before/after sizes.
  * Import the .webp files in code; the sources can then be deleted.
  */
-import { rm, stat, writeFile } from "node:fs/promises";
+import { stat, writeFile } from "node:fs/promises";
 import { join, basename } from "node:path";
 import { fileURLToPath } from "node:url";
 import sharp from "sharp";
@@ -42,10 +42,11 @@ for (const name of SOURCES) {
     .webp({ quality: name.endsWith(".png") ? 90 : 76 })
     .toBuffer();
 
-  // Never ship a "optimised" file that is bigger than the source.
+  // Consumers import the .webp unconditionally, so it must always exist.
+  // Still compare + log, but never delete the output when webp is larger.
   if (buffer.length >= before) {
-    await rm(output, { force: true });
-    console.log(`${name.padEnd(18)} ${KB(before).padStart(8)} → kept original (webp was larger)`);
+    await writeFile(output, buffer);
+    console.log(`${name.padEnd(18)} ${KB(before).padStart(8)} → ${KB(buffer.length).padStart(8)} (webp larger, kept for unconditional consumers)`);
     continue;
   }
 

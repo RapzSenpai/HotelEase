@@ -288,6 +288,16 @@ export default function App() {
             </MaintenanceRoute>
           }
         />
+        <Route
+          path="/fo/messages"
+          element={
+            <MaintenanceRoute>
+              <PrivateRoute allowedRoles={["fo"]}>
+                <SuspenseWrapper><MessagesPage /></SuspenseWrapper>
+              </PrivateRoute>
+            </MaintenanceRoute>
+          }
+        />
 
         {/* Admin (Role: admin) */}
         <Route

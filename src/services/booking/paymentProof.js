@@ -1,4 +1,4 @@
-import { doc, getDoc, serverTimestamp, updateDoc } from "firebase/firestore";
+import { doc, getDoc, runTransaction, serverTimestamp } from "firebase/firestore";
 import { db, auth } from "@/firebase/firebase.config";
 import { createNotification } from "../notificationService";
 import { listFoUsers } from "../userService";
@@ -31,29 +31,46 @@ export async function uploadPaymentProof(bookingId, file, paymentType, paymentMe
 
   const col = bookingsCollection(trainingMode);
   const bookingRef = doc(db, col, bookingId);
-  const bookingSnap = await getDoc(bookingRef);
-  
-  if (!bookingSnap.exists()) {
+
+  // Fast-path pre-check so an obviously stale booking never pays for an
+  // upload; the transaction below is the real guard.
+  const preSnap = await getDoc(bookingRef);
+  if (!preSnap.exists()) {
     throw new Error("Booking not found");
   }
-
-  const booking = bookingSnap.data();
-  if (booking.guestId !== currentUser.uid) {
-    throw new Error("You can only upload payment proof for your own bookings");
-  }
-  if (booking.status !== "Awaiting Payment") {
+  if (preSnap.data().status !== "Awaiting Payment") {
     throw new Error("Payment proof can only be uploaded for bookings in 'Awaiting Payment' status");
   }
 
   const { url } = await uploadImageToCloudinary(file, { compressionPreset: "paymentProofs" });
 
-  await updateDoc(bookingRef, {
-    paymentProofUrl: url,
-    paymentType: paymentType,
-    paymentMethod: paymentMethod,
-    proofUploadedAt: serverTimestamp(),
-    status: "Pending",
-    updatedAt: serverTimestamp(),
+  // Transaction: parallel uploads serialize on the booking doc — the loser
+  // re-reads status (now Pending) and aborts. Its image is already uploaded
+  // (ponytail: no upload dedup — a wasted image beats a double-flip; add an
+  // idempotency key when Cloudinary spend matters).
+  await runTransaction(db, async (transaction) => {
+    const bookingSnap = await transaction.get(bookingRef);
+
+    if (!bookingSnap.exists()) {
+      throw new Error("Booking not found");
+    }
+
+    const booking = bookingSnap.data();
+    if (booking.guestId !== currentUser.uid) {
+      throw new Error("You can only upload payment proof for your own bookings");
+    }
+    if (booking.status !== "Awaiting Payment") {
+      throw new Error("Payment proof can only be uploaded for bookings in 'Awaiting Payment' status");
+    }
+
+    transaction.update(bookingRef, {
+      paymentProofUrl: url,
+      paymentType: paymentType,
+      paymentMethod: paymentMethod,
+      proofUploadedAt: serverTimestamp(),
+      status: "Pending",
+      updatedAt: serverTimestamp(),
+    });
   });
 
   try {
@@ -66,7 +83,7 @@ export async function uploadPaymentProof(bookingId, file, paymentType, paymentMe
       title: "Payment Proof Uploaded",
       message: `Payment proof has been uploaded for a booking request`,
       link: "/fo/bookings"
-    })));
+    }, { trainingMode })));
   } catch (e) {
     console.error("Notif error", e);
   }

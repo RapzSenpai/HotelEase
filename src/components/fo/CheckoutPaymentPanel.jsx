@@ -19,6 +19,7 @@ const METHOD_OPTIONS = ["Cash", "GCash", "Check", "Credit Card"];
 export default function CheckoutPaymentPanel({
   balance,
   submitting,
+  hasReceipt = false,
   generatingReceipt,
   values,
   onChange,
@@ -28,7 +29,10 @@ export default function CheckoutPaymentPanel({
 }) {
   const disabled = submitting || balance <= 0;
 
-  if (balance <= 0) {
+  // Success card only for a fresh payment (hasReceipt). Settled bookings
+  // with no new receipt get a quiet settled card — Done used to clear the
+  // receipt but the balance gate kept the card stuck.
+  if (balance <= 0 && hasReceipt) {
     return (
       <div className="rounded-xl border border-success/30 bg-success/5 p-6 text-center space-y-4">
         <div className="flex justify-center">
@@ -59,6 +63,32 @@ export default function CheckoutPaymentPanel({
             Done
           </Button>
         </div>
+      </div>
+    );
+  }
+
+  if (balance <= 0) {
+    return (
+      <div className="rounded-xl border border-success/30 bg-success/5 p-6 text-center space-y-4">
+        <div className="flex justify-center">
+          <CheckCircle className="h-12 w-12 text-success" />
+        </div>
+        <div className="space-y-1">
+          <h3 className="text-xl font-bold text-success">
+            Settled
+          </h3>
+          <p className="text-sm text-foreground/70">
+            No outstanding balance. You can download the receipt or proceed to checkout.
+          </p>
+        </div>
+        <Button
+          variant="outline"
+          className="w-full"
+          onClick={onDownloadReceipt}
+          disabled={generatingReceipt}
+        >
+          {generatingReceipt ? "Generating..." : "Download Receipt"}
+        </Button>
       </div>
     );
   }

@@ -26,7 +26,7 @@ const SUBJECT_OPTIONS = [
 const COOLDOWN_SECONDS = 30;
 
 export default function ContactPage() {
-  const { user } = useAuth();
+  const { user, trainingMode } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [cooldown, setCooldown] = useState(0);
   const cooldownTimer = useRef(null);
@@ -60,6 +60,8 @@ export default function ContactPage() {
         subject: values.subject,
         message: values.message,
         guestId: user?.uid || null,
+        honeypot: values.honeypot || "",
+        trainingMode,
       });
       toast.success("Message sent! We'll get back to you shortly.");
       reset();

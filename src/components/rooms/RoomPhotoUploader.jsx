@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Plus } from "lucide-react";
 import { uploadImageToCloudinary } from "@/services/cloudinaryService";
 
@@ -11,6 +11,12 @@ import { uploadImageToCloudinary } from "@/services/cloudinaryService";
  */
 export default function RoomPhotoUploader({ photos, onChange }) {
   const [uploading, setUploading] = useState([]);
+  // Latest photos for overlapping upload batches — the handleFiles closure
+  // would otherwise accumulate from a stale snapshot and drop URLs.
+  const photosRef = useRef(photos);
+  useEffect(() => {
+    photosRef.current = photos;
+  }, [photos]);
 
   async function handleFiles(e) {
     const files = Array.from(e.target.files || []);
@@ -27,42 +33,26 @@ export default function RoomPhotoUploader({ photos, onChange }) {
     }));
     setUploading((prev) => [...prev, ...newUploading]);
 
-    const startIdx = uploading.length;
-    const accumulated = [...photos];
-
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
-      const globalIdx = startIdx + i;
+      // Stable id, not array position: removals or concurrent selections
+      // shift indexes and would redirect updates to the wrong row.
+      const rowId = newUploading[i].id;
+      const patchRow = (patch) =>
+        setUploading((prev) =>
+          prev.map((u) => (u.id === rowId ? { ...u, ...patch } : u)),
+        );
       try {
         const { url } = await uploadImageToCloudinary(file, {
           folder: "rooms",
-          onProgress: (pct) => {
-            setUploading((prev) => {
-              const next = [...prev];
-              if (next[globalIdx])
-                next[globalIdx] = { ...next[globalIdx], progress: pct };
-              return next;
-            });
-          },
+          onProgress: (pct) => patchRow({ progress: pct }),
         });
-        accumulated.push(url);
-        onChange([...accumulated]);
-        setUploading((prev) => {
-          const next = [...prev];
-          if (next[globalIdx])
-            next[globalIdx] = { ...next[globalIdx], progress: 100, done: true };
-          return next;
-        });
+        const accumulated = [...photosRef.current, url];
+        photosRef.current = accumulated;
+        onChange(accumulated);
+        patchRow({ progress: 100, done: true });
       } catch (err) {
-        setUploading((prev) => {
-          const next = [...prev];
-          if (next[globalIdx])
-            next[globalIdx] = {
-              ...next[globalIdx],
-              error: err?.message || "Upload failed",
-            };
-          return next;
-        });
+        patchRow({ error: err?.message || "Upload failed" });
       }
     }
 

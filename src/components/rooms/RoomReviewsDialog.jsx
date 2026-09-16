@@ -18,7 +18,7 @@ import { formatDate } from "@/lib/format";
  * else, so keeping them behind this component's boundary removes three pieces
  * of state from a page that already had 25. Markup is verbatim.
  */
-export default function RoomReviewsDialog({ open, onOpenChange, reviews }) {
+export default function RoomReviewsDialog({ open, onOpenChange, reviews = [] }) {
   const [reviewFilter, setReviewFilter] = useState("all");
 
   // The page used to reset this filter just before opening the dialog. The

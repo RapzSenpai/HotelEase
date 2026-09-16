@@ -74,6 +74,12 @@ const FO_LINKS = [
   {
     group: "Communication",
     items: [
+      {
+        to: "/fo/messages",
+        label: "Messages",
+        icon: Mail,
+        notification: { type: "count", key: "unreadMessagesCount" },
+      },
       { to: "/fo/announcements", label: "Announcements", icon: Megaphone },
     ],
   },
@@ -227,8 +233,9 @@ export default function Sidebar({ open, onClose }) {
     ],
   );
 
-  // Only show Messages and Testimonials indicators for Admin role
-  const filteredIndicators = role === "admin" ? indicators : {
+  // Testimonials + alerts stay admin-only; the Messages inbox is shared by
+  // FO and Admin, so both roles keep the unread badge.
+  const filteredIndicators = (role === "admin" || role === "fo") ? indicators : {
     ...indicators,
     unreadMessagesCount: 0,
     pendingTestimonialsCount: 0,

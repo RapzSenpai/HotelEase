@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import {
@@ -46,6 +46,9 @@ export default function FoCheckOutPage() {
   const [paymentMethod, setPaymentMethod] = useState("Cash");
   const [paymentRef, setPaymentRef] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [checkingOut, setCheckingOut] = useState(false);
+  // One key per form intent: double-clicks share it and collapse to one doc.
+  const idempotencyKeyRef = useRef(crypto.randomUUID());
   const [lastReceiptData, setLastReceiptData] = useState(null);
   const [generatingReceipt, setGeneratingReceipt] = useState(false);
 
@@ -173,11 +176,16 @@ export default function FoCheckOutPage() {
     [selectedBookingId, enrichedBookings],
   );
 
+  // Single money source: live payments sum once loaded for this booking,
+  // else the folio deposit. Folio Outstanding, gate, prefill and receipt
+  // all derive from here so list/detail/history can't disagree.
   const selectedBalance = useMemo(() => {
     const total = Number(selectedBooking?.totalCost ?? 0);
-    const paid = Number(selectedBooking?.payment?.deposit ?? 0);
+    const paid = paymentsLoading
+      ? Number(selectedBooking?.payment?.deposit ?? 0)
+      : payments.reduce((sum, p) => sum + Number(p.amount ?? 0), 0);
     return Math.max(0, total - paid);
-  }, [selectedBooking]);
+  }, [selectedBooking, payments, paymentsLoading]);
 
   // Build receipt data from booking and payment records
   function buildReceiptData(booking, paymentRecords) {
@@ -233,8 +241,9 @@ export default function FoCheckOutPage() {
         : bookingData,
     );
 
-    // Reload payment history for the same booking
-    const bid = bookingId ?? selectedBookingId;
+    // Reload payment history for the same booking.
+    // Explicit null skips the reload (used after checkout clears selection).
+    const bid = bookingId !== undefined ? bookingId : selectedBookingId;
     if (bid) {
       try {
         const data = await listPaymentsForBooking(bid, { trainingMode });
@@ -254,13 +263,19 @@ export default function FoCheckOutPage() {
   // ── Extend Stay handler ───────────────────────────────────────────────────
   // The dialog owns the date field, its validation and the cost preview; this
   // stays the write, and must reject so the dialog can show the failure.
-  async function handleExtendStay({ checkOutDate, addedNights, dailyRate }) {
+  async function handleExtendStay({ checkOutDate, addedNights, dailyRate, expectedCheckOutDate = null }) {
+    const rate = Number(dailyRate);
+    if (!Number.isFinite(rate) || rate <= 0) {
+      throw new Error("Room rate is missing — cannot price the extension.");
+    }
+    const billed = Math.max(1, addedNights);
     await extendStayBooking(selectedBookingId, {
       newCheckOutDate: checkOutDate,
-      additionalCost: dailyRate * Math.max(1, addedNights),
+      additionalCost: rate * billed,
+      expectedCheckOutDate,
       trainingMode,
     });
-    toast.success(`Stay extended by ${addedNights} night(s). Folio updated.`);
+    toast.success(`Stay extended by ${billed} night(s). Folio updated.`);
     setExtendDialogOpen(false);
     await refreshAll(selectedBookingId);
   }
@@ -307,6 +322,7 @@ export default function FoCheckOutPage() {
         note: paymentRef || null,
         referenceNumber: paymentRef || null,
         trainingMode,
+        idempotencyKey: idempotencyKeyRef.current,
         // Receipt info
         guestName: guest?.fullName || guest?.email || selectedBooking.guestName || "Guest",
         guestEmail: guest?.email || "",
@@ -317,6 +333,7 @@ export default function FoCheckOutPage() {
 
       setLastReceiptData(result.receiptData);
       setPaymentRef("");
+      idempotencyKeyRef.current = crypto.randomUUID();
       await refreshAll(selectedBookingId);
     } catch (e) {
       console.error("[FoCheckOutPage] onRecordPayment error:", e);
@@ -362,18 +379,19 @@ export default function FoCheckOutPage() {
 
     try {
       setError(null);
-      setSubmitting(true);
+      setCheckingOut(true);
       await checkOutBooking(selectedBookingId, { trainingMode });
       trackEvent(GA_EVENTS.CHECK_OUT, { booking_id: selectedBookingId });
-      const finishedId = selectedBookingId;
       setSelectedBookingId(null);
+      await refreshAll(null);
       setPayments([]);
-      await refreshAll(finishedId);
+      setPaymentsError(null);
+      setLastReceiptData(null);
       navigate(`/fo/housekeeping?roomId=${roomIdParam || ""}`);
     } catch (e) {
       setError(e?.message || "Check-out failed.");
     } finally {
-      setSubmitting(false);
+      setCheckingOut(false);
     }
   }
 
@@ -413,6 +431,7 @@ export default function FoCheckOutPage() {
             onSelect={(id) => {
               setSelectedBookingId(id);
               setError(null);
+              setLastReceiptData(null);
             }}
             guestsMap={guestsMap}
             roomById={roomById}
@@ -434,6 +453,7 @@ export default function FoCheckOutPage() {
                 <CheckoutPaymentPanel
                   balance={selectedBalance}
                   submitting={submitting}
+                  hasReceipt={!!lastReceiptData}
                   generatingReceipt={generatingReceipt}
                   values={{ amount: paymentAmount, method: paymentMethod, ref: paymentRef }}
                   onChange={{
@@ -466,9 +486,9 @@ export default function FoCheckOutPage() {
                     variant="default"
                     className="w-full"
                     onClick={onCheckOut}
-                    disabled={submitting || selectedBalance > 0}
+                    disabled={checkingOut || submitting || selectedBalance > 0}
                   >
-                    {submitting ? "Checking out..." : "Check Out"}
+                    {checkingOut ? "Checking out..." : "Check Out"}
                   </Button>
                   <Button
                     variant="outline"

@@ -1,8 +1,7 @@
-import { collection, getDocs } from "firebase/firestore";
+import { collection, deleteDoc, doc, getDocs } from "firebase/firestore";
 import { db } from "@/firebase/firebase.config";
 import {
   ACTIVE_STATUSES,
-  clearBookingMarked,
   nightKeys,
   setBookingMarked,
 } from "./availabilityService";
@@ -30,14 +29,19 @@ const markerKey = (roomId, date) => `${roomId}_${date}`;
  */
 export function diffAvailability(bookings = [], markers = []) {
   const bookingsById = new Map(bookings.map((b) => [b.id, b]));
-  const existingKeys = new Set(markers.map((m) => markerKey(m.roomId, m.date)));
 
+  // Orphans first: a night blocked solely by an orphan must ALSO read as
+  // missing, so repair deletes the stale marker then re-blocks the holder.
   // Markers that nothing legitimately holds: an unknown/deleted booking, a
   // marker with no bookingId, or a booking that is now terminal.
   const orphanMarkers = markers.filter((marker) => {
     const booking = marker.bookingId ? bookingsById.get(marker.bookingId) : null;
     return !booking || TERMINAL_STATUSES.has(booking.status);
   });
+  const orphanSet = new Set(orphanMarkers);
+  const existingKeys = new Set(
+    markers.filter((m) => !orphanSet.has(m)).map((m) => markerKey(m.roomId, m.date)),
+  );
 
   // Nights that an active hold is missing a marker for.
   const missingMarkers = [];
@@ -79,28 +83,27 @@ export async function loadAvailabilityDiff() {
 /** Delete orphan markers, then re-block every night the active holds are missing. */
 export async function repairAvailability({ orphanMarkers = [], missingMarkers = [] } = {}) {
   await Promise.all(
-    orphanMarkers.map((m) => clearBookingMarked({ roomId: m.roomId, dates: [m.date] })),
+    orphanMarkers.map((m) => deleteDoc(doc(db, "room_availability", m.id))),
   );
 
-  // One call per booking re-writes its whole stay (idempotent).
+  // Repair only the missing dates so markers belonging to other bookings survive.
   const byBooking = new Map();
   for (const miss of missingMarkers) {
     if (!byBooking.has(miss.bookingId)) {
       byBooking.set(miss.bookingId, {
         roomId: miss.roomId,
-        checkIn: miss.checkIn,
-        checkOut: miss.checkOut,
         status: miss.status,
+        dates: [],
       });
     }
+    byBooking.get(miss.bookingId).dates.push(miss.date);
   }
   await Promise.all(
     [...byBooking.entries()].map(([bookingId, b]) =>
       setBookingMarked({
         roomId: b.roomId,
+        dates: b.dates,
         bookingId,
-        checkIn: b.checkIn,
-        checkOut: b.checkOut,
         status: b.status,
       }),
     ),

@@ -1,4 +1,4 @@
-import { doc, getDoc, serverTimestamp, updateDoc } from "firebase/firestore";
+import { doc, runTransaction, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "@/firebase/firebase.config";
 import { getCol } from "@/lib/db-utils";
 import { listFoUsers } from "./userService";
@@ -62,31 +62,37 @@ export async function completeSimulatedPayment({ bookingId, trainingMode = null 
 
   const col = getCol("bookings", trainingMode);
   const bookingRef = doc(db, col, bookingId);
-  const bookingSnap = await getDoc(bookingRef);
 
-  if (!bookingSnap.exists()) {
-    throw new Error("Booking not found");
-  }
+  // Transaction: double-clicks / double-tabs serialize on the booking doc —
+  // the loser re-reads status (now Pending) and aborts instead of writing a
+  // second gatewayRef. Also loses cleanly to the expiry sweep (Cancelled).
+  const { booking, gatewayRef } = await runTransaction(db, async (transaction) => {
+    const bookingSnap = await transaction.get(bookingRef);
 
-  const booking = bookingSnap.data();
-  if (booking.guestId !== currentUser.uid) {
-    throw new Error("You can only pay for your own bookings");
-  }
-  if (booking.status !== "Awaiting Payment") {
-    throw new Error("Payment can only be completed for bookings in 'Awaiting Payment' status");
-  }
-  if (!PROOF_REQUIRED_METHODS.includes(booking.paymentMethod)) {
-    throw new Error("This booking method does not use the online checkout");
-  }
+    if (!bookingSnap.exists()) {
+      throw new Error("Booking not found");
+    }
 
-  const gatewayRef = generateGatewayRef(booking.paymentMethod);
+    const data = bookingSnap.data();
+    if (data.guestId !== currentUser.uid) {
+      throw new Error("You can only pay for your own bookings");
+    }
+    if (data.status !== "Awaiting Payment") {
+      throw new Error("Payment can only be completed for bookings in 'Awaiting Payment' status");
+    }
+    if (!PROOF_REQUIRED_METHODS.includes(data.paymentMethod)) {
+      throw new Error("This booking method does not use the online checkout");
+    }
 
-  await updateDoc(bookingRef, {
-    paymentGateway: "simulated",
-    gatewayRef,
-    paidAt: serverTimestamp(),
-    status: "Pending",
-    updatedAt: serverTimestamp(),
+    const ref = generateGatewayRef(data.paymentMethod);
+    transaction.update(bookingRef, {
+      paymentGateway: "simulated",
+      gatewayRef: ref,
+      paidAt: serverTimestamp(),
+      status: "Pending",
+      updatedAt: serverTimestamp(),
+    });
+    return { booking: data, gatewayRef: ref };
   });
 
   // Same FO fan-out notification the proof-upload path sends.
@@ -102,7 +108,7 @@ export async function completeSimulatedPayment({ bookingId, trainingMode = null 
           title: "Payment Received (Simulated)",
           message: `Simulated ${booking.paymentMethod} payment completed for a booking request`,
           link: "/fo/bookings",
-        }),
+        }, { trainingMode }),
       ),
     );
   } catch (e) {

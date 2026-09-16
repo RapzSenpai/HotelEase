@@ -26,14 +26,14 @@ export function calcNights(checkIn, checkOut) {
  * transient network failures; a genuine failure is logged with enough context
  * to fix by hand, and the hourly worker orphan sweep is the backstop.
  */
-export async function releaseAvailabilityMarkers(booking) {
+export async function releaseAvailabilityMarkers(booking, trainingMode = null) {
   if (!booking?.roomId) return;
   const dates = nightKeys(booking.checkInDate, booking.checkOutDate);
   if (dates.length === 0) return;
 
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
-      await clearBookingMarked({ roomId: booking.roomId, dates });
+      await clearBookingMarked({ roomId: booking.roomId, bookingId: booking.id, dates, trainingMode });
       return;
     } catch (e) {
       if (attempt === 1) {
@@ -42,6 +42,7 @@ export async function releaseAvailabilityMarkers(booking) {
           { bookingId: booking.id, roomId: booking.roomId, dates },
           e,
         );
+        throw e;
       }
     }
   }

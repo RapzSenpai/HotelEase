@@ -6,7 +6,7 @@
     "scripts/*.mjs",
     "worker/src/index.js"
   ],
-  "project": ["src/**/*.{js,jsx}", "scripts/*.mjs", "worker/src/*.js"],
+  "project": ["src/**/*.{js,jsx}", "scripts/*.mjs", "worker/src/*.js", "worker/src/handlers/*.js"],
   "rules": {
     "files": "error",
     "dependencies": "error",

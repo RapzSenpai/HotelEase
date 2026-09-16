@@ -107,7 +107,7 @@ export default function CheckoutFolioPanel({
                 <div className="font-semibold text-sm text-success">
                   PHP{" "}
                   {Number(
-                    booking.payment?.deposit ?? 0,
+                    (booking.totalCost ?? 0) - balance,
                   ).toLocaleString()}
                 </div>
               </CardContent>

@@ -59,6 +59,16 @@ describe("diffAvailability", () => {
     expect(missingMarkers).toHaveLength(0);
   });
 
+  it("reports an orphan-blocked night as both orphan and missing", () => {
+    const { orphanMarkers, missingMarkers } = diffAvailability(
+      [booking()],
+      [marker("2026-10-01", { id: "stale", bookingId: "gone" })],
+    );
+    expect(orphanMarkers).toHaveLength(1);
+    expect(missingMarkers).toHaveLength(2);
+    expect(missingMarkers.map((m) => m.date).sort()).toEqual(["2026-10-01", "2026-10-02"]);
+  });
+
   it("does not expect markers for a Checked Out booking", () => {
     const { orphanMarkers, missingMarkers } = diffAvailability(
       [booking({ status: "Checked Out" })],

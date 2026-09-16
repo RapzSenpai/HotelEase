@@ -36,8 +36,12 @@ export default function CheckoutOverstayFeeDialog({
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    if (open) setError(null);
-  }, [open]);
+    if (open) {
+      setError(null);
+      setAmount("");
+      setReason("Overstay / Late Check-Out Fee");
+    }
+  }, [open, booking?.id]);
 
   const halfDay = Math.round(roomRate / 2);
 
@@ -155,7 +159,7 @@ export default function CheckoutOverstayFeeDialog({
             variant="destructive"
             size="sm"
             onClick={handleConfirm}
-            disabled={submitting || !amount}
+            disabled={submitting || !amount || !booking}
           >
             {submitting ? "Adding..." : "Add Fee to Folio"}
           </Button>

@@ -1,13 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { Plus, BedDouble } from "lucide-react";
 import RoomsTableView from "@/components/rooms/RoomsTableView";
 import RoomsGridView from "@/components/rooms/RoomsGridView";
 import RoomsStatsBar from "@/components/rooms/RoomsStatsBar";
 import RoomsFilterBar from "@/components/rooms/RoomsFilterBar";
-import RoomPhotoUploader from "@/components/rooms/RoomPhotoUploader";
-import RoomTagInput from "@/components/rooms/RoomTagInput";
 import RoomFormSlideOver from "@/components/rooms/RoomFormSlideOver";
 import { SkeletonCard } from "@/components/ui/skeleton";
 import {

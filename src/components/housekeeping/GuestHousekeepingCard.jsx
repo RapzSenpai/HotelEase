@@ -20,7 +20,7 @@ import {
   requestMidStayHousekeeping,
   cancelMidStayRequest,
   rateHousekeeping,
-  subscribeToHousekeepingLogsForRoom,
+  subscribeToHousekeepingLogsForBooking,
 } from "@/services/housekeepingService";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -169,7 +169,10 @@ export default function GuestHousekeepingCard({ booking, room, trainingMode, use
 
   useEffect(() => {
     if (!room?.id || !booking?.id) return;
-    return subscribeToHousekeepingLogsForRoom(room.id, (data) => {
+    // Booking-scoped: the backend only serves this booking's logs, so other
+    // guests' notes/photos never reach the client. The filter below stays as
+    // defense-in-depth for legacy logs missing bookingId.
+    return subscribeToHousekeepingLogsForBooking(booking.id, (data) => {
       const bookingTime = booking?.createdAt?.toDate
         ? booking.createdAt.toDate().getTime()
         : booking?.createdAt?.seconds
@@ -193,7 +196,7 @@ export default function GuestHousekeepingCard({ booking, room, trainingMode, use
       });
 
       setLogs(scopedLogs);
-    }, { trainingMode });
+    }, { trainingMode, roomId: room.id, guestId: booking.guestId });
   }, [room?.id, booking?.id, booking?.guestId, booking?.createdAt, trainingMode]);
 
   const requests = useMemo(() => buildRequests(logs), [logs]);
@@ -624,4 +627,4 @@ export default function GuestHousekeepingCard({ booking, room, trainingMode, use
       </Dialog>
     </Card>
   );
-}
+}

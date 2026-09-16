@@ -4,11 +4,15 @@ compatibility_date = "2026-01-01"
 
 # AI abuse protection tiers (see src/index.js):
 #   minute caps — anonymous vs signed-in users; daily budget in KV below.
+#   Defaults live in src/index.js; these commented vars show the same values.
 # [vars]
 # RATE_LIMIT_ANON_MAX = "3"    # per minute, keyed by IP
 # RATE_LIMIT_USER_MAX = "20"   # per minute, keyed by uid
 # DAILY_ANON_MAX      = "5"    # per day, keyed by IP
-# DAILY_USER_MAX      = "30"   # per day, keyed by uid
+# DAILY_USER_MAX      = "100"  # per day, keyed by uid
+#
+# AI_LIMITS KV (below) is required for GLOBAL daily caps. Without the binding
+# the worker falls back to per-isolate memory and the daily cap is bypassable.
 
 [[kv_namespaces]]
 binding = "AI_LIMITS"

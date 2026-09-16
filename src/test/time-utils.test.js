@@ -20,6 +20,12 @@ describe("toLocalDate", () => {
     expect(toLocalDate(null)).toBeNull();
     expect(toLocalDate(undefined)).toBeNull();
   });
+
+  it("rejects impossible calendar dates instead of normalizing them", () => {
+    expect(toLocalDate("2026-02-30")).toBeNull();
+    expect(toLocalDate("2026-13-01")).toBeNull();
+    expect(toLocalDate("nonsense")).toBeNull();
+  });
 });
 
 describe("toJsDate", () => {

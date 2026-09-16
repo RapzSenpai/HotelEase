@@ -86,6 +86,17 @@ export async function createReview(payload) {
   if (!roomId || !guestId) {
     throw new Error("createReview: roomId and guestId are required.");
   }
+  const numRating = Number(rating);
+  const cleanFeedback = String(feedback ?? "").trim();
+  if (!Number.isFinite(numRating) || numRating < 1 || numRating > 5) {
+    throw new Error("Rating must be between 1 and 5.");
+  }
+  if (!cleanFeedback) {
+    throw new Error("Feedback is required.");
+  }
+  if (cleanFeedback.length > 2000) {
+    throw new Error("Feedback must be at most 2000 characters.");
+  }
 
   // Belt-and-braces: also catch legacy reviews created before deterministic ids.
   const already = await hasUserReviewedRoom(guestId, roomId, { trainingMode });
@@ -107,8 +118,8 @@ export async function createReview(payload) {
       bookingId: bookingId ?? "",
       guestId: guestId ?? "",
       guestName: guestName ?? "Guest",
-      rating: Number(rating ?? 1),
-      feedback: feedback ?? "",
+      rating: numRating,
+      feedback: cleanFeedback,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });

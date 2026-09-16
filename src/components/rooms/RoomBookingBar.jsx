@@ -23,8 +23,8 @@ function formatRate(rate) {
 
 export default function RoomBookingBar({
   room,
-  dates: { checkIn, checkOut, todayStr, minCheckOutStr, nights, datesSelected },
-  availability: { active: roomActive, loading: bookNowLoading, error: bookNowError },
+  dates: { checkIn, checkOut, todayStr, minCheckOutStr, nights, datesSelected } = {},
+  availability: { active: roomActive, loading: bookNowLoading, error: bookNowError } = {},
   onChangeCheckIn,
   onChangeCheckOut,
   onClearDates,
@@ -72,8 +72,13 @@ export default function RoomBookingBar({
                   value={checkIn}
                   min={todayStr}
                   onChange={(e) => onChangeCheckIn(e.target.value)}
-                  onClick={(e) => e.currentTarget.showPicker?.()}
-                  onFocus={(e) => e.target.blur()}
+                  onClick={(e) => {
+                    try {
+                      e.currentTarget.showPicker?.();
+                    } catch {
+                      e.currentTarget.focus();
+                    }
+                  }}
                   className="pr-9 border-border text-sm [&::-webkit-calendar-picker-indicator]:hidden cursor-pointer w-40"
                   placeholder="Check-in"
                 />
@@ -87,8 +92,13 @@ export default function RoomBookingBar({
                   min={minCheckOutStr}
                   disabled={!checkIn}
                   onChange={(e) => onChangeCheckOut(e.target.value)}
-                  onClick={(e) => e.currentTarget.showPicker?.()}
-                  onFocus={(e) => e.target.blur()}
+                  onClick={(e) => {
+                    try {
+                      e.currentTarget.showPicker?.();
+                    } catch {
+                      e.currentTarget.focus();
+                    }
+                  }}
                   className="pr-9 border-border text-sm [&::-webkit-calendar-picker-indicator]:hidden cursor-pointer disabled:cursor-not-allowed w-40"
                   placeholder="Check-out"
                 />

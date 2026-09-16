@@ -3,11 +3,11 @@ import {
   doc,
   getDoc,
   getDocs,
+  increment,
   query,
   runTransaction,
   serverTimestamp,
   Timestamp,
-  updateDoc,
   where,
 } from "firebase/firestore";
 import { db } from "@/firebase/firebase.config";
@@ -15,7 +15,7 @@ import { db } from "@/firebase/firebase.config";
 import { toLocalDate as toDate } from "@/lib/time-utils";
 import { getCol } from "@/lib/db-utils";
 import { isRoomActive } from "../roomsService";
-import { setBookingMarked } from "../availabilityService";
+import { claimBookingMarkedInTx, dateKey, MARKER_CONFLICT_MESSAGE, readBookingMarkedInTx, setBookingMarked } from "../availabilityService";
 import { createNotification } from "../notificationService";
 import { sendBookingConfirmation } from "../emailService";
 import { recordPayment } from "../paymentsService";
@@ -110,6 +110,26 @@ export async function approveBooking(bookingId, { trainingMode = null } = {}) {
       throw new Error("This room has been archived and can no longer accept bookings.");
     }
 
+    // In-transaction overlap guard: two overlapping bookings approved at once
+    // serialize here, and the loser sees the winner's live markers and aborts.
+    // (The pre-transaction query above is only a fast-path for the common case —
+    // queries can't run inside transactions.)
+    const markerCheck = await readBookingMarkedInTx(transaction, {
+      roomId,
+      bookingId,
+      checkIn: booking.checkInDate,
+      checkOut: booking.checkOutDate,
+      trainingMode,
+    });
+    if (!markerCheck.complete || markerCheck.live.length > 0) {
+      if (!markerCheck.complete) {
+        throw new Error("Cannot approve — booking availability markers are incomplete.");
+      }
+      throw new Error(
+        "Cannot approve — another booking for this room already covers these dates.",
+      );
+    }
+
     transaction.update(bookingRef, {
       status: "Approved",
       proofVerifiedAt: serverTimestamp(),
@@ -123,19 +143,18 @@ export async function approveBooking(bookingId, { trainingMode = null } = {}) {
 
     return { ok: true, roomName: roomSnap.data().name || roomSnap.data().type || "Room", guestId: booking.guestId, booking };
   }).then(async (result) => {
-    // PROD: refresh availability marker status after approval.
-    if (!trainingMode) {
-      try {
-        await setBookingMarked({
-          roomId: result.booking.roomId,
-          bookingId,
-          checkIn: result.booking.checkInDate,
-          checkOut: result.booking.checkOutDate,
-          status: "Approved",
-        });
-      } catch (e) {
-        console.warn("Availability marker refresh failed:", e);
-      }
+    // Refresh availability marker status after approval.
+    try {
+      await setBookingMarked({
+        roomId: result.booking.roomId,
+        bookingId,
+        checkIn: result.booking.checkInDate,
+        checkOut: result.booking.checkOutDate,
+        status: "Approved",
+        trainingMode,
+      });
+    } catch (e) {
+      console.warn("Availability marker refresh failed:", e);
     }
 
     // Only auto-record payment for proof-required methods that actually uploaded proof
@@ -162,6 +181,7 @@ export async function approveBooking(bookingId, { trainingMode = null } = {}) {
           source: isSimulated ? "simulated_gateway" : "guest_proof",
           processedBy: "system",
           trainingMode,
+          idempotencyKey: `${bookingId}-initial`,
         });
       } catch (e) {
         console.error("Payment recording error:", e);
@@ -175,7 +195,7 @@ export async function approveBooking(bookingId, { trainingMode = null } = {}) {
         title: "Booking Approved! 🎉",
         message: `Your booking for ${result.roomName} has been approved.`,
         link: "/my-bookings"
-      });
+      }, { trainingMode });
     } catch (e) { console.error("Notif error", e); }
 
     // Send booking confirmation email (fire-and-forget)
@@ -252,20 +272,19 @@ export async function checkInBooking(bookingId, { trainingMode = null } = {}) {
 
     return { ok: true, booking };
   }).then(async (result) => {
-    // PROD: refresh availability marker status after check-in so the guest
+    // Refresh availability marker status after check-in so the guest
     // calendar shows "Checked In" instead of the stale "Approved".
-    if (!trainingMode) {
-      try {
-        await setBookingMarked({
-          roomId: result.booking.roomId,
-          bookingId,
-          checkIn: result.booking.checkInDate,
-          checkOut: result.booking.checkOutDate,
-          status: "Checked In",
-        });
-      } catch (e) {
-        console.warn("Availability marker refresh failed:", e);
-      }
+    try {
+      await setBookingMarked({
+        roomId: result.booking.roomId,
+        bookingId,
+        checkIn: result.booking.checkInDate,
+        checkOut: result.booking.checkOutDate,
+        status: "Checked In",
+        trainingMode,
+      });
+    } catch (e) {
+      console.warn("Availability marker refresh failed:", e);
     }
     return { ok: true };
   });
@@ -308,10 +327,10 @@ export async function checkOutBooking(bookingId, { trainingMode = null } = {}) {
       statusChangedAt: serverTimestamp(),
     });
 
-    return { booking, ok: true };
+    return { booking: { id: bookingId, ...booking }, ok: true };
   }).then(async (result) => {
-    // PROD: free availability markers on check-out so the nights can be re-booked.
-    if (!trainingMode) await releaseAvailabilityMarkers(result.booking);
+    // Free availability markers on check-out so the nights can be re-booked.
+    await releaseAvailabilityMarkers(result.booking, trainingMode);
     return { ok: true };
   });
 }
@@ -320,7 +339,7 @@ export async function checkOutBooking(bookingId, { trainingMode = null } = {}) {
  * Front Office action: Extend an active Checked-In booking to a new check-out date.
  * Validates conflicts on the extended nights and writes availability markers.
  */
-export async function extendStayBooking(bookingId, { newCheckOutDate, additionalCost = 0, trainingMode = null } = {}) {
+export async function extendStayBooking(bookingId, { newCheckOutDate, additionalCost = 0, expectedCheckOutDate = null, trainingMode = null } = {}) {
   if (!bookingId || !newCheckOutDate) throw new Error("Booking ID and new check-out date are required.");
 
   const newOut = toDate(newCheckOutDate);
@@ -343,43 +362,65 @@ export async function extendStayBooking(bookingId, { newCheckOutDate, additional
     throw new Error("New check-out date must be later than the current check-out date.");
   }
 
-  // Check conflicts for the extended date range [currentOut, newOut]
-  const curOutStr = currentOut.toISOString().split("T")[0];
-  const newOutStr = newOut.toISOString().split("T")[0];
+  // Fast-path conflict check for the extended nights [currentOut, newOut].
+  // Local date keys (not UTC): toISOString can shift the day for +UTC zones.
+  // The transaction below re-checks the markers — this is only UX fast-fail.
+  const curOutStr = dateKey(currentOut);
+  const newOutStr = dateKey(newOut);
   const blockedRoomIds = await getAvailableRoomIds(curOutStr, newOutStr, { trainingMode });
   if (blockedRoomIds.has(booking.roomId)) {
     throw new Error("Cannot extend stay: The room is reserved by another booking for the extended dates.");
   }
 
-  const newTotalNights = calcNights(checkIn, newOut);
-  const addedNights = calcNights(currentOut, newOut);
-  const updatedTotalCost = Number(booking.totalCost ?? 0) + Number(additionalCost);
+  const cost = Number(additionalCost ?? 0);
 
-  await updateDoc(bookingRef, {
-    checkOutDate: Timestamp.fromDate(newOut),
-    nights: newTotalNights,
-    totalCost: updatedTotalCost,
-    subtotal: updatedTotalCost,
-    baseTotal: Number(booking.baseTotal ?? booking.totalCost) + Number(additionalCost),
-    isExtended: true,
-    extendedNights: (booking.extendedNights || 0) + addedNights,
-    updatedAt: serverTimestamp(),
-  });
-
-  // PROD: mark the newly extended nights as Checked In
-  if (!trainingMode) {
+  // Transaction: concurrent extends serialize; the loser either sees live
+  // markers from another booking on the new nights, or a changed check-out
+  // (a fellow extend committed first) and aborts. Money moves via
+  // increment() so a racing overstay fee adds up instead of being lost.
+  await runTransaction(db, async (transaction) => {
+    const currentBookingSnap = await transaction.get(bookingRef);
+    if (!currentBookingSnap.exists() || currentBookingSnap.data().status !== "Checked In") {
+      throw new Error("Booking changed before stay extension could be completed.");
+    }
+    const live = currentBookingSnap.data();
+    if (expectedCheckOutDate && dateKey(live.checkOutDate) !== dateKey(expectedCheckOutDate)) {
+      throw new Error("This stay changed since you opened the dialog — close and reopen it to re-price.");
+    }
+    // Claim the new nights in-transaction: a racing extend (or booking)
+    // conflicts on the marker docs, retries, and aborts on the winner's
+    // live markers instead of double-holding the nights.
     try {
-      await setBookingMarked({
-        roomId: booking.roomId,
+      await claimBookingMarkedInTx(transaction, {
+        roomId: live.roomId,
         bookingId,
-        checkIn: currentOut,
+        checkIn: toDate(live.checkOutDate),
         checkOut: newOut,
         status: "Checked In",
+        trainingMode,
       });
     } catch (e) {
-      console.warn("Availability marker update for extension failed:", e);
+      if (e?.message === MARKER_CONFLICT_MESSAGE) {
+        throw new Error("Cannot extend stay: The room is reserved by another booking for the extended dates.");
+      }
+      throw e;
     }
-  }
+    const liveOut = toDate(live.checkOutDate);
+    const liveIn = toDate(live.checkInDate);
+    transaction.update(bookingRef, {
+      checkOutDate: Timestamp.fromDate(newOut),
+      nights: calcNights(liveIn, newOut),
+      totalCost: increment(cost),
+      subtotal: increment(cost),
+      baseTotal: increment(cost),
+      isExtended: true,
+      extendedNights: (live.extendedNights || 0) + calcNights(liveOut, newOut),
+      updatedAt: serverTimestamp(),
+    });
+  });
+
+  const newTotalNights = calcNights(checkIn, newOut);
+  const updatedTotalCost = Number(booking.totalCost ?? 0) + cost;
 
   // Notify guest
   if (booking.guestId) {
@@ -389,7 +430,7 @@ export async function extendStayBooking(bookingId, { newCheckOutDate, additional
         title: "Stay Extended",
         message: `Your stay in ${booking.roomName || "your room"} has been extended until ${newOut.toLocaleDateString()}.`,
         link: "/my-bookings",
-      });
+      }, { trainingMode });
     } catch (e) {
       console.error("Notif error", e);
     }
@@ -410,23 +451,27 @@ export async function addOverstayFee(bookingId, { feeAmount, feeReason = "Overst
 
   const bCol = bookingsCollection(trainingMode);
   const bookingRef = doc(db, bCol, bookingId);
-  const bookingSnap = await getDoc(bookingRef);
-  if (!bookingSnap.exists()) throw new Error("Booking not found.");
 
-  const booking = bookingSnap.data();
-  const currentCost = Number(booking.totalCost ?? 0);
-  const currentOverstayFee = Number(booking.overstayFee ?? 0);
-  const newTotal = currentCost + fee;
+  // increment() transforms commute: concurrent fees (or a fee racing an
+  // extension, which also increments) add up instead of last-write-wins.
+  // The read only validates the booking exists — it feeds no write.
+  return runTransaction(db, async (transaction) => {
+    const bookingSnap = await transaction.get(bookingRef);
+    if (!bookingSnap.exists()) throw new Error("Booking not found.");
 
-  await updateDoc(bookingRef, {
-    overstayFee: currentOverstayFee + fee,
-    overstayReason: feeReason,
-    totalCost: newTotal,
-    subtotal: newTotal,
-    updatedAt: serverTimestamp(),
+    const booking = bookingSnap.data();
+    transaction.update(bookingRef, {
+      overstayFee: increment(fee),
+      overstayReason: feeReason,
+      totalCost: increment(fee),
+      subtotal: increment(fee),
+      updatedAt: serverTimestamp(),
+    });
+
+    const currentCost = Number(booking.totalCost ?? 0);
+    const currentOverstayFee = Number(booking.overstayFee ?? 0);
+    return { ok: true, newTotalCost: currentCost + fee, overstayFee: currentOverstayFee + fee };
   });
-
-  return { ok: true, newTotalCost: newTotal, overstayFee: currentOverstayFee + fee };
 }
 
 export async function checkAndExpireStaleBookings({ trainingMode = null } = {}) {
@@ -444,14 +489,32 @@ export async function checkAndExpireStaleBookings({ trainingMode = null } = {}) 
   
   for (const booking of expiredBookings) {
     const ref = doc(db, col, booking.id);
-    await updateDoc(ref, {
-      status: "Cancelled",
-      rejectionReason: "Payment deadline expired",
-      updatedAt: serverTimestamp(),
+    // Transaction: a guest payment landing between the query above and this
+    // write flips status to Pending first — the tx re-reads, sees it, and
+    // skips instead of resurrecting/cancelling a paid hold. Same the other
+    // way: payment txs abort against our commit rather than paying a corpse.
+    const cancelled = await runTransaction(db, async (transaction) => {
+      const snap = await transaction.get(ref);
+      if (!snap.exists()) return false;
+      const live = snap.data();
+      if (live.status !== "Awaiting Payment") return false;
+      const deadline = live.paymentDeadline?.toDate?.() || live.paymentDeadline;
+      if (!(deadline instanceof Date) || deadline > new Date()) return false;
+      transaction.update(ref, {
+        status: "Cancelled",
+        rejectionReason: "Payment deadline expired",
+        updatedAt: serverTimestamp(),
+      });
+      return true;
     });
+    if (!cancelled) continue;
 
-    // PROD: free availability markers for the expired booking's nights.
-    if (!trainingMode) await releaseAvailabilityMarkers(booking);
+    // Marker cleanup must not prevent later expired bookings from processing.
+    try {
+      await releaseAvailabilityMarkers(booking, trainingMode);
+    } catch (e) {
+      console.error("Expired booking marker cleanup failed:", e);
+    }
     
     try {
       await createNotification(booking.guestId, {
@@ -459,7 +522,7 @@ export async function checkAndExpireStaleBookings({ trainingMode = null } = {}) 
         title: "Booking Cancelled",
         message: `Your booking was cancelled because payment was not submitted before the deadline.`,
         link: "/my-bookings",
-      });
+      }, { trainingMode });
     } catch (e) {
       console.error("Notif error", e);
     }

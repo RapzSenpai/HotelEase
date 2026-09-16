@@ -10,7 +10,7 @@ import { optimizeCloudinaryUrl } from "@/lib/cloudinaryTransform";
  * carry no state of their own, so a reorder cannot alias anything.
  */
 export default function RoomPhotoCarousel({
-  photos,
+  photos = [],
   roomName,
   isFavorite,
   onToggleFavorite,
@@ -18,6 +18,7 @@ export default function RoomPhotoCarousel({
   role,
 }) {
   const [current, setCurrent] = useState(0);
+  const safeCurrent = Math.min(current, photos.length - 1);
 
   if (photos.length === 0) {
     return (
@@ -55,8 +56,8 @@ export default function RoomPhotoCarousel({
       {/* Main image */}
       <div className="relative h-80 md:h-[480px] select-none">
         <img
-          src={optimizeCloudinaryUrl(photos[current], { width: 1200 })}
-          alt={`${roomName || "Room"} photo ${current + 1} of ${photos.length}`}
+          src={optimizeCloudinaryUrl(photos[safeCurrent], { width: 1200 })}
+          alt={`${roomName || "Room"} photo ${safeCurrent + 1} of ${photos.length}`}
           className="h-full w-full object-cover"
           loading="lazy"
         />
@@ -64,7 +65,7 @@ export default function RoomPhotoCarousel({
 
         {/* Counter */}
         <div className="absolute right-4 top-4 rounded-full bg-black/50 px-2.5 py-0.5 text-xs text-white backdrop-blur-sm">
-          {current + 1} / {photos.length}
+          {safeCurrent + 1} / {photos.length}
         </div>
 
         {/* Favorite */}
@@ -81,14 +82,14 @@ export default function RoomPhotoCarousel({
 
         {/* Arrows */}
         <button
-          onClick={() => setCurrent((i) => (i === 0 ? photos.length - 1 : i - 1))}
+          onClick={() => setCurrent(safeCurrent === 0 ? photos.length - 1 : safeCurrent - 1)}
           aria-label="Previous photo"
           className="absolute left-3 top-1/2 -translate-y-1/2 flex h-10 w-10 items-center justify-center rounded-full bg-black/40 text-white hover:bg-black/60 active:scale-95 transition-all backdrop-blur-sm"
         >
           <ChevronLeft className="h-5 w-5" />
         </button>
         <button
-          onClick={() => setCurrent((i) => (i === photos.length - 1 ? 0 : i + 1))}
+          onClick={() => setCurrent(safeCurrent === photos.length - 1 ? 0 : safeCurrent + 1)}
           aria-label="Next photo"
           className="absolute right-3 top-1/2 -translate-y-1/2 flex h-10 w-10 items-center justify-center rounded-full bg-black/40 text-white hover:bg-black/60 active:scale-95 transition-all backdrop-blur-sm"
         >
@@ -103,7 +104,7 @@ export default function RoomPhotoCarousel({
             key={idx}
             onClick={() => setCurrent(idx)}
             className={`flex-shrink-0 rounded-lg overflow-hidden border-2 transition-all duration-200 ${
-              idx === current
+              idx === safeCurrent
                 ? "border-primary shadow-[0_0_0_2px_rgba(245,197,24,0.2)]"
                 : "border-transparent opacity-60 hover:opacity-100"
             }`}

@@ -6,9 +6,26 @@
  */
 export function toLocalDate(dateLike) {
   if (!dateLike) return null;
-  if (dateLike instanceof Date) return dateLike;
-  if (typeof dateLike === "string") return new Date(`${dateLike}T00:00:00`);
-  if (typeof dateLike.toDate === "function") return dateLike.toDate();
+  if (dateLike instanceof Date) return isNaN(dateLike.getTime()) ? null : dateLike;
+  if (typeof dateLike === "string") {
+    const parsed = new Date(`${dateLike}T00:00:00`);
+    if (isNaN(parsed.getTime())) return null;
+    // Reject normalized rollovers (e.g. 2026-02-30 becomes Mar 2).
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(dateLike);
+    if (
+      m &&
+      (Number(m[1]) !== parsed.getFullYear() ||
+        Number(m[2]) !== parsed.getMonth() + 1 ||
+        Number(m[3]) !== parsed.getDate())
+    ) {
+      return null;
+    }
+    return parsed;
+  }
+  if (typeof dateLike.toDate === "function") {
+    const date = dateLike.toDate();
+    return date instanceof Date && !isNaN(date.getTime()) ? date : null;
+  }
   return null;
 }
 

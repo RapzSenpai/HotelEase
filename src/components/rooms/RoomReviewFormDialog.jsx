@@ -20,7 +20,7 @@ import { mapFirebaseError } from "@/lib/errors";
  * `onSubmit({ rating, feedback })` — which must reject on failure, since that is
  * what surfaces the error and keeps the draft. Markup is unchanged.
  */
-export default function RoomReviewFormDialog({ open, onOpenChange, onSubmit }) {
+export default function RoomReviewFormDialog({ open, onOpenChange, onSubmit = async () => {} }) {
   const [rating, setRating] = useState(0);
   const [feedback, setFeedback] = useState("");
   const [submitting, setSubmitting] = useState(false);

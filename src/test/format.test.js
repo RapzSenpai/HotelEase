@@ -6,8 +6,8 @@ const ts = (iso) => ({ toDate: () => new Date(iso) });
 
 describe("formatDate", () => {
   it("formats a Date and a Timestamp as YYYY-MM-DD", () => {
-    expect(formatDate(new Date("2026-03-05T00:00:00Z"))).toBe("2026-03-05");
-    expect(formatDate(ts("2026-12-31T10:30:00Z"))).toBe("2026-12-31");
+    expect(formatDate(new Date(2026, 2, 5))).toBe("2026-03-05");
+    expect(formatDate(ts(new Date(2026, 11, 31, 10, 30).toISOString()))).toBe("2026-12-31");
   });
 
   it("returns an em dash for missing/invalid input (never 1970)", () => {

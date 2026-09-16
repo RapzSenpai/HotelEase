@@ -1,10 +1,10 @@
 import {
   collection,
-  deleteDoc,
   doc,
   getDocs,
   onSnapshot,
   query,
+  runTransaction,
   serverTimestamp,
   setDoc,
   where,
@@ -14,8 +14,10 @@ import { db } from "@/firebase/firebase.config";
 import { toLocalDate as toDate } from "@/lib/time-utils";
 
 /**
- * Public "room_availability" collection (PROD only — training keeps reading
- * the wide-open training_bookings sandbox).
+ * PII-free occupancy markers. PROD uses `room_availability`; training uses
+ * `training_availability` (trainees are anonymous, and the prod markers deny
+ * anonymous reads/writes — the sandbox mirror keeps the same guarantees with
+ * sandbox-appropriate rules).
  *
  * Stored docs contain ONLY { roomId, date, bookingId, status } — no guest PII.
  * This lets guests check availability + render the room calendar without being
@@ -23,8 +25,19 @@ import { toLocalDate as toDate } from "@/lib/time-utils";
  * truth in `bookings`.
  *
  * Doc ID: `${roomId}_${date}` (date = YYYY-MM-DD).
+ *
+ * Markers are the double-booking lock: createBooking claims them inside a
+ * transaction AFTER the booking doc commits, so two guests racing for the
+ * same room/nights serialize — the loser sees the winner's markers on retry
+ * and aborts. Never check-then-write markers outside a transaction.
  */
 const A_COL = "room_availability";
+const TRAINING_A_COL = "training_availability";
+
+/** Marker collection for the given mode. */
+function markersCollection(trainingMode) {
+  return trainingMode ? TRAINING_A_COL : A_COL;
+}
 
 // Statuses that count as "this marks the room occupied for that night".
 export const ACTIVE_STATUSES = [
@@ -33,6 +46,19 @@ export const ACTIVE_STATUSES = [
   "Approved",
   "Checked In",
 ];
+
+/**
+ * True when a marker still holds its night: anything that isn't a swept
+ * terminal state. Stale terminal markers are overwritable (the orphan sweeps
+ * delete them eventually); live ones block.
+ */
+function isLiveMarkerStatus(status) {
+  return status !== "Cancelled" && status !== "Checked Out";
+}
+
+/** Thrown when a marker claim loses a race — callers compensate, then rethrow. */
+export const MARKER_CONFLICT_MESSAGE =
+  "Those dates were just taken by another guest. Please choose different dates.";
 
 export function dateKey(d) {
   const date = toDate(d);
@@ -58,12 +84,13 @@ export function nightKeys(checkInLike, checkOutLike) {
 }
 
 /** Block a booking's nights (call after a booking is created). */
-export async function setBookingMarked({ roomId, bookingId, checkIn, checkOut, status }) {
-  const dates = nightKeys(checkIn, checkOut);
+export async function setBookingMarked({ roomId, bookingId, checkIn, checkOut, dates, status, trainingMode = null }) {
+  const col = markersCollection(trainingMode);
+  const markerDates = dates || nightKeys(checkIn, checkOut);
   await Promise.all(
-    dates.map((date) =>
+    markerDates.map((date) =>
       setDoc(
-        doc(db, A_COL, `${roomId}_${date}`),
+        doc(db, col, `${roomId}_${date}`),
         {
           roomId,
           date,
@@ -76,12 +103,101 @@ export async function setBookingMarked({ roomId, bookingId, checkIn, checkOut, s
   );
 }
 
+export async function claimBookingMarkedInTx(transaction, {
+  roomId,
+  bookingId,
+  checkIn,
+  checkOut,
+  status,
+  trainingMode = null,
+}) {
+  const col = markersCollection(trainingMode);
+  const dates = nightKeys(checkIn, checkOut);
+  if (!roomId || !bookingId || dates.length === 0) {
+    throw new Error("Missing booking details.");
+  }
+
+  const markerRefs = dates.map((date) => doc(db, col, `${roomId}_${date}`));
+  const markerSnaps = [];
+  for (const markerRef of markerRefs) {
+    markerSnaps.push(await transaction.get(markerRef));
+  }
+  markerSnaps.forEach((markerSnap) => {
+    if (markerSnap.exists()) {
+      const marker = markerSnap.data();
+      if (marker.bookingId !== bookingId && isLiveMarkerStatus(marker.status)) {
+        throw new Error(MARKER_CONFLICT_MESSAGE);
+      }
+    }
+  });
+  dates.forEach((date, index) => {
+    transaction.set(markerRefs[index], {
+      roomId,
+      date,
+      bookingId,
+      status,
+      updatedAt: serverTimestamp(),
+    });
+  });
+  return { claimed: dates.length };
+}
+
+/**
+ * Atomically claim a booking's nights. Runs AFTER the booking doc commits, so
+ * the marker-create rules (guest must own a live booking) evaluate against
+ * committed state. Concurrent claims for the same room/night conflict on the
+ * marker reads: the loser retries, sees the winner's live markers, and throws
+ * MARKER_CONFLICT_MESSAGE. Stale terminal markers are overwritten, never block.
+ */
+export async function claimBookingMarked({ roomId, bookingId, checkIn, checkOut, status, trainingMode = null }) {
+  return runTransaction(db, async (transaction) => {
+    return claimBookingMarkedInTx(transaction, {
+      roomId,
+      bookingId,
+      checkIn,
+      checkOut,
+      status,
+      trainingMode,
+    });
+  });
+}
+
+/**
+ * Read a booking's night markers inside a transaction. Used by approveBooking:
+ * two overlapping bookings approved at once serialize on the booking docs,
+ * and the loser sees the winner's live markers here and aborts.
+ */
+export async function readBookingMarkedInTx(transaction, { roomId, bookingId, checkIn, checkOut, trainingMode = null }) {
+  const col = markersCollection(trainingMode);
+  const dates = nightKeys(checkIn, checkOut);
+  const live = [];
+  for (const date of dates) {
+    const markerSnap = await transaction.get(doc(db, col, `${roomId}_${date}`));
+    if (!markerSnap.exists()) return { complete: false, live };
+    const marker = markerSnap.data();
+    if (marker.bookingId !== bookingId && isLiveMarkerStatus(marker.status)) {
+      live.push({ date, bookingId: marker.bookingId, status: marker.status });
+    }
+  }
+  return { complete: true, live };
+}
+
 /** Release a booking's nights (cancelled / rejected / checked out / expired). */
-export async function clearBookingMarked({ roomId, dates }) {
-  if (!roomId || !Array.isArray(dates) || dates.length === 0) return;
-  await Promise.all(
-    dates.map((date) => deleteDoc(doc(db, A_COL, `${roomId}_${date}`))),
-  );
+export async function clearBookingMarked({ roomId, bookingId, dates, trainingMode = null }) {
+  if (!roomId || !bookingId || !Array.isArray(dates) || dates.length === 0) return;
+  const col = markersCollection(trainingMode);
+  await runTransaction(db, async (transaction) => {
+    const markerRefs = dates.map((date) => doc(db, col, `${roomId}_${date}`));
+    const markerSnaps = [];
+    for (const markerRef of markerRefs) {
+      markerSnaps.push(await transaction.get(markerRef));
+    }
+    markerSnaps.forEach((markerSnap, index) => {
+      if (markerSnap.exists() && markerSnap.data().bookingId === bookingId) {
+        transaction.delete(markerRefs[index]);
+      }
+    });
+  });
 }
 
 /** Set of room IDs fully or partially blocked within [checkInStr, checkOutStr]. */

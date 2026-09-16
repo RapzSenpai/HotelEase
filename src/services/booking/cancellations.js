@@ -1,10 +1,4 @@
-import {
-  doc,
-  getDoc,
-  runTransaction,
-  serverTimestamp,
-  updateDoc,
-} from "firebase/firestore";
+import { doc, getDoc, runTransaction, serverTimestamp } from "firebase/firestore";
 import { db } from "@/firebase/firebase.config";
 import { getCol } from "@/lib/db-utils";
 import { createNotification } from "../notificationService";
@@ -28,28 +22,32 @@ export async function rejectBooking(
   }
   const col = bookingsCollection(trainingMode);
   const ref = doc(db, col, bookingId);
-  await updateDoc(ref, {
-    status: "Cancelled",
-    rejectionReason: reason || "",
-    updatedAt: serverTimestamp(),
+  const booking = await runTransaction(db, async (transaction) => {
+    const bookingSnap = await transaction.get(ref);
+    if (!bookingSnap.exists()) throw new Error("Booking not found.");
+    const current = bookingSnap.data();
+    if (current.status !== "Pending") {
+      throw new Error("Only Pending bookings can be rejected.");
+    }
+    transaction.update(ref, {
+      status: "Cancelled",
+      rejectionReason: reason || "",
+      updatedAt: serverTimestamp(),
+    });
+    return { id: bookingId, ...current };
   });
+  await releaseAvailabilityMarkers(booking, trainingMode);
+
   try {
-    const bookingSnap = await getDoc(ref);
-    const booking = bookingSnap.data();
     const roomSnap = await getDoc(doc(db, getCol("rooms", trainingMode), booking.roomId));
     const roomName = roomSnap.exists() ? roomSnap.data().name || roomSnap.data().type || "Room" : "Room";
-
-    // PROD: free the availability markers for this booking's nights. A
-    // rejected booking must never leave orphan blocks on room_availability
-    // (same pattern as cancelBooking / approveCancellation / expiry sweep).
-    if (!trainingMode) await releaseAvailabilityMarkers(booking);
 
     await createNotification(booking.guestId, {
       type: "booking_rejected",
       title: "Booking Update",
       message: `Your booking for ${roomName} was not approved. Reason: ${reason || "Not provided"}`,
       link: "/my-bookings"
-    });
+    }, { trainingMode });
   } catch (e) { console.error("Notif error", e); }
   return { ok: true };
 }
@@ -122,13 +120,12 @@ export async function cancelBooking(bookingId, { trainingMode = null } = {}) {
       updatedAt: serverTimestamp(),
     });
 
-    return { booking: bookingData, roomName: resolvedRoomName };
+    return { booking: { id: bookingId, ...bookingData }, roomName: resolvedRoomName };
   });
 
-  try {
-    // PROD: free the availability markers for this booking's nights.
-    if (!trainingMode) await releaseAvailabilityMarkers(booking);
+  await releaseAvailabilityMarkers(booking, trainingMode);
 
+  try {
     const checkInStr = booking.checkInDate?.toDate
       ? booking.checkInDate.toDate().toLocaleDateString()
       : "unknown date";
@@ -141,7 +138,7 @@ export async function cancelBooking(bookingId, { trainingMode = null } = {}) {
           title: "Booking Cancelled",
           message: `Booking for ${roomName} on ${checkInStr} has been cancelled.`,
           link: "/fo/bookings",
-        }),
+        }, { trainingMode }),
       ),
     );
   } catch (e) {
@@ -180,7 +177,7 @@ export async function requestCancellation(bookingId, guestId, reason, { training
       cancellationReason: reason,
       cancellationRequestedAt: serverTimestamp(),
       updatedAt: serverTimestamp()
-    });
+    }, { trainingMode });
 
     return { ok: true, roomName: "Room" }; 
   }).then(async () => {
@@ -248,15 +245,14 @@ export async function approveCancellation(bookingId, { trainingMode = null } = {
     transaction.update(bookingRef, {
       status: "Cancelled",
       updatedAt: serverTimestamp(),
-    });
+    }, { trainingMode });
 
-    return { booking: bookingData, roomName: resolvedRoomName };
+    return { booking: { id: bookingId, ...bookingData }, roomName: resolvedRoomName };
   });
 
-  try {
-    // PROD: free the availability markers for this booking's nights.
-    if (!trainingMode) await releaseAvailabilityMarkers(booking);
+  await releaseAvailabilityMarkers(booking, trainingMode);
 
+  try {
     await createNotification(booking.guestId, {
       type: "cancellation_approved",
       title: "Cancellation Approved",

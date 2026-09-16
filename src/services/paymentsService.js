@@ -14,6 +14,20 @@ function paymentsCollection(trainingMode) {
   return getCol("payments", trainingMode);
 }
 
+// Idempotency keys become the payment doc ID so parallel tabs / double-clicks
+// collapse to one doc: the tx re-reads and returns the winner instead of
+// writing a second charge. Keys are caller-generated per user intent.
+const IDEMPOTENCY_KEY_RE = /^[A-Za-z0-9_-]{8,64}$/;
+
+export function sanitizeIdempotencyKey(key) {
+  if (key == null || key === "") return null;
+  const clean = String(key).trim();
+  if (!IDEMPOTENCY_KEY_RE.test(clean)) {
+    throw new Error("Invalid idempotency key.");
+  }
+  return clean;
+}
+
 /**
  * Fetch all payment records for a given booking, sorted newest-first.
  *
@@ -103,14 +117,16 @@ export async function listPaymentsForBooking(
  *   roomType?: string,
  *   processedBy?: string,
  *   source?: string,
- * }} payload
- * @returns {Promise<{ id: string, newDeposit: number, receiptData: any }>}
- */
+ *   idempotencyKey?: string,
+  * }} payload
+  * @returns {Promise<{ id: string, newDeposit: number, receiptData: any }>}
+  */
 export async function recordPayment(payload) {
   const trainingMode = payload?.trainingMode ?? null;
   const bookingId = payload?.bookingId;
   const amount = Number(payload?.amount ?? 0);
   const method = String(payload?.method ?? "").trim();
+  const idempotencyKey = sanitizeIdempotencyKey(payload?.idempotencyKey);
 
   if (!bookingId || typeof bookingId !== "string")
     throw new Error("Invalid bookingId passed to recordPayment");
@@ -145,6 +161,50 @@ export async function recordPayment(payload) {
       );
     }
 
+    // Idempotent retry: the winner already wrote this key — return it instead
+    // of charging a second time. Reads stay before writes, tx-safe.
+    const paymentRef = idempotencyKey
+      ? doc(db, pCol, idempotencyKey)
+      : doc(collection(db, pCol));
+    if (idempotencyKey) {
+      const existingSnap = await transaction.get(paymentRef);
+      if (existingSnap.exists()) {
+        const existing = existingSnap.data();
+        const booking = bookingSnap.data();
+        if (existing.bookingId !== bookingId || Number(existing.amount) !== amount || existing.method !== method) {
+          throw new Error("Idempotency key is already associated with a different payment.");
+        }
+        const existingDeposit = Number(booking?.payment?.deposit ?? 0);
+        return {
+          id: paymentRef.id,
+          newDeposit: existingDeposit,
+          deduped: true,
+          receiptData: {
+            receiptNo: existing.receiptNo || receiptNo,
+            guestName: payload.guestName || booking.guestName || "Guest",
+            guestEmail: payload.guestEmail || booking.guestEmail || "",
+            roomName: payload.roomName || "Room",
+            roomType: payload.roomType || "",
+            checkIn: booking.checkInDate?.toDate?.() || booking.checkInDate,
+            checkOut: booking.checkOutDate?.toDate?.() || booking.checkOutDate,
+            numberOfNights: booking.nights,
+            ratePerNight: booking.nights > 0 ? Number(booking.baseTotal ?? (booking.totalCost - (booking.extraPaxTotal || 0))) / booking.nights : 0,
+            baseTotal: Number(booking.baseTotal ?? (booking.totalCost - (booking.extraPaxTotal || 0))),
+            extraPaxCount: Number(booking.extraPaxCount ?? 0),
+            extraPaxFee: Number(booking.extraPaxFee ?? 0),
+            extraPaxTotal: Number(booking.extraPaxTotal ?? 0),
+            total: booking.totalCost,
+            subtotal: booking.totalCost,
+            amountPaid: Number(existing.amount ?? amount),
+            balance: Math.max(0, Number(booking.totalCost ?? 0) - existingDeposit),
+            paymentMethod: existing.method || method,
+            paymentDate: new Date(),
+            processedBy: existing.processedBy || payload.processedBy || "Front Office Staff",
+          },
+        };
+      }
+    }
+
     const booking = bookingSnap.data();
     const existingDeposit = Number(booking?.payment?.deposit ?? 0);
     const totalCost = Number(booking?.totalCost ?? 0);
@@ -173,9 +233,7 @@ export async function recordPayment(payload) {
     // For Cash (and any other method) methodDetails stays {} — the note is
     // captured in the top-level field written below.
 
-    // ── Step 3: create the payment document ──
-    const paymentRef = doc(collection(db, pCol));
-
+    // ── Step 3: create the payment document (fixed ID when keyed) ──
     transaction.set(paymentRef, {
       bookingId,
       amount,

@@ -17,7 +17,7 @@ import { formatDate } from "@/lib/format";
 const SHOW_REVIEW_COUNT = 3;
 
 export default function RoomReviewsSection({
-  reviews,
+  reviews = [],
   reviewsLoading,
   reviewsError,
   eligibilityChecked,

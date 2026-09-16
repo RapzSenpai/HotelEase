@@ -55,7 +55,7 @@ function timeSince(dateLike) {
 }
 
 export default function NotificationBell() {
-  const { user, role } = useAuth();
+  const { user, role, trainingMode } = useAuth();
   const navigate = useNavigate();
   const [notifications, setNotifications] = useState([]);
   const [pendingRequests, setPendingRequests] = useState([]);
@@ -65,17 +65,17 @@ export default function NotificationBell() {
     if (!user?.uid) return;
     const unsub = subscribeToNotifications(user.uid, (data) => {
       setNotifications(data);
-    });
+    }, { trainingMode });
     return () => unsub();
-  }, [user?.uid]);
+  }, [user?.uid, trainingMode]);
 
   useEffect(() => {
     if (!user?.uid || role !== "fo") return;
     const unsub = subscribeToPendingBookingRequests((data) => {
       setPendingRequests(data);
-    });
+    }, { trainingMode });
     return () => unsub();
-  }, [user?.uid, role]);
+  }, [user?.uid, role, trainingMode]);
 
   const foRequestNotifications =
     role === "fo"
@@ -104,7 +104,7 @@ export default function NotificationBell() {
 
   const handleNotifClick = async (notif) => {
     if (!notif.isRead && !notif.isSystemRequest) {
-      await markAsRead(user.uid, notif.id);
+      await markAsRead(user.uid, notif.id, { trainingMode });
     }
     setIsOpen(false);
     if (notif.link) {
@@ -114,7 +114,7 @@ export default function NotificationBell() {
 
   const handleMarkAllRead = async () => {
     if (unreadStoredCount === 0) return;
-    await markAllAsRead(user.uid);
+    await markAllAsRead(user.uid, { trainingMode });
   };
 
   if (!user) return null;

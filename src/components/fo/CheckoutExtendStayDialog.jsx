@@ -42,20 +42,30 @@ export default function CheckoutExtendStayDialog({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
 
-  const currentOut = useMemo(
-    () => (booking ? toDate(booking.checkOutDate) : null),
-    [booking],
-  );
+  // Normalized to local midnight: stored check-outs carry a time (e.g. noon),
+  // which skewed minDate via toISOString (UTC day) and made the next calendar
+  // day compute 0 nights. Midnight-to-midnight is always whole nights.
+  const currentOut = useMemo(() => {
+    if (!booking) return null;
+    const d = toDate(booking.checkOutDate);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }, [booking]);
 
   useEffect(() => {
-    if (open) setError(null);
-  }, [open]);
+    if (open) {
+      setError(null);
+      setCheckOutDate("");
+    }
+  }, [open, booking?.id]);
 
   const minDate = useMemo(() => {
     if (!currentOut) return undefined;
     const nextDay = new Date(currentOut);
     nextDay.setDate(nextDay.getDate() + 1);
-    return nextDay.toISOString().split("T")[0];
+    const m = String(nextDay.getMonth() + 1).padStart(2, "0");
+    const d = String(nextDay.getDate()).padStart(2, "0");
+    return `${nextDay.getFullYear()}-${m}-${d}`;
   }, [currentOut]);
 
   function addedNightsFor(value) {
@@ -79,7 +89,7 @@ export default function CheckoutExtendStayDialog({
     setSubmitting(true);
     setError(null);
     try {
-      await onSubmit({ checkOutDate: chosenOut, addedNights, dailyRate });
+      await onSubmit({ checkOutDate: chosenOut, addedNights, dailyRate, expectedCheckOutDate: currentOut });
       setCheckOutDate("");
     } catch (e) {
       setError(e?.message || "Failed to extend stay.");
@@ -89,7 +99,10 @@ export default function CheckoutExtendStayDialog({
   }
 
   const addedNights = addedNightsFor(checkOutDate);
-  const addedTotal = dailyRate * addedNights;
+  // Match the page write (Math.max(1, ...)) so preview never shows +PHP 0
+  // for a charge that posts 1 night.
+  const billedNights = checkOutDate ? Math.max(1, addedNights) : 0;
+  const addedTotal = dailyRate * billedNights;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -138,7 +151,7 @@ export default function CheckoutExtendStayDialog({
               <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 space-y-1 text-xs">
                 <div className="flex justify-between text-foreground/70">
                   <span>Additional Nights:</span>
-                  <span className="font-semibold">{addedNights} night{addedNights !== 1 ? "s" : ""}</span>
+                  <span className="font-semibold">{billedNights} night{billedNights !== 1 ? "s" : ""}</span>
                 </div>
                 <div className="flex justify-between text-foreground/70">
                   <span>Nightly Rate:</span>
@@ -172,7 +185,7 @@ export default function CheckoutExtendStayDialog({
             variant="default"
             size="sm"
             onClick={handleConfirm}
-            disabled={submitting || !checkOutDate}
+            disabled={submitting || !checkOutDate || !booking}
           >
             {submitting ? "Extending..." : "Confirm Extension"}
           </Button>

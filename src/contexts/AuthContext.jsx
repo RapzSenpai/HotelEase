@@ -125,13 +125,19 @@ export function AuthProvider({ children }) {
 
           if (!stillSignedIn()) return;
 
-          if (userDoc) {
+            if (userDoc) {
             // Force logout enforcement: if this session was created before the
             // admin's force-logout timestamp, sign the user out.
             if (userDoc.forceLogout) {
               const kickedAt = new Date(userDoc.forceLogoutTimestamp || 0).getTime();
               const signedInAt = new Date(firebaseUser.metadata?.lastSignInTime || 0).getTime();
               if (signedInAt < kickedAt) {
+                // Kicked trainees never reach logout(): purge their sandbox
+                // profile best-effort so they don't zombie in training_guests.
+                if (firebaseUser.isAnonymous) {
+                  await deleteOwnTrainingProfile(firebaseUser.uid).catch(() => {});
+                  await firebaseUser.delete().catch(() => {});
+                }
                 await signOut(auth);
                 return;
               }
@@ -170,7 +176,7 @@ export function AuthProvider({ children }) {
             const ref = doc(db, getCol("users", effectiveTrainingMode), firebaseUser.uid);
             profileSnapUnsubRef.current = onSnapshot(
               ref,
-              (snap) => {
+              async (snap) => {
                 if (!snap.exists()) return;
                 const data = snap.data();
                 // Force-logout enforcement (real-time)
@@ -180,6 +186,10 @@ export function AuthProvider({ children }) {
                     profileSnapUserRef.current?.metadata?.lastSignInTime || 0
                   ).getTime();
                   if (signedInAt < kickedAt) {
+                    if (profileSnapUserRef.current?.isAnonymous) {
+                      await deleteOwnTrainingProfile(profileSnapUserRef.current.uid).catch(() => {});
+                      await profileSnapUserRef.current.delete().catch(() => {});
+                    }
                     signOut(auth).catch(() => {});
                     return;
                   }
@@ -325,8 +335,21 @@ export function AuthProvider({ children }) {
     }
 
     async function signInWithTrainingCode({ code, role: nextRole }) {
-      const validation = await validateTrainingSessionCode(code);
-      if (!validation.ok) throw new Error(validation.reason || "Invalid training code.");
+      // The session-code doc requires authentication to read (otherwise anyone
+      // could scrape the code and crash the sandbox), so logged-out joiners
+      // sign in anonymously FIRST and validate second. A failed validation
+      // deletes the fresh anon account so wrong-code attempts leave no orphans.
+      let freshAnon = null;
+      if (!auth.currentUser) {
+        freshAnon = (await signInAnonymously(auth)).user;
+      }
+      try {
+        const validation = await validateTrainingSessionCode(code);
+        if (!validation.ok) throw new Error(validation.reason || "Invalid training code.");
+      } catch (e) {
+        if (freshAnon) await freshAnon.delete().catch(() => {});
+        throw e;
+      }
 
       assignedRoleRef.current = nextRole || "guest";
       try {
@@ -336,7 +359,9 @@ export function AuthProvider({ children }) {
       }
       setTrainingMode(true);
 
-      const res = await signInAnonymously(auth);
+      const res = auth.currentUser
+        ? { user: auth.currentUser }
+        : await signInAnonymously(auth);
       const uid = res.user.uid;
 
       setRole(assignedRoleRef.current);
