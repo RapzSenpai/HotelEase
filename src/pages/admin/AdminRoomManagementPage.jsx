@@ -1,20 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import RequiredIndicator from "@/components/common/RequiredIndicator";
 import { Card } from "@/components/ui/card";
-import {
-  Upload, Plus, Edit, Trash2, BedDouble,
-  X,
-  ChevronDown, Image, Check,
-} from "lucide-react";
+import { Plus, BedDouble } from "lucide-react";
 import RoomsTableView from "@/components/rooms/RoomsTableView";
 import RoomsGridView from "@/components/rooms/RoomsGridView";
 import RoomsStatsBar from "@/components/rooms/RoomsStatsBar";
 import RoomsFilterBar from "@/components/rooms/RoomsFilterBar";
 import RoomPhotoUploader from "@/components/rooms/RoomPhotoUploader";
 import RoomTagInput from "@/components/rooms/RoomTagInput";
+import RoomFormSlideOver from "@/components/rooms/RoomFormSlideOver";
 import { SkeletonCard } from "@/components/ui/skeleton";
 import {
   deactivateRoom,
@@ -38,9 +32,6 @@ const STATUS_OPTIONS = [
   "Out of Order",
   "Dirty / Needs Cleaning",
 ];
-
-const SELECT_TRIGGER_CLASS =
-  "flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50";
 
 const DEFAULT_TYPE_OPTIONS = ["Single Room", "Suite Room", "Presidential Room"];
 
@@ -69,327 +60,6 @@ function initialForm() {
     isActive: true,
     photos: [],
   };
-}
-
-// ---------------------------------------------------------------------------
-// Predefined options for tag inputs
-// ---------------------------------------------------------------------------
-
-const PRESET_AMENITIES = [
-  "Wifi", "Air Conditioning", "TV", "Private Bathroom", "Minibar",
-  "Room Service", "Parking", "Balcony", "In-Room Safe", "Coffee Maker",
-];
-
-const PRESET_FACILITIES = [
-  "Swimming Pool", "Gym", "Spa", "Restaurant", "Bar", "Laundry",
-  "Concierge", "Airport Shuttle", "Business Center", "Garden",
-];
-
-// ---------------------------------------------------------------------------
-// Centered Modal Form
-// ---------------------------------------------------------------------------
-
-function SlideOverForm({ open, onClose, editingId, form, setForm, submitError, submitting, onSubmit, existingTypes }) {
-  const [policiesOpen, setPoliciesOpen] = useState(false);
-
-  if (!open) return null;
-
-  return (
-    <>
-      {/* Backdrop */}
-      <div
-        className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm"
-        onClick={onClose}
-      />
-
-      {/* Centered Modal */}
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div className="relative w-full max-w-2xl max-h-[90vh] bg-background rounded-xl border border-border shadow-2xl overflow-hidden flex flex-col">
-          {/* Header */}
-          <div className="flex items-center justify-between border-b border-border px-5 py-3.5 shrink-0">
-            <div className="flex items-center gap-2.5">
-              <div className="p-1.5 rounded-md bg-primary/10">
-                {editingId ? (
-                  <Edit className="h-4 w-4 text-primary" />
-                ) : (
-                  <Plus className="h-4 w-4 text-primary" />
-                )}
-              </div>
-              <h2 className="text-sm font-semibold">
-                {editingId ? "Edit Room" : "Add New Room"}
-              </h2>
-            </div>
-            <button
-              onClick={onClose}
-              className="p-1.5 rounded-md hover:bg-muted transition-colors"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-
-          {/* Scrollable Form */}
-          <form onSubmit={onSubmit} className="overflow-y-auto flex-1 p-5 space-y-6">
-
-          {/* ── Section: Basic Info ── */}
-          <div className="space-y-3">
-            <h3 className="text-xs font-semibold text-foreground/50 uppercase tracking-wider">Basic Info</h3>
-
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label htmlFor="so-roomNumber" className="text-xs font-medium text-foreground/60">Room Number <RequiredIndicator /></Label>
-                <Input
-                  id="so-roomNumber"
-                  required
-                  value={form.roomNumber}
-                  onChange={(e) => setForm((p) => ({ ...p, roomNumber: e.target.value }))}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="so-floor" className="text-xs font-medium text-foreground/60">Floor</Label>
-                <Input
-                  id="so-floor"
-                  value={form.floor}
-                  onChange={(e) => setForm((p) => ({ ...p, floor: e.target.value }))}
-                />
-              </div>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="so-name" className="text-xs font-medium text-foreground/60">Room Name <RequiredIndicator /></Label>
-              <Input
-                id="so-name"
-                required
-                value={form.name}
-                onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-foreground/60">Room Type</Label>
-              <select
-                value={existingTypes.includes(form.type) ? form.type : (form.type ? "Custom" : "")}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  const defaults = ROOM_TYPE_CAPACITY_DEFAULTS[val];
-                  if (val === "Custom") {
-                    setForm((p) => ({ ...p, type: "" }));
-                  } else if (defaults) {
-                    setForm((p) => ({
-                      ...p,
-                      type: val,
-                      basePax: String(defaults.basePax),
-                      maxPax: String(defaults.maxPax),
-                      extraPaxFee: String(defaults.extraPaxFee),
-                    }));
-                  } else {
-                    setForm((p) => ({ ...p, type: val }));
-                  }
-                }}
-                className={SELECT_TRIGGER_CLASS}
-              >
-                <option value="" disabled>Select Type...</option>
-                {existingTypes.map((t) => (
-                  <option key={t} value={t}>{t}</option>
-                ))}
-                <option value="Custom">+ Add New Type</option>
-              </select>
-              {(!existingTypes.includes(form.type) || existingTypes.includes(form.type) === false) && (
-                <Input
-                  placeholder="Enter Custom Room Type..."
-                  value={form.type}
-                  onChange={(e) => setForm((p) => ({ ...p, type: e.target.value }))}
-                />
-              )}
-            </div>
-
-            <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-foreground/60">Room Status</Label>
-              <select
-                value={form.status}
-                onChange={(e) => setForm((p) => ({ ...p, status: e.target.value }))}
-                className={SELECT_TRIGGER_CLASS}
-              >
-                <option value="" disabled>Select Status...</option>
-                {STATUS_OPTIONS.map((s) => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
-                {!STATUS_OPTIONS.includes(form.status) && form.status && (
-                  <option value={form.status}>{form.status}</option>
-                )}
-              </select>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="so-desc" className="text-xs font-medium text-foreground/60">Description</Label>
-              <textarea
-                id="so-desc"
-                className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-y"
-                placeholder="Describe the room..."
-                value={form.description}
-                onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
-              />
-            </div>
-          </div>
-
-          {/* ── Section: Pricing & Capacity ── */}
-          <div className="space-y-3">
-            <h3 className="text-xs font-semibold text-foreground/50 uppercase tracking-wider">Pricing & Guest Capacity</h3>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="so-rate" className="text-xs font-medium text-foreground/60">Rate per Night <RequiredIndicator /></Label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-foreground/40 font-medium">PHP</span>
-                <Input
-                  id="so-rate"
-                  type="number"
-                  required
-                  min={1}
-                  className="pl-12"
-                  value={form.ratePerNight}
-                  onChange={(e) => setForm((p) => ({ ...p, ratePerNight: e.target.value }))}
-                />
-              </div>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-3 pt-1">
-              <div className="space-y-1.5">
-                <Label htmlFor="so-basePax" className="text-xs font-medium text-foreground/60">Base Included Pax <RequiredIndicator /></Label>
-                <Input
-                  id="so-basePax"
-                  type="number"
-                  required
-                  min={1}
-                  value={form.basePax}
-                  onChange={(e) => setForm((p) => ({ ...p, basePax: e.target.value }))}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="so-maxPax" className="text-xs font-medium text-foreground/60">Max Pax Capacity <RequiredIndicator /></Label>
-                <Input
-                  id="so-maxPax"
-                  type="number"
-                  required
-                  min={1}
-                  value={form.maxPax}
-                  onChange={(e) => setForm((p) => ({ ...p, maxPax: e.target.value }))}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="so-extraPaxFee" className="text-xs font-medium text-foreground/60">Extra Pax Fee / Night (PHP)</Label>
-                <Input
-                  id="so-extraPaxFee"
-                  type="number"
-                  min={0}
-                  value={form.extraPaxFee}
-                  onChange={(e) => setForm((p) => ({ ...p, extraPaxFee: e.target.value }))}
-                />
-              </div>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label htmlFor="so-checkin" className="text-xs font-medium text-foreground/60">Check-in Time</Label>
-                <Input
-                  id="so-checkin"
-                  placeholder="e.g. 2:00 PM"
-                  value={form.checkInTime}
-                  onChange={(e) => setForm((p) => ({ ...p, checkInTime: e.target.value }))}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="so-checkout" className="text-xs font-medium text-foreground/60">Check-out Time</Label>
-                <Input
-                  id="so-checkout"
-                  placeholder="e.g. 12:00 PM"
-                  value={form.checkOutTime}
-                  onChange={(e) => setForm((p) => ({ ...p, checkOutTime: e.target.value }))}
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* ── Section: Photos ── */}
-          <div className="space-y-3">
-            <h3 className="text-xs font-semibold text-foreground/50 uppercase tracking-wider">Photos</h3>
-
-            <RoomPhotoUploader
-              photos={form.photos}
-              onChange={(urls) => setForm((p) => ({ ...p, photos: urls }))}
-            />
-          </div>
-
-          {/* ── Section: Amenities & Facilities ── */}
-          <div className="space-y-3">
-            <h3 className="text-xs font-semibold text-foreground/50 uppercase tracking-wider">Amenities & Facilities</h3>
-
-            <RoomTagInput
-              label="Room Amenities"
-              value={form.amenitiesCsv}
-              onChange={(val) => setForm((p) => ({ ...p, amenitiesCsv: val }))}
-              presets={PRESET_AMENITIES}
-              placeholder="Type custom amenity and press Enter..."
-            />
-
-            <RoomTagInput
-              label="Hotel Facilities"
-              value={form.facilitiesCsv}
-              onChange={(val) => setForm((p) => ({ ...p, facilitiesCsv: val }))}
-              presets={PRESET_FACILITIES}
-              placeholder="Type custom facility and press Enter..."
-            />
-          </div>
-
-          {/* ── Section: Policies (Collapsible) ── */}
-          <div className="space-y-2">
-            <button
-              type="button"
-              onClick={() => setPoliciesOpen((v) => !v)}
-              className="flex items-center gap-2 w-full text-left"
-            >
-              <h3 className="text-xs font-semibold text-foreground/50 uppercase tracking-wider">Policies</h3>
-              <div className="flex-1 h-px bg-border/50" />
-              <ChevronDown className={`h-3.5 w-3.5 text-foreground/40 transition-transform duration-200 ${policiesOpen ? "rotate-180" : ""}`} />
-            </button>
-
-            {policiesOpen && (
-              <div className="space-y-1.5 animate-in fade-in slide-in-from-top-1 duration-200">
-                <Label htmlFor="so-policies" className="text-xs font-medium text-foreground/60">Cancellation Policy / House Rules</Label>
-                <textarea
-                  id="so-policies"
-                  className="flex min-h-[100px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-y"
-                  placeholder="Describe cancellation policy and house rules..."
-                  value={form.policies}
-                  onChange={(e) => setForm((p) => ({ ...p, policies: e.target.value }))}
-                />
-              </div>
-            )}
-          </div>
-
-          {/* ── Submit ── */}
-          {submitError && (
-            <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-foreground">
-              {submitError}
-            </div>
-          )}
-
-          <div className="flex gap-2 pt-2 pb-2">
-            <Button type="submit" disabled={submitting} className="flex-1 h-9">
-              {submitting ? "Saving..." : editingId ? "Save Changes" : "Create Room"}
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              className="h-9 px-4"
-              onClick={onClose}
-            >
-              Cancel
-            </Button>
-          </div>
-        </form>
-        </div>
-      </div>
-    </>
-  );
 }
 
 // ---------------------------------------------------------------------------
@@ -731,7 +401,7 @@ export default function AdminRoomManagementPage() {
       )}
 
       {/* ── Slide-Over Form ── */}
-      <SlideOverForm
+      <RoomFormSlideOver
         open={formOpen}
         onClose={() => { setFormOpen(false); setEditingId(null); setForm(initialForm()); setSubmitError(null); }}
         editingId={editingId}
@@ -741,6 +411,7 @@ export default function AdminRoomManagementPage() {
         submitting={submitting}
         onSubmit={onSubmit}
         existingTypes={existingTypes}
+        statusOptions={STATUS_OPTIONS}
       />
     </div>
   );
