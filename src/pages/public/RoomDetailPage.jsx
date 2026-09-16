@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import RequiredIndicator from "@/components/common/RequiredIndicator";
 import TermsDialog from "@/components/common/TermsDialog";
@@ -30,6 +29,7 @@ import { StarRatingInput } from "@/components/common/StarRating";
 import RoomReviewsDialog from "@/components/rooms/RoomReviewsDialog";
 import RoomPhotoCarousel from "@/components/rooms/RoomPhotoCarousel";
 import RoomReviewsSection from "@/components/rooms/RoomReviewsSection";
+import RoomBookingBar from "@/components/rooms/RoomBookingBar";
 import {
   Wifi,
   Wind,
@@ -45,7 +45,6 @@ import {
   Lock,
   Building2,
   CheckCircle,
-  Calendar as CalendarIcon,
   Clock,
   ShieldCheck,
   AlertTriangle,
@@ -55,13 +54,6 @@ import {
 // Helpers
 // ---------------------------------------------------------------------------
 
-
-function formatRate(rate) {
-  if (rate == null || rate === "") return null;
-  const num = Number(rate);
-  if (isNaN(num)) return null;
-  return num.toLocaleString("en-PH", { minimumFractionDigits: 0 });
-}
 
 function calcNights(checkIn, checkOut) {
   if (!checkIn || !checkOut) return 0;
@@ -135,6 +127,11 @@ export default function RoomDetailPage() {
   };
   const handleCheckOutChange = (val) => {
     setCheckOut(val);
+    setBookNowError(null);
+  };
+  const handleClearDates = () => {
+    setCheckIn("");
+    setCheckOut("");
     setBookNowError(null);
   };
 
@@ -384,12 +381,6 @@ export default function RoomDetailPage() {
   const photos = Array.isArray(room?.photos) ? room.photos : [];
   const amenities = Array.isArray(room?.amenities) ? room.amenities : [];
   const facilities = Array.isArray(room?.facilities) ? room.facilities : [];
-  const formattedRate = useMemo(() => formatRate(room?.ratePerNight), [room?.ratePerNight]);
-  const totalCost = useMemo(() => {
-    if (!formattedRate || !nights) return null;
-    const total = Number(room?.ratePerNight ?? 0) * nights;
-    return total.toLocaleString("en-PH", { minimumFractionDigits: 0 });
-  }, [room?.ratePerNight, nights, formattedRate]);
 
   // ---- render ----
   return (
@@ -719,111 +710,16 @@ export default function RoomDetailPage() {
       />
 
       {/* ── STICKY BOTTOM BAR ── */}
-      {!loading && room && (
-        <div className="fixed bottom-0 left-0 right-0 z-40 border-t-2 border-primary/20 bg-background/95 backdrop-blur-sm shadow-[0_-4px_24px_rgba(0,0,0,0.08)]">
-          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-3">
-            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-
-              {/* Price block */}
-              <div className="flex items-baseline gap-1.5 shrink-0">
-                {formattedRate ? (
-                  <>
-                    <span className="font-playfair text-2xl font-bold text-foreground">
-                      PHP {formattedRate}
-                    </span>
-                    <span className="text-sm text-foreground/50">/ night</span>
-                    {datesSelected && totalCost && (
-                      <span className="ml-2 text-xs text-foreground/50">
-                        · PHP {totalCost} total ({nights} night{nights !== 1 ? "s" : ""})
-                      </span>
-                    )}
-                  </>
-                ) : (
-                  <span className="text-sm text-foreground/50">Rate not set</span>
-                )}
-              </div>
-
-              {/* Date pickers — shown in bar if dates not yet selected */}
-              {!datesSelected && (
-                <div className="flex flex-1 items-center gap-2 flex-wrap">
-                  <div className="relative">
-                    <Input
-                      type="date"
-                      value={checkIn}
-                      min={todayStr}
-                      onChange={(e) => handleCheckInChange(e.target.value)}
-                      onClick={(e) => e.currentTarget.showPicker?.()}
-                      onFocus={(e) => e.target.blur()}
-                      className="pr-9 border-border text-sm [&::-webkit-calendar-picker-indicator]:hidden cursor-pointer w-40"
-                      placeholder="Check-in"
-                    />
-                    <CalendarIcon className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-foreground/40 pointer-events-none" />
-                  </div>
-                  <span className="text-foreground/30 text-sm">→</span>
-                  <div className="relative">
-                    <Input
-                      type="date"
-                      value={checkOut}
-                      min={minCheckOutStr}
-                      disabled={!checkIn}
-                      onChange={(e) => handleCheckOutChange(e.target.value)}
-                      onClick={(e) => e.currentTarget.showPicker?.()}
-                      onFocus={(e) => e.target.blur()}
-                      className="pr-9 border-border text-sm [&::-webkit-calendar-picker-indicator]:hidden cursor-pointer disabled:cursor-not-allowed w-40"
-                      placeholder="Check-out"
-                    />
-                    <CalendarIcon className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-foreground/40 pointer-events-none" />
-                  </div>
-                </div>
-              )}
-
-              {/* Dates summary pill when dates are selected */}
-              {datesSelected && (
-                <div className="flex-1 flex items-center gap-2 flex-wrap">
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-border/60 px-3 py-1 text-xs text-foreground/70">
-                    <CalendarIcon className="h-3.5 w-3.5" />
-                    {checkIn} → {checkOut}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => { setCheckIn(""); setCheckOut(""); setBookNowError(null); }}
-                    className="text-xs text-foreground/45 hover:text-foreground underline underline-offset-2"
-                  >
-                    Change dates
-                  </button>
-                </div>
-              )}
-
-              {/* Book Now button */}
-              <div className="flex items-center justify-end shrink-0">
-                {!roomActive ? (
-                  <Button variant="default" disabled className="min-w-40">
-                    No Longer Available
-                  </Button>
-                ) : !datesSelected ? (
-                  <Button variant="default" disabled className="min-w-40">
-                    Select Dates to Book
-                  </Button>
-                ) : (
-                  <Button
-                    variant="default"
-                    onClick={handleBookNow}
-                    disabled={bookNowLoading}
-                    className="min-w-40"
-                  >
-                    {bookNowLoading ? "Checking…" : "Book Now"}
-                  </Button>
-                )}
-              </div>
-
-            </div>
-
-            {/* Availability errors — kept on their own quiet row so the bar stays flat */}
-            {bookNowError && (
-              <p className="mt-2 text-right text-xs text-destructive">{bookNowError}</p>
-            )}
-          </div>
-        </div>
+      {!loading && (
+        <RoomBookingBar
+          room={room}
+          dates={{ checkIn, checkOut, todayStr, minCheckOutStr, nights, datesSelected }}
+          availability={{ active: roomActive, loading: bookNowLoading, error: bookNowError }}
+          onChangeCheckIn={handleCheckInChange}
+          onChangeCheckOut={handleCheckOutChange}
+          onClearDates={handleClearDates}
+          onBookNow={handleBookNow}
+        />
       )}
       <ChatbotWidget positionClass="bottom-28 right-6" />
     </>
