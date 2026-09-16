@@ -6,26 +6,19 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton, SkeletonList } from "@/components/ui/skeleton";
 import { useAuth } from "@/contexts/AuthContext";
-import { listBookingsForUser, subscribeToUserBookings, cancelBooking, requestCancellation, uploadPaymentProof } from "@/services/bookingsService";
+import { listBookingsForUser, subscribeToUserBookings, uploadPaymentProof } from "@/services/bookingsService";
 import { mapFirebaseError } from "@/lib/errors";
 import { subscribeToRooms, isRoomActive } from "@/services/roomsService";
 import { listPaymentsForBooking } from "@/services/paymentsService";
 import { generateReceipt } from "@/services/receiptService";
 import { HOTEL_GCASH_NUMBER, calculatePartialPayment, getPaymentDetails, PROOF_REQUIRED_METHODS } from "@/lib/paymentDetails";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
 import BookingDetails from "@/components/bookings/BookingDetails";
+import CancelBookingDialog from "@/components/bookings/CancelBookingDialog";
 import {
   ChevronDown,
   ChevronUp,
@@ -109,9 +102,7 @@ function BookingCard({ booking, room, trainingMode, userProfile, onCancelled }) 
   const [paymentsLoading, setPaymentsLoading] = useState(false);
   const [paymentsFetched, setPaymentsFetched] = useState(false);
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
-  const [cancelling, setCancelling] = useState(false);
-  const [cancellationReason, setCancellationReason] = useState("");
-  
+
   // Payment proof upload state
   const [paymentFile, setPaymentFile] = useState(null);
   const [uploadingProof, setUploadingProof] = useState(false);
@@ -178,30 +169,6 @@ function BookingCard({ booking, room, trainingMode, userProfile, onCancelled }) 
       processedBy: receiptPayment.processedBy || "Front Office Staff",
     });
   };
-
-  async function handleConfirmCancel() {
-    if (status === "Approved" && !cancellationReason.trim()) {
-      toast.error("Please provide a reason for cancellation.");
-      return;
-    }
-
-    setCancelling(true);
-    try {
-      if (status === "Approved") {
-        await requestCancellation(booking.id, booking.guestId, cancellationReason, { trainingMode });
-        toast.success("Cancellation request submitted.");
-      } else {
-        await cancelBooking(booking.id, { trainingMode });
-        toast.success("Booking cancelled successfully.");
-      }
-      setIsCancelDialogOpen(false);
-      onCancelled?.();
-    } catch (e) {
-      toast.error(mapFirebaseError(e) || "Failed to cancel booking.");
-    } finally {
-      setCancelling(false);
-    }
-  }
 
   async function handlePaymentProofUpload(e) {
     e.preventDefault();
@@ -575,77 +542,16 @@ function BookingCard({ booking, room, trainingMode, userProfile, onCancelled }) 
         </div>
       )}
 
-      <Dialog open={isCancelDialogOpen} onOpenChange={setIsCancelDialogOpen}>
-        <DialogContent className="sm:max-w-[425px]" onClick={(e) => e.stopPropagation()}>
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-destructive">
-              <XCircle className="h-5 w-5" /> Cancel Booking
-            </DialogTitle>
-            <DialogDescription asChild>
-              <div className="text-sm text-muted-foreground">
-                Are you sure you want to cancel your booking for{" "}
-                <strong>{room?.name || room?.type || "this room"}</strong> (
-                {formatDate(booking.checkInDate)} → {formatDate(booking.checkOutDate)})?
-                This action cannot be undone.
-
-                {/* Remaining cancellation count warning */}
-                {(() => {
-                  const count = userProfile?.cancellationCount || 0;
-                  const remaining = Math.max(0, 3 - count);
-                  if (remaining <= 0) {
-                    return (
-                      <span className="mt-2 text-destructive font-medium block">
-                        You have reached the maximum cancellation limit. Further cancellations are not allowed.
-                      </span>
-                    );
-                  }
-                  if (remaining === 1) {
-                    return (
-                      <span className="mt-2 text-warning font-medium block">
-                        Warning: You have 1 cancellation remaining before your account is restricted.
-                      </span>
-                    );
-                  }
-                  return (
-                    <span className="mt-2 text-foreground/60 block">
-                      You have {remaining} cancellation{remaining !== 1 ? "s" : ""} remaining.
-                    </span>
-                  );
-                })()}
-
-                {status === "Approved" ? (
-                  <>
-                    <span className="mt-2 text-warning font-medium block">
-                      Cancelling an approved booking requires Front Office review and may be noted on your account.
-                    </span>
-                    <div className="mt-4">
-                      <label htmlFor="cancel-reason" className="text-xs font-semibold uppercase text-foreground/70">
-                        Cancellation Reason *
-                      </label>
-                      <textarea 
-                        id="cancel-reason"
-                        className="w-full mt-1 p-2 rounded-md border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
-                        rows={3}
-                        placeholder="Please explain why you need to cancel..."
-                        value={cancellationReason}
-                        onChange={(e) => setCancellationReason(e.target.value)}
-                      />
-                    </div>
-                  </>
-                ) : null}
-              </div>
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button variant="outline" onClick={() => setIsCancelDialogOpen(false)} disabled={cancelling}>
-              Keep Booking
-            </Button>
-            <Button variant="destructive" onClick={handleConfirmCancel} disabled={cancelling}>
-              {cancelling ? "Cancelling..." : "Yes, Cancel"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <CancelBookingDialog
+        open={isCancelDialogOpen}
+        onOpenChange={setIsCancelDialogOpen}
+        booking={booking}
+        room={room}
+        status={status}
+        userProfile={userProfile}
+        trainingMode={trainingMode}
+        onCancelled={onCancelled}
+      />
     </div>
   );
 }
