@@ -18,7 +18,7 @@ import {
   recordPayment,
 } from "@/services/paymentsService";
 import { generateReceipt } from "@/services/receiptService";
-import { CheckCircle, AlertTriangle, CalendarPlus, DollarSign, Calendar, Clock, ArrowUpDown, Filter } from "lucide-react";
+import { CheckCircle, AlertTriangle, CalendarPlus, DollarSign, Calendar, ArrowUpDown, Filter } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -31,6 +31,7 @@ import { listUsers } from "@/services/userService";
 import { useAuth } from "@/contexts/AuthContext";
 import { trackEvent, GA_EVENTS } from "@/services/gaService";
 import { toast } from "sonner";
+import CheckoutBookingList from "@/components/fo/CheckoutBookingList";
 
 function formatMethod(p) {
   // Check top-level `note` field first (written by updated paymentsService),
@@ -466,117 +467,21 @@ export default function FoCheckOutPage() {
       ) : (
         <div className="grid gap-6 lg:grid-cols-5">
           {/* ── Left panel: booking list ── */}
-          <div className="lg:col-span-2 space-y-3">
-            <div className="rounded-xl border border-border bg-background p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="font-semibold">Checked-in bookings</div>
-                  <div className="mt-0.5 text-xs text-foreground/60">
-                    {roomIdParam ? "Filtered by room." : "All checked-in guests."}
-                  </div>
-                </div>
-                {overdueCount > 0 && (
-                  <Badge variant="destructive" className="flex items-center gap-1 text-xs">
-                    <AlertTriangle className="h-3 w-3" />
-                    {overdueCount} Overdue
-                  </Badge>
-                )}
-              </div>
-
-              {/* Filter tabs */}
-              <div className="flex gap-2 border-t border-border/50 pt-2">
-                <Button
-                  size="sm"
-                  variant={filterMode === "all" ? "default" : "outline"}
-                  className="h-7 text-xs flex-1"
-                  onClick={() => setFilterMode("all")}
-                >
-                  All ({enrichedBookings.length})
-                </Button>
-                <Button
-                  size="sm"
-                  variant={filterMode === "overdue" ? "destructive" : "outline"}
-                  className="h-7 text-xs flex-1 flex items-center gap-1"
-                  onClick={() => setFilterMode("overdue")}
-                >
-                  <Clock className="h-3 w-3" />
-                  Overdue ({overdueCount})
-                </Button>
-              </div>
-            </div>
-
-            {displayedBookings.length === 0 ? (
-              <div className="rounded-xl border border-border bg-background p-4 text-sm text-foreground/70 text-center">
-                {filterMode === "overdue" ? "No overdue bookings." : "No bookings to check out."}
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {displayedBookings.map((b) => {
-                  const room = roomById.get(b.roomId);
-                  const total = Number(b.totalCost ?? 0);
-                  const paid = Number(b.payment?.deposit ?? 0);
-                  const balance = Math.max(0, total - paid);
-                  const active = selectedBookingId === b.id;
-                  const guestName =
-                    guestsMap[b.guestId]?.fullName ||
-                    guestsMap[b.guestId]?.email ||
-                    b.guestName ||
-                    "Guest";
-                  const roomName = room?.name || room?.type || b.roomId;
-
-                  return (
-                    <div
-                      key={b.id}
-                      className={`rounded-xl border p-3.5 space-y-2.5 transition-all ${
-                        active 
-                          ? "border-primary/60 bg-primary/5 ring-2 ring-primary/30 shadow-sm" 
-                          : b.isOverdue
-                          ? "border-destructive/40 bg-destructive/5 hover:border-destructive/70"
-                          : "border-border bg-background hover:border-border/80"
-                      }`}
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0 space-y-1">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="font-semibold text-sm truncate">{guestName}</span>
-                            {b.isOverdue && (
-                              <Badge variant="destructive" className="text-[10px] px-1.5 py-0 uppercase tracking-wide font-semibold">
-                                {b.overdueDays}d Overdue
-                              </Badge>
-                            )}
-                          </div>
-                          <div className="text-xs text-foreground/60 truncate">
-                            {roomName} · Checkout: {b.checkOutDate?.toDate ? b.checkOutDate.toDate().toLocaleDateString() : new Date(b.checkOutDate).toLocaleDateString()}
-                          </div>
-                        </div>
-                        <div
-                          className={`text-xs font-semibold shrink-0 text-right ${
-                            balance > 0 ? "text-destructive" : "text-success"
-                          }`}
-                        >
-                          {balance > 0
-                            ? `PHP ${balance.toLocaleString()} due`
-                            : "Paid"}
-                        </div>
-                      </div>
-
-                      <Button
-                        variant={active ? "default" : b.isOverdue ? "destructive" : "outline"}
-                        size="sm"
-                        className="w-full h-8 text-xs font-medium"
-                        onClick={() => {
-                          setSelectedBookingId(b.id);
-                          setError(null);
-                        }}
-                      >
-                        {active ? "Selected" : b.isOverdue ? "Resolve Overdue Checkout" : "Select for Checkout"}
-                      </Button>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+          <CheckoutBookingList
+            roomIdParam={roomIdParam}
+            totalCount={enrichedBookings.length}
+            overdueCount={overdueCount}
+            filterMode={filterMode}
+            onFilterChange={setFilterMode}
+            bookings={displayedBookings}
+            selectedBookingId={selectedBookingId}
+            onSelect={(id) => {
+              setSelectedBookingId(id);
+              setError(null);
+            }}
+            guestsMap={guestsMap}
+            roomById={roomById}
+          />
 
           {/* ── Right panel: folio + payment ── */}
           <div className="lg:col-span-3 space-y-3">
