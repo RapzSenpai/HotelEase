@@ -32,6 +32,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { trackEvent, GA_EVENTS } from "@/services/gaService";
 import { toast } from "sonner";
 import CheckoutBookingList from "@/components/fo/CheckoutBookingList";
+import CheckoutExtendStayDialog from "@/components/fo/CheckoutExtendStayDialog";
 
 function formatMethod(p) {
   // Check top-level `note` field first (written by updated paymentsService),
@@ -148,9 +149,6 @@ export default function FoCheckOutPage() {
 
   // ── Stay Extension & Overstay Fee Modal State ─────────────────────────────
   const [extendDialogOpen, setExtendDialogOpen] = useState(false);
-  const [newCheckOutDate, setNewCheckOutDate] = useState("");
-  const [extending, setExtending] = useState(false);
-  const [extendError, setExtendError] = useState(null);
 
   const [feeDialogOpen, setFeeDialogOpen] = useState(false);
   const [customFeeAmount, setCustomFeeAmount] = useState("");
@@ -281,40 +279,17 @@ export default function FoCheckOutPage() {
   }
 
   // ── Extend Stay handler ───────────────────────────────────────────────────
-  async function handleExtendStay() {
-    if (!selectedBookingId || !newCheckOutDate) {
-      setExtendError("Please select a new check-out date.");
-      return;
-    }
-    const currentOut = selectedBooking.checkOutDate?.toDate?.() || new Date(selectedBooking.checkOutDate);
-    const chosenOut = new Date(`${newCheckOutDate}T00:00:00`);
-    if (chosenOut <= currentOut) {
-      setExtendError("New check-out date must be after current check-out date.");
-      return;
-    }
-
-    const room = roomById.get(selectedBooking.roomId);
-    const dailyRate = room?.ratePerNight ? Number(room.ratePerNight) : 0;
-    const addedDays = Math.round((chosenOut.getTime() - currentOut.getTime()) / (1000 * 60 * 60 * 24));
-    const additionalCost = dailyRate * Math.max(1, addedDays);
-
-    try {
-      setExtending(true);
-      setExtendError(null);
-      await extendStayBooking(selectedBookingId, {
-        newCheckOutDate: chosenOut,
-        additionalCost,
-        trainingMode,
-      });
-      toast.success(`Stay extended by ${addedDays} night(s). Folio updated.`);
-      setExtendDialogOpen(false);
-      setNewCheckOutDate("");
-      await refreshAll(selectedBookingId);
-    } catch (e) {
-      setExtendError(e?.message || "Failed to extend stay.");
-    } finally {
-      setExtending(false);
-    }
+  // The dialog owns the date field, its validation and the cost preview; this
+  // stays the write, and must reject so the dialog can show the failure.
+  async function handleExtendStay({ checkOutDate, addedNights, dailyRate }) {
+    await extendStayBooking(selectedBookingId, {
+      newCheckOutDate: checkOutDate,
+      additionalCost: dailyRate * Math.max(1, addedNights),
+      trainingMode,
+    });
+    toast.success(`Stay extended by ${addedNights} night(s). Folio updated.`);
+    setExtendDialogOpen(false);
+    await refreshAll(selectedBookingId);
   }
 
   // ── Add Overstay / Late Fee handler ───────────────────────────────────────
@@ -520,10 +495,7 @@ export default function FoCheckOutPage() {
                         size="sm"
                         variant="outline"
                         className="h-7 text-xs flex items-center gap-1.5 border-primary/40 hover:bg-primary/10 text-primary"
-                        onClick={() => {
-                          setExtendDialogOpen(true);
-                          setExtendError(null);
-                        }}
+                        onClick={() => setExtendDialogOpen(true)}
                       >
                         <CalendarPlus className="h-3.5 w-3.5" />
                         Extend Stay
@@ -543,10 +515,7 @@ export default function FoCheckOutPage() {
                         size="sm"
                         variant="outline"
                         className="h-7 text-xs flex items-center gap-1"
-                        onClick={() => {
-                          setExtendDialogOpen(true);
-                          setExtendError(null);
-                        }}
+                        onClick={() => setExtendDialogOpen(true)}
                       >
                         <CalendarPlus className="h-3 w-3" />
                         Extend Stay
@@ -866,117 +835,15 @@ export default function FoCheckOutPage() {
       )}
 
       {/* ── Extend Stay Dialog ── */}
-      <Dialog open={extendDialogOpen} onOpenChange={setExtendDialogOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <CalendarPlus className="h-5 w-5 text-primary" />
-              Extend Guest Stay
-            </DialogTitle>
-          </DialogHeader>
-
-          {selectedBooking && (
-            <div className="space-y-4 py-2 text-sm">
-              <div className="rounded-lg border border-border/50 bg-muted/20 p-3 space-y-1 text-xs">
-                <div className="flex justify-between">
-                  <span className="text-foreground/60">Guest:</span>
-                  <span className="font-semibold">{guestsMap[selectedBooking.guestId]?.fullName || selectedBooking.guestName || "Guest"}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-foreground/60">Room:</span>
-                  <span className="font-semibold">{roomById.get(selectedBooking.roomId)?.name || selectedBooking.roomId}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-foreground/60">Current Check-out:</span>
-                  <span className="font-semibold">
-                    {selectedBooking.checkOutDate?.toDate
-                      ? selectedBooking.checkOutDate.toDate().toLocaleDateString()
-                      : new Date(selectedBooking.checkOutDate).toLocaleDateString()}
-                  </span>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="newCheckOutDate">New Check-out Date</Label>
-                <Input
-                  id="newCheckOutDate"
-                  type="date"
-                  min={(() => {
-                    const d = selectedBooking.checkOutDate?.toDate
-                      ? selectedBooking.checkOutDate.toDate()
-                      : new Date(selectedBooking.checkOutDate);
-                    const nextDay = new Date(d);
-                    nextDay.setDate(nextDay.getDate() + 1);
-                    return nextDay.toISOString().split("T")[0];
-                  })()}
-                  value={newCheckOutDate}
-                  onChange={(e) => {
-                    setNewCheckOutDate(e.target.value);
-                    if (extendError) setExtendError(null);
-                  }}
-                />
-              </div>
-
-              {newCheckOutDate && (
-                <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 space-y-1 text-xs">
-                  {(() => {
-                    const currentOut = selectedBooking.checkOutDate?.toDate
-                      ? selectedBooking.checkOutDate.toDate()
-                      : new Date(selectedBooking.checkOutDate);
-                    const chosenOut = new Date(`${newCheckOutDate}T00:00:00`);
-                    const addedNights = Math.max(0, Math.round((chosenOut.getTime() - currentOut.getTime()) / (1000 * 60 * 60 * 24)));
-                    const room = roomById.get(selectedBooking.roomId);
-                    const dailyRate = Number(room?.ratePerNight ?? 0);
-                    const addedTotal = dailyRate * addedNights;
-
-                    return (
-                      <>
-                        <div className="flex justify-between text-foreground/70">
-                          <span>Additional Nights:</span>
-                          <span className="font-semibold">{addedNights} night{addedNights !== 1 ? "s" : ""}</span>
-                        </div>
-                        <div className="flex justify-between text-foreground/70">
-                          <span>Nightly Rate:</span>
-                          <span>PHP {dailyRate.toLocaleString()}</span>
-                        </div>
-                        <div className="flex justify-between text-primary font-bold border-t border-border/40 pt-1">
-                          <span>Additional Charge:</span>
-                          <span>+PHP {addedTotal.toLocaleString()}</span>
-                        </div>
-                      </>
-                    );
-                  })()}
-                </div>
-              )}
-
-              {extendError && (
-                <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-2.5 text-xs text-destructive">
-                  {extendError}
-                </div>
-              )}
-            </div>
-          )}
-
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setExtendDialogOpen(false)}
-              disabled={extending}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="default"
-              size="sm"
-              onClick={handleExtendStay}
-              disabled={extending || !newCheckOutDate}
-            >
-              {extending ? "Extending..." : "Confirm Extension"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <CheckoutExtendStayDialog
+        open={extendDialogOpen}
+        onOpenChange={setExtendDialogOpen}
+        booking={selectedBooking}
+        guestName={guestsMap[selectedBooking?.guestId]?.fullName || selectedBooking?.guestName || "Guest"}
+        roomName={roomById.get(selectedBooking?.roomId)?.name || selectedBooking?.roomId}
+        dailyRate={Number(roomById.get(selectedBooking?.roomId)?.ratePerNight ?? 0)}
+        onSubmit={handleExtendStay}
+      />
 
       {/* ── Add Overstay Fee Dialog ── */}
       <Dialog open={feeDialogOpen} onOpenChange={setFeeDialogOpen}>
