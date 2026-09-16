@@ -13,6 +13,8 @@ import {
   where,
 } from "firebase/firestore";
 import { db } from "@/firebase/firebase.config";
+// Shared with availabilityService — see lib/time-utils.js for the local-midnight rule.
+import { toLocalDate as toDate } from "@/lib/time-utils";
 import { getCol } from "@/lib/db-utils";
 import { isRoomActive, isRoomBookable, listRooms } from "./roomsService";
 import { listFoUsers } from "./userService";
@@ -36,21 +38,40 @@ function bookingsCollection(trainingMode) {
   return getCol("bookings", trainingMode);
 }
 
-function toDate(dateLike) {
-  if (!dateLike) return null;
-  if (dateLike instanceof Date) return dateLike;
-  if (typeof dateLike === "string") {
-    // Expect YYYY-MM-DD from <input type="date" />
-    return new Date(`${dateLike}T00:00:00`);
-  }
-  // Timestamp
-  if (typeof dateLike.toDate === "function") return dateLike.toDate();
-  return null;
-}
-
 function calcNights(checkIn, checkOut) {
   const ms = checkOut.getTime() - checkIn.getTime();
   return Math.round(ms / (1000 * 60 * 60 * 24));
+}
+
+/**
+ * Release the PII-free availability markers for a booking's nights.
+ *
+ * This runs AFTER the booking has been flipped to a terminal status
+ * (Cancelled / Checked Out / expired) — which is exactly why the Firestore
+ * delete rule for /room_availability/{markerId} must not require the linked
+ * booking to still be active (see firestore.rules). One retry absorbs
+ * transient network failures; a genuine failure is logged with enough context
+ * to fix by hand, and the hourly worker orphan sweep is the backstop.
+ */
+async function releaseAvailabilityMarkers(booking) {
+  if (!booking?.roomId) return;
+  const dates = nightKeys(booking.checkInDate, booking.checkOutDate);
+  if (dates.length === 0) return;
+
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      await clearBookingMarked({ roomId: booking.roomId, dates });
+      return;
+    } catch (e) {
+      if (attempt === 1) {
+        console.error(
+          "[bookingsService] availability marker cleanup failed:",
+          { bookingId: booking.id, roomId: booking.roomId, dates },
+          e,
+        );
+      }
+    }
+  }
 }
 
 export async function listBookingsForUser(uid, { trainingMode = null } = {}) {
@@ -400,16 +421,7 @@ export async function checkOutBooking(bookingId, { trainingMode = null } = {}) {
     return { booking, ok: true };
   }).then(async (result) => {
     // PROD: free availability markers on check-out so the nights can be re-booked.
-    if (!trainingMode) {
-      try {
-        await clearBookingMarked({
-          roomId: result.booking.roomId,
-          dates: nightKeys(result.booking.checkInDate, result.booking.checkOutDate),
-        });
-      } catch (e) {
-        console.warn("Availability marker cleanup failed:", e);
-      }
-    }
+    if (!trainingMode) await releaseAvailabilityMarkers(result.booking);
     return { ok: true };
   });
 }
@@ -800,16 +812,7 @@ export async function rejectBooking(
     // PROD: free the availability markers for this booking's nights. A
     // rejected booking must never leave orphan blocks on room_availability
     // (same pattern as cancelBooking / approveCancellation / expiry sweep).
-    if (!trainingMode && booking.roomId) {
-      try {
-        await clearBookingMarked({
-          roomId: booking.roomId,
-          dates: nightKeys(booking.checkInDate, booking.checkOutDate),
-        });
-      } catch (e) {
-        console.warn("Availability marker cleanup failed:", e);
-      }
-    }
+    if (!trainingMode) await releaseAvailabilityMarkers(booking);
 
     await createNotification(booking.guestId, {
       type: "booking_rejected",
@@ -894,16 +897,7 @@ export async function cancelBooking(bookingId, { trainingMode = null } = {}) {
 
   try {
     // PROD: free the availability markers for this booking's nights.
-    if (!trainingMode) {
-      try {
-        await clearBookingMarked({
-          roomId: booking.roomId,
-          dates: nightKeys(booking.checkInDate, booking.checkOutDate),
-        });
-      } catch (e) {
-        console.warn("Availability marker cleanup failed:", e);
-      }
-    }
+    if (!trainingMode) await releaseAvailabilityMarkers(booking);
 
     const checkInStr = booking.checkInDate?.toDate
       ? booking.checkInDate.toDate().toLocaleDateString()
@@ -1096,16 +1090,7 @@ export async function approveCancellation(bookingId, { trainingMode = null } = {
 
   try {
     // PROD: free the availability markers for this booking's nights.
-    if (!trainingMode) {
-      try {
-        await clearBookingMarked({
-          roomId: booking.roomId,
-          dates: nightKeys(booking.checkInDate, booking.checkOutDate),
-        });
-      } catch (e) {
-        console.warn("Availability marker cleanup failed:", e);
-      }
-    }
+    if (!trainingMode) await releaseAvailabilityMarkers(booking);
 
     await createNotification(booking.guestId, {
       type: "cancellation_approved",
@@ -1257,16 +1242,7 @@ export async function checkAndExpireStaleBookings({ trainingMode = null } = {}) 
     });
 
     // PROD: free availability markers for the expired booking's nights.
-    if (!trainingMode) {
-      try {
-        await clearBookingMarked({
-          roomId: booking.roomId,
-          dates: nightKeys(booking.checkInDate, booking.checkOutDate),
-        });
-      } catch (e) {
-        console.warn("Availability marker cleanup failed:", e);
-      }
-    }
+    if (!trainingMode) await releaseAvailabilityMarkers(booking);
     
     try {
       await createNotification(booking.guestId, {

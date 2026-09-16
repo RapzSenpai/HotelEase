@@ -10,6 +10,8 @@ import {
   where,
 } from "firebase/firestore";
 import { db } from "@/firebase/firebase.config";
+// Shared with bookingsService — see lib/time-utils.js for the local-midnight rule.
+import { toLocalDate as toDate } from "@/lib/time-utils";
 
 /**
  * Public "room_availability" collection (PROD only — training keeps reading
@@ -31,14 +33,6 @@ export const ACTIVE_STATUSES = [
   "Approved",
   "Checked In",
 ];
-
-function toDate(dateLike) {
-  if (!dateLike) return null;
-  if (dateLike instanceof Date) return dateLike;
-  if (typeof dateLike === "string") return new Date(`${dateLike}T00:00:00`);
-  if (typeof dateLike.toDate === "function") return dateLike.toDate();
-  return null;
-}
 
 export function dateKey(d) {
   const date = toDate(d);
