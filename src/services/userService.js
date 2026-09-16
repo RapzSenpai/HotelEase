@@ -131,13 +131,12 @@ export async function deleteUser(uid, { trainingMode = false } = {}) {
 }
 
 const DELETE_PROXY_URL = import.meta.env.VITE_GROQ_PROXY_URL;
-const DELETE_PROXY_KEY = import.meta.env.VITE_DELETE_KEY;
 
 /**
  * Permanently delete a user: Firebase Auth account + Firestore user docs.
  *
  * Calls the Cloudflare Worker proxy (/delete-user), authenticated via the
- * signed-in admin's Firebase ID token (or legacy DELETE_KEY fallback).
+ * signed-in admin's Firebase ID token.
  */
 export async function deleteUserFully(uid) {
   if (!uid || typeof uid !== "string") throw new Error("Invalid uid passed to deleteUserFully");
@@ -157,8 +156,6 @@ export async function deleteUserFully(uid) {
 
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
-  } else if (DELETE_PROXY_KEY) {
-    headers["X-DELETE-KEY"] = DELETE_PROXY_KEY;
   }
 
   const base = DELETE_PROXY_URL.replace(/\/+$/, "");

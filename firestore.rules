@@ -73,6 +73,69 @@ service cloud.firestore {
              get(path).data.status == 'Checked Out';
     }
 
+    // --- BOOKING PRICE VALIDATION ---
+    // The browser computes the total in createBooking(); these helpers re-derive
+    // it from the room document so a DevTools client cannot forge totalCost.
+    // Keep the defaults in lockstep with src/lib/roomCapacity.js
+    // (ROOM_TYPE_CAPACITY_DEFAULTS + getRoomCapacity's unknown-type fallback).
+    function defaultBasePax(roomType) {
+      return roomType == 'Single Room' ? 1 : roomType == 'Presidential Room' ? 4 : 2;
+    }
+
+    function defaultExtraPaxFee(roomType) {
+      return roomType == 'Single Room' ? 300 : roomType == 'Presidential Room' ? 1000 : 500;
+    }
+
+    // Shared by the prod and training inbox rules so the two lists can never
+    // drift apart. The client writes exactly these `type` values into
+    // notifications/{uid}/items via notificationService.createNotification().
+    function isNotificationType(t) {
+      return t in [
+        'booking_request', 'booking_approved', 'booking_rejected', 'booking_cancelled',
+        'room_dirty', 'announcement', 'support_message',
+        'cancellation_requested', 'cancellation_approved', 'cancellation_rejected',
+        'payment_proof_required', 'housekeeping_in_progress', 'housekeeping_done',
+        'housekeeping_cancelled', 'housekeeping_rated'
+      ];
+    }
+
+    // True when the payload's price fields are exactly what the room's rate and
+    // capacity produce for the stated nights/pax — and when `nights` actually
+    // matches the [checkInDate, checkOutDate] span (see bookingNightsMatchDates).
+    function bookingPriceIsValid(data) {
+      let room = get(/databases/$(database)/documents/rooms/$(data.roomId));
+      let roomType = room.data.get('type', '');
+      let rate = room.data.get('ratePerNight', 0);
+      let basePax = room.data.get('basePax', defaultBasePax(roomType));
+      let extraPaxFee = room.data.get('extraPaxFee', defaultExtraPaxFee(roomType));
+      let extra = data.paxCount > basePax ? data.paxCount - basePax : 0;
+      return data.checkInDate is timestamp &&
+             data.checkOutDate is timestamp &&
+             bookingNightsMatchDates(data) &&
+             data.baseTotal == rate * data.nights &&
+             data.extraPaxCount == extra &&
+             data.extraPaxFee == extraPaxFee &&
+             data.extraPaxTotal == extra * extraPaxFee * data.nights &&
+             data.totalCost == data.baseTotal + data.extraPaxTotal;
+    }
+
+    // True when `nights` matches the [checkInDate, checkOutDate] span, allowing
+    // +/-1h so a guest booking from a DST timezone is never wrongly denied.
+    // Deliberately a SEPARATE function called after the `is timestamp` guards in
+    // bookingPriceIsValid: a `let` at the top of that body would be evaluated
+    // before the guards and error on a malformed payload.
+    //
+    // NOTE: use toMillis(). Two traps here:
+    //   1. The rules language has no timestamp-minus-timestamp operator, so
+    //      `(data.checkOutDate - data.checkInDate)` is not valid.
+    //   2. rules.Timestamp.seconds() is the seconds COMPONENT (0-59), not epoch
+    //      seconds, so `.seconds()` here would be tiny and always fail.
+    function bookingNightsMatchDates(data) {
+      let spanMillis = data.checkOutDate.toMillis() - data.checkInDate.toMillis();
+      return spanMillis >= data.nights * 86400000 - 3600000 &&
+             spanMillis <= data.nights * 86400000 + 3600000;
+    }
+
     // --- PRODUCTION COLLECTIONS (Protected) ---
 
     match /users/{uid} {
@@ -110,6 +173,7 @@ service cloud.firestore {
                            request.resource.data.midStayBookingId is string &&
                            ownsProdBooking(request.resource.data.midStayBookingId) &&
                            get(/databases/$(database)/documents/bookings/$(request.resource.data.midStayBookingId)).data.roomId == roomId &&
+                           get(/databases/$(database)/documents/bookings/$(request.resource.data.midStayBookingId)).data.status == 'Checked In' &&
                            request.resource.data.diff(resource.data).affectedKeys().hasOnly([
                              'status', 'isMidStayRequest', 'midStayNote', 'midStayGuestId',
                              'midStayGuestName', 'midStayBookingId', 'midStayRequestId',
@@ -157,6 +221,8 @@ service cloud.firestore {
                          request.resource.data.nights is number &&
                          request.resource.data.totalCost is number &&
                          request.resource.data.totalCost >= 0 &&
+                         request.resource.data.paxCount is int &&
+                         bookingPriceIsValid(request.resource.data) &&
                          request.resource.data.payment.deposit == 0 &&
                          request.resource.data.payment.keys().hasOnly(['method', 'deposit']) &&
                          request.resource.data.paymentProofUrl == null &&
@@ -215,6 +281,20 @@ service cloud.firestore {
                get(ref).data.status in ['Awaiting Payment', 'Pending', 'Approved', 'Checked In'];
       }
 
+      // Ownership-only check for DELETE. Marker cleanup runs AFTER the booking
+      // flips to a terminal status (Cancelled / Checked Out), so delete must NOT
+      // require an active status — otherwise every guest-initiated cleanup is
+      // denied and the marker leaks, permanently blocking the nights. Guests can
+      // already delete their own ACTIVE markers, so this adds no new capability.
+      // create/update still require an active booking so a guest can never
+      // fabricate a hold.
+      function guestOwnsBooking(bookingId) {
+        let ref = /databases/$(database)/documents/bookings/$(bookingId);
+        return bookingId is string &&
+               exists(ref) &&
+               get(ref).data.guestId == request.auth.uid;
+      }
+
       allow create: if (isProdFOOrAdmin() && !isAnonymous()) ||
                        (isAuthenticated() && !isAnonymous() &&
                         guestOwnsActiveBooking(request.resource.data.bookingId) &&
@@ -226,7 +306,7 @@ service cloud.firestore {
 
       allow delete: if (isProdFOOrAdmin() && !isAnonymous()) ||
                        (isAuthenticated() && !isAnonymous() &&
-                        guestOwnsActiveBooking(resource.data.bookingId));
+                        guestOwnsBooking(resource.data.bookingId));
     }
 
     match /payments/{id} {
@@ -329,6 +409,22 @@ service cloud.firestore {
 
     match /training_audit_logs/{id} {
       allow read, create: if isAuthenticated();
+    }
+
+    // Training sandbox inbox. Mirrors /notifications, but every recipient here
+    // is the trainee themselves or a training_* user, so there is deliberately
+    // no prod-user gate — that gate exists solely to stop one real guest from
+    // writing into another real guest's bell. Without this block the training
+    // bell would be silent, because notificationService now resolves the
+    // collection through getCol() and would write to training_notifications.
+    match /training_notifications/{userId}/items/{notifId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow create: if isAuthenticated() &&
+                       isNotificationType(request.resource.data.type) &&
+                       request.resource.data.isRead == false &&
+                       request.resource.data.keys().hasAll(['title', 'message', 'link', 'createdAt']) &&
+                       request.resource.data.link is string &&
+                       request.resource.data.link.matches('^/.*');
     }
 
     // Public config
@@ -435,9 +531,21 @@ service cloud.firestore {
 
     match /notifications/{userId}/items/{notifId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
-      allow create: if isAuthenticated() &&                           request.resource.data.type in ["booking_request","booking_approved","booking_rejected","booking_cancelled","room_dirty","announcement","support_message","cancellation_requested","cancellation_approved","cancellation_rejected","payment_proof_required","housekeeping_in_progress","housekeeping_done","housekeeping_cancelled","housekeeping_rated"] &&
+      allow create: if isAuthenticated() &&
+                       isNotificationType(request.resource.data.type) &&
                        request.resource.data.isRead == false &&
-                       request.resource.data.keys().hasAll(['title', 'message', 'link', 'createdAt']);
+                       request.resource.data.keys().hasAll(['title', 'message', 'link', 'createdAt']) &&
+                       request.resource.data.link is string &&
+                       request.resource.data.link.matches('^/.*') &&
+                       (isProdFOOrAdmin() ||
+                        request.auth.uid == userId ||
+                        // Only PROD user inboxes are gated: staff (FO/Admin) may
+                        // still be notified by guests, but one guest can no longer
+                        // inject a notification into another guest's inbox.
+                        // Non-prod recipients (training sandbox) stay permissive,
+                        // matching the rest of the training_* design.
+                        !exists(/databases/$(database)/documents/users/$(userId)) ||
+                        get(/databases/$(database)/documents/users/$(userId)).data.role in ['fo', 'admin']);
     }
 
     match /messages/{messageId} {

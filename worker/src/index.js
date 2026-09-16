@@ -3,10 +3,13 @@
  *
  * Routes:
  *   POST /delete-user   → deletes a user's Firebase Auth account + Firestore docs
- *                         (FIREBASE_SERVICE_ACCOUNT + DELETE_KEY secrets)
+ *                         (FIREBASE_SERVICE_ACCOUNT secret; verified admin
+ *                         Firebase ID token required)
  *   scheduled (cron)    → hourly stale-hold sweep: cancels Awaiting Payment
  *                         bookings past their deadline and frees their
- *                         room_availability markers (FIREBASE_SERVICE_ACCOUNT)
+ *                         room_availability markers, then purges any orphan
+ *                         markers left behind by a failed client cleanup
+ *                         (FIREBASE_SERVICE_ACCOUNT)
  *   POST /insights      → one-shot analyst report over an admin-built data
  *                         snapshot { context } (GROQ_API_KEY secret)
  *   POST /admin-chat    → multi-turn ops assistant over { messages, context };
@@ -17,11 +20,11 @@
  *   npx wrangler login
  *   npx wrangler secret put GROQ_API_KEY
  *   npx wrangler secret put FIREBASE_SERVICE_ACCOUNT   # full service-account JSON
- *   npx wrangler secret put DELETE_KEY                 # shared key the app sends
  *   npx wrangler deploy
  *
  * Then point the app at it: VITE_GROQ_PROXY_URL=https://<worker>.workers.dev
- * Requests to /delete-user must carry `X-DELETE-KEY: <DELETE_KEY>`.
+ * Requests to /delete-user must carry `Authorization: Bearer <admin ID token>`.
+ * (Optional) ALLOWED_ORIGINS="https://a.com,https://b.com" to allow extra origins.
  */
 
 const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
@@ -96,26 +99,29 @@ const ADMIN_CHAT_SYSTEM_PROMPT = [
 
 // ===========================================================================
 function getAllowedOrigin(request, workerEnv) {
-  if (!request) return "*";
+  if (!request) return "";
   const origin = request.headers.get("Origin");
-  if (!origin) return "*";
+  if (!origin) return "";
 
   // Allow local development (localhost / 127.0.0.1 on any port)
   if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
     return origin;
   }
 
-  // Allow standard Firebase hosting domains or custom configured origin
-  if (
-    origin.endsWith(".web.app") ||
-    origin.endsWith(".firebaseapp.com") ||
-    (workerEnv?.ALLOWED_ORIGIN && origin === workerEnv.ALLOWED_ORIGIN)
-  ) {
+  // Firebase Hosting domains are always allowed.
+  if (origin.endsWith(".web.app") || origin.endsWith(".firebaseapp.com")) {
     return origin;
   }
 
-  // Default to echoing origin to prevent breaking valid frontends
-  return origin;
+  // Any other origin must be explicitly listed (comma-separated) in
+  // ALLOWED_ORIGINS (or the legacy single ALLOWED_ORIGIN). Unknown origins get
+  // no CORS grant instead of being reflected — an echo-any policy lets any site
+  // drive authenticated requests against this proxy.
+  const allowed = String(workerEnv?.ALLOWED_ORIGINS || workerEnv?.ALLOWED_ORIGIN || "")
+    .split(",")
+    .map((o) => o.trim())
+    .filter(Boolean);
+  return allowed.includes(origin) ? origin : "";
 }
 
 function json(body, status = 200, request = null, workerEnv = null) {
@@ -125,7 +131,7 @@ function json(body, status = 200, request = null, workerEnv = null) {
       "Content-Type": "application/json",
       "Access-Control-Allow-Origin": getAllowedOrigin(request, workerEnv),
       "Access-Control-Allow-Methods": "POST, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type, Authorization, X-DELETE-KEY, X-HE-AUTH",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization, X-HE-AUTH",
       "Cache-Control": "no-store",
     },
   });
@@ -498,6 +504,24 @@ async function deleteFirestoreDoc(accessToken, projectId, path) {
 }
 
 /**
+ * GET a single Firestore document. Returns { exists, fields } — a 404 means the
+ * document is gone (exists: false) rather than an error.
+ */
+async function getFirestoreDoc(accessToken, projectId, collectionId, docId) {
+  const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/${collectionId}/${encodeURIComponent(docId)}`;
+  const resp = await fetch(url, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (resp.status === 404) return { exists: false, fields: {} };
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => "");
+    throw new Error(`Failed to GET ${collectionId}/${docId} (${resp.status}): ${text.slice(0, 300)}`);
+  }
+  const data = await resp.json().catch(() => ({}));
+  return { exists: true, fields: data.fields || {} };
+}
+
+/**
  * Retrieve a user's role from Firestore to verify admin privilege.
  */
 async function getFirestoreUserRole(accessToken, projectId, uid) {
@@ -519,6 +543,9 @@ async function getFirestoreUserRole(accessToken, projectId, uid) {
 // Abandoned "Awaiting Payment" holds would therefore keep their nights blocked
 // in room_availability until a staff member happens to open a page. This cron
 // cancels them server-side (hourly) and frees their availability markers.
+//
+// The same cron then runs sweepOrphanMarkers() to purge any marker a failed
+// client-side cleanup left behind (see that function for the rationale).
 // ===========================================================================
 
 /** Pull a single field out of a Firestore REST `fields` map. */
@@ -683,6 +710,97 @@ async function expireStaleHolds(workerEnv) {
   return { ok: true, ...summary };
 }
 
+const ORPHAN_SWEEP_MAX_DELETES = 200;
+
+/**
+ * Purge `room_availability` markers whose linked booking is terminal
+ * (Cancelled / Checked Out) or missing entirely.
+ *
+ * Marker cleanup runs on the client AFTER the booking flips to a terminal
+ * status. Before the /room_availability delete rule allowed a guest to release
+ * markers post-cancellation, that delete was denied and swallowed — leaving
+ * "orphan" markers that permanently block their nights (guests saw the room as
+ * unavailable and the calendar rendered a stale hold). Even with the rule
+ * fixed, a dropped network request or an unhandled path can still leak a
+ * marker, so this hourly sweep guarantees eventual consistency. "Cancellation
+ * Requested" is still an active hold and is deliberately left alone.
+ */
+async function sweepOrphanMarkers(workerEnv) {
+  const sa = workerEnv.FIREBASE_SERVICE_ACCOUNT;
+  if (!sa) return { ok: false, reason: "FIREBASE_SERVICE_ACCOUNT not configured" };
+
+  let projectId;
+  try {
+    projectId = JSON.parse(sa).project_id;
+  } catch {
+    return { ok: false, reason: "FIREBASE_SERVICE_ACCOUNT is not valid JSON" };
+  }
+  if (!projectId) return { ok: false, reason: "project_id missing" };
+
+  const accessToken = await getGoogleAccessToken(sa);
+  const summary = { markers: 0, orphansDeleted: 0, errors: 0 };
+
+  const markers = await runFirestoreQuery(accessToken, projectId, "room_availability", {
+    from: [{ collectionId: "room_availability" }],
+  });
+  summary.markers = markers.length;
+  if (markers.length === 0) return { ok: true, ...summary };
+
+  // Group markers by the booking they reference. A marker with no bookingId
+  // can never belong to an active booking, so it is an orphan by definition.
+  const byBooking = new Map(); // bookingId -> markerId[]
+  const orphanIds = [];
+  for (const marker of markers) {
+    const bookingId = fsValue(marker.fields, "bookingId");
+    if (!bookingId) {
+      orphanIds.push(marker.id);
+      continue;
+    }
+    if (!byBooking.has(bookingId)) byBooking.set(bookingId, []);
+    byBooking.get(bookingId).push(marker.id);
+  }
+
+  for (const [bookingId, markerIds] of byBooking) {
+    let booking;
+    try {
+      booking = await getFirestoreDoc(accessToken, projectId, "bookings", bookingId);
+    } catch (e) {
+      summary.errors += 1;
+      console.error(`[sweep] booking lookup failed for ${bookingId}:`, String(e?.message || e));
+      continue;
+    }
+    const status = booking.exists ? fsValue(booking.fields, "status") : null;
+    const isOrphan =
+      !booking.exists || status === "Cancelled" || status === "Checked Out";
+    if (isOrphan) orphanIds.push(...markerIds);
+  }
+
+  const targets = orphanIds.slice(0, ORPHAN_SWEEP_MAX_DELETES);
+  const CONCURRENCY = 10;
+  for (let i = 0; i < targets.length; i += CONCURRENCY) {
+    await Promise.all(
+      targets.slice(i, i + CONCURRENCY).map(async (markerId) => {
+        try {
+          await deleteFirestoreDoc(accessToken, projectId, `room_availability/${markerId}`);
+          summary.orphansDeleted += 1;
+        } catch (e) {
+          summary.errors += 1;
+          console.error(`[sweep] orphan marker delete failed ${markerId}:`, String(e?.message || e));
+        }
+      }),
+    );
+  }
+
+  if (orphanIds.length > targets.length) {
+    console.warn(
+      `[sweep] orphan deletion capped at ${ORPHAN_SWEEP_MAX_DELETES}; ` +
+        `${orphanIds.length - targets.length} left for the next run`,
+    );
+  }
+
+  return { ok: true, ...summary };
+}
+
 async function handleDeleteUser(request, workerEnv) {
   const sa = workerEnv.FIREBASE_SERVICE_ACCOUNT;
   if (!sa) {
@@ -696,13 +814,11 @@ async function handleDeleteUser(request, workerEnv) {
     return json({ error: "FIREBASE_SERVICE_ACCOUNT is not valid JSON." }, 500, request, workerEnv);
   }
 
-  // Authorize caller:
-  // Primary (Secure): Bearer Firebase ID token -> verified against Google certs + Firestore admin role check.
-  // Legacy Fallback: X-DELETE-KEY header matching DELETE_KEY secret.
+  // Authorize caller: Bearer Firebase ID token, verified against Google certs +
+  // a Firestore admin role check. No shared-secret fallback (a VITE_-prefixed
+  // key would be inlined into the public client bundle).
   const authHeader = request.headers.get("Authorization") || request.headers.get("X-HE-AUTH") || "";
   const match = /^Bearer\s+(.+)$/i.exec(authHeader.trim());
-  const deleteKey = workerEnv.DELETE_KEY;
-  const sentKey = request.headers.get("X-DELETE-KEY") || "";
 
   let isAuthorized = false;
   let accessToken = null;
@@ -724,8 +840,6 @@ async function handleDeleteUser(request, workerEnv) {
     } catch (e) {
       return json({ error: "Failed to verify admin privileges.", detail: String(e?.message || e) }, 500, request, workerEnv);
     }
-  } else if (deleteKey && sentKey === deleteKey) {
-    isAuthorized = true;
   }
 
   if (!isAuthorized) {
@@ -1039,7 +1153,7 @@ export default {
         headers: {
           "Access-Control-Allow-Origin": getAllowedOrigin(request, workerEnv),
           "Access-Control-Allow-Methods": "POST, OPTIONS",
-          "Access-Control-Allow-Headers": "Content-Type, Authorization, X-DELETE-KEY, X-HE-AUTH",
+          "Access-Control-Allow-Headers": "Content-Type, Authorization, X-HE-AUTH",
           "Access-Control-Max-Age": "86400",
         },
       });
@@ -1116,6 +1230,15 @@ export default {
       console.log(`[scheduled] stale-hold sweep → ${JSON.stringify(result)}`);
     } catch (e) {
       console.error("[scheduled] stale-hold sweep failed:", String(e?.message || e));
+    }
+
+    // Backstop: clean up any marker a client cleanup failed to remove, so a
+    // leaked hold can never permanently block a room.
+    try {
+      const swept = await sweepOrphanMarkers(workerEnv);
+      console.log(`[scheduled] orphan-marker sweep → ${JSON.stringify(swept)}`);
+    } catch (e) {
+      console.error("[scheduled] orphan-marker sweep failed:", String(e?.message || e));
     }
   },
 };

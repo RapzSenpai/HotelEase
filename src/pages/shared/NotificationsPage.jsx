@@ -9,6 +9,7 @@ import {
   onSnapshot
 } from "firebase/firestore";
 import { db } from "@/firebase/firebase.config";
+import { getCol } from "@/lib/db-utils";
 import { markAsRead, markAllAsRead } from "@/services/notificationService";
 import { Button } from "@/components/ui/button";
 import { SkeletonList } from "@/components/ui/skeleton";
@@ -108,7 +109,7 @@ export default function NotificationsPage() {
     if (!user?.uid) return;
 
     const q = query(
-      collection(db, "notifications", user.uid, "items"),
+      collection(db, getCol("notifications"), user.uid, "items"),
       orderBy("createdAt", "desc")
     );
 

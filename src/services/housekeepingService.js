@@ -180,6 +180,15 @@ export async function requestMidStayHousekeeping({
     const roomSnap = await transaction.get(roomRef);
     if (!roomSnap.exists()) throw new Error("Room not found.");
 
+    // The rules enforce this too (rooms update rule) — mirrored here for a
+    // clear error message instead of a raw permission-denied.
+    const bookingRef = doc(db, getCol("bookings", trainingMode), bookingId);
+    const bookingSnap = await transaction.get(bookingRef);
+    if (!bookingSnap.exists()) throw new Error("Booking not found.");
+    if (bookingSnap.data()?.status !== "Checked In") {
+      throw new Error("Housekeeping can only be requested for a booking that is currently checked in.");
+    }
+
     const roomData = roomSnap.data();
     const fromStatus = roomData?.status || "Occupied / Checked In";
 

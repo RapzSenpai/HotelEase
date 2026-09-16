@@ -13,13 +13,16 @@ import {
   where
 } from "firebase/firestore";
 import { db } from "@/firebase/firebase.config";
+// Inbox must follow the training sandbox like every other collection — a
+// hardcoded "notifications" writes training-mode demo alerts into production.
+import { getCol } from "@/lib/db-utils";
 
 /**
  * Creates a notification for a specific user.
  */
 export async function createNotification(userId, { type, title, message, link }) {
   if (!userId) return;
-  const notifRef = doc(collection(db, "notifications", userId, "items"));
+  const notifRef = doc(collection(db, getCol("notifications"), userId, "items"));
   await setDoc(notifRef, {
     id: notifRef.id,
     type,
@@ -36,7 +39,7 @@ export async function createNotification(userId, { type, title, message, link })
  */
 export async function markAsRead(userId, notifId) {
   if (!userId || !notifId) return;
-  const notifRef = doc(db, "notifications", userId, "items", notifId);
+  const notifRef = doc(db, getCol("notifications"), userId, "items", notifId);
   await updateDoc(notifRef, { isRead: true });
 }
 
@@ -46,7 +49,7 @@ export async function markAsRead(userId, notifId) {
 export async function markAllAsRead(userId) {
   if (!userId) return;
   const q = query(
-    collection(db, "notifications", userId, "items"),
+    collection(db, getCol("notifications"), userId, "items"),
     where("isRead", "==", false)
   );
   
@@ -68,7 +71,7 @@ export function subscribeToNotifications(userId, callback) {
   if (!userId) return () => {};
 
   const q = query(
-    collection(db, "notifications", userId, "items"),
+    collection(db, getCol("notifications"), userId, "items"),
     orderBy("createdAt", "desc"),
     limit(20)
   );

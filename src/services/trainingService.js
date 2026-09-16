@@ -16,6 +16,7 @@ import {
   setDoc,
 } from "firebase/firestore";
 import { db } from "@/firebase/firebase.config";
+import { getCol } from "@/lib/db-utils";
 const SYSTEM_DOC_REF = doc(db, "users", "system");
 
 const TRAINING_BOOKINGS_COL = "training_bookings";
@@ -134,9 +135,9 @@ export async function validateTrainingSessionCode(code) {
 export async function deleteOwnTrainingProfile(uid) {
   if (!uid) return;
   try {
-    const notifsSnap = await getDocs(collection(db, "notifications", uid, "items"));
+    const notifsSnap = await getDocs(collection(db, getCol("notifications", "training"), uid, "items"));
     await Promise.all(
-      notifsSnap.docs.map((n) => deleteDoc(doc(db, "notifications", uid, "items", n.id))),
+      notifsSnap.docs.map((n) => deleteDoc(doc(db, getCol("notifications", "training"), uid, "items", n.id))),
     );
   } catch (e) {
     console.warn("[trainingService] Notification cleanup skipped:", e);
@@ -158,8 +159,8 @@ export async function resetTrainingData() {
   try {
     const guestsSnap = await getDocs(collection(db, TRAINING_GUESTS_COL));
     const notifDeletions = guestsSnap.docs.map(async (d) => {
-      const notifsSnap = await getDocs(collection(db, "notifications", d.id, "items"));
-      const delPromises = notifsSnap.docs.map(n => deleteDoc(doc(db, "notifications", d.id, "items", n.id)));
+      const notifsSnap = await getDocs(collection(db, getCol("notifications", "training"), d.id, "items"));
+      const delPromises = notifsSnap.docs.map(n => deleteDoc(doc(db, getCol("notifications", "training"), d.id, "items", n.id)));
       return Promise.all(delPromises);
     });
     await Promise.all(notifDeletions);
