@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
+import { formatDate } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,17 +16,6 @@ import {
 import { uploadImageToCloudinary } from "@/services/cloudinaryService";
 import { mapFirebaseError } from "@/lib/errors";
 
-function formatDate(dateLike) {
-  try {
-    const d = dateLike?.toDate ? dateLike.toDate() : dateLike;
-    if (!d) return "—";
-    const dateObj = new Date(d);
-    if (isNaN(dateObj)) return "—";
-    return dateObj.toISOString().slice(0, 10);
-  } catch {
-    return "—";
-  }
-}
 
 function AnnouncementPhotoUploader({ imageUrl, onChange }) {
   const [uploadProgress, setUploadProgress] = useState(null);

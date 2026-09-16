@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { formatDate, formatCurrency } from "@/lib/format";
 import {
   subscribeToAllBookings,
   approveCancellation,
@@ -14,23 +15,7 @@ import { toast } from "sonner";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function formatDate(dateLike) {
-  try {
-    const d = dateLike?.toDate ? dateLike.toDate() : new Date(dateLike);
-    if (!d || isNaN(d)) return "—";
-    return d.toISOString().slice(0, 10);
-  } catch {
-    return "—";
-  }
-}
 
-function formatCurrency(amount) {
-  if (amount == null || isNaN(Number(amount))) return "—";
-  return `PHP ${Number(amount).toLocaleString("en-PH", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
-}
 
 // ─── Cancellation Request Card ────────────────────────────────────────────────
 

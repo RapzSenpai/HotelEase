@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { formatDateTime } from "@/lib/format";
 import { Check, Star, X, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,11 +21,6 @@ import {
   rejectTestimonial,
 } from "@/services/testimonialsService";
 
-function formatDate(dateLike) {
-  const d = dateLike?.toDate ? dateLike.toDate() : new Date(dateLike);
-  if (!d || Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleString();
-}
 
 function statusBadge(status) {
   if (status === "Pending") return <Badge variant="warning">Pending</Badge>;
@@ -217,7 +213,7 @@ export default function FoTestimonialsPage() {
                       {t.message}
                     </TableCell>
                     <TableCell>{statusBadge(t.status)}</TableCell>
-                    <TableCell>{formatDate(t.createdAt)}</TableCell>
+                    <TableCell>{formatDateTime(t.createdAt)}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
                         {t.status === "Pending" && (

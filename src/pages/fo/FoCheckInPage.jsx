@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { formatDate } from "@/lib/format";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -24,16 +25,6 @@ import { CalendarDays, Users, BedDouble, CheckCircle2, CreditCard, Filter, Clock
 // ────────────────────────────────────────────────────────────────────────────────
 
 const CHECK_IN_WINDOW_HOURS = 48; // Show bookings arriving within next 48 hours
-
-function formatDate(tsLike) {
-  try {
-    const d = tsLike?.toDate ? tsLike.toDate() : tsLike;
-    if (!d) return "—";
-    return d.toISOString().slice(0, 10);
-  } catch {
-    return "—";
-  }
-}
 
 // ── Step indicator ────────────────────────────────────────────────────────────
 

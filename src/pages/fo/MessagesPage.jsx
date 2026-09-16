@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
+import { formatDateTime } from "@/lib/format";
 import { Eye, MailCheck, Send } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -27,11 +28,6 @@ import {
 } from "@/services/messageService";
 import { useEffect } from "react";
 
-function formatDate(dateLike) {
-  const d = dateLike?.toDate ? dateLike.toDate() : new Date(dateLike);
-  if (!d || Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleString();
-}
 
 function statusBadge(status) {
   if (status === "unread") return <Badge variant="danger">Unread</Badge>;
@@ -164,7 +160,7 @@ export default function MessagesPage() {
                     <TableCell>{m.email}</TableCell>
                     <TableCell>{m.subject}</TableCell>
                     <TableCell>{statusBadge(m.status)}</TableCell>
-                    <TableCell>{formatDate(m.createdAt)}</TableCell>
+                    <TableCell>{formatDateTime(m.createdAt)}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <Button

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { formatCurrency } from "@/lib/format";
 import { subscribeToRooms, updateRoomRate } from "@/services/roomsService";
 import { useAuth } from "@/contexts/AuthContext";
 import {
@@ -20,14 +21,6 @@ import { Badge } from "@/components/ui/badge";
 import { Pencil, Check, X } from "lucide-react";
 import { toast } from "sonner";
 
-function formatCurrency(amount) {
-  if (amount === undefined || amount === null || isNaN(Number(amount)))
-    return "—";
-  return `PHP ${Number(amount).toLocaleString("en-PH", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
-}
 
 function getRoomTypeVariant(type) {
   if (!type) return "default";

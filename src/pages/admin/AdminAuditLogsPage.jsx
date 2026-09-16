@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
+import { toJsDate } from "@/lib/time-utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -60,14 +61,9 @@ const TARGET_TYPE_OPTIONS = [
   { value: "system", label: "System" },
 ];
 
-function toDate(value) {
-  if (!value) return null;
-  return typeof value?.toDate === "function" ? value.toDate() : new Date(value);
-}
-
 function formatTimestamp(timestamp) {
-  const date = toDate(timestamp);
-  if (!date || isNaN(date)) return "Invalid date";
+  const date = toJsDate(timestamp);
+  if (!date) return "Invalid date";
   return date.toLocaleString("en-PH", {
     month: "short",
     day: "numeric",

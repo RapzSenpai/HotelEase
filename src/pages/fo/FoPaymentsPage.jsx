@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { formatDate, formatDateTime } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -17,25 +18,7 @@ import { trackEvent, GA_EVENTS } from "@/services/gaService";
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
-function formatDate(tsLike) {
-  try {
-    const d = tsLike?.toDate ? tsLike.toDate() : new Date(tsLike);
-    if (!d || isNaN(d)) return "—";
-    return d.toISOString().slice(0, 10);
-  } catch {
-    return "—";
-  }
-}
 
-function formatDateTime(tsLike) {
-  try {
-    const d = tsLike?.toDate ? tsLike.toDate() : new Date(tsLike);
-    if (!d || isNaN(d)) return "—";
-    return d.toLocaleString();
-  } catch {
-    return "—";
-  }
-}
 
 /**
  * Build a human-readable reference string from a payment record.
@@ -131,10 +114,6 @@ export default function FoPaymentsPage() {
     setPaymentsError(null);
     try {
       const data = await listPaymentsForBooking(bid, { trainingMode });
-      console.log(
-        `[FoPaymentsPage] reloadPayments — bookingId: "${bid}", records: ${data.length}`,
-        data,
-      );
       setPayments(data);
     } catch (err) {
       console.error("[FoPaymentsPage] reloadPayments failed:", err);
@@ -178,15 +157,7 @@ export default function FoPaymentsPage() {
       setError(null);
       setSubmitting(true);
 
-      console.log("[FoPaymentsPage] onAddPayment — calling recordPayment", {
-        bookingId: selectedBookingId,
-        amount: amt,
-        method: method.trim(),
-        note: note.trim() || null,
-        trainingMode,
-      });
-
-      const result = await recordPayment({
+      await recordPayment({
         bookingId: selectedBookingId,
         amount: amt,
         method: method.trim(),
@@ -198,7 +169,6 @@ export default function FoPaymentsPage() {
         trainingMode,
       });
 
-      console.log("[FoPaymentsPage] recordPayment succeeded:", result);
       trackEvent(GA_EVENTS.PAYMENT_SUCCESS, {
         booking_id: selectedBookingId,
         currency: "PHP",

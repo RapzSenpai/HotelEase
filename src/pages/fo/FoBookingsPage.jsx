@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
+import { formatDate, formatCurrency } from "@/lib/format";
 import {
   subscribeToAllBookings,
   approveBooking,
@@ -47,23 +48,7 @@ const STATUS_VARIANT = {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function formatDate(dateLike) {
-  try {
-    const d = dateLike?.toDate ? dateLike.toDate() : new Date(dateLike);
-    if (!d || isNaN(d)) return "—";
-    return d.toISOString().slice(0, 10);
-  } catch {
-    return "—";
-  }
-}
 
-function formatCurrency(amount) {
-  if (amount == null || isNaN(Number(amount))) return "—";
-  return `PHP ${Number(amount).toLocaleString("en-PH", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
-}
 
 // ─── Booking Card ─────────────────────────────────────────────────────────────
 

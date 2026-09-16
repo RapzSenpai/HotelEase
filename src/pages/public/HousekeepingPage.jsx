@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { NavLink } from "react-router-dom";
+import { formatDate } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useAuth } from "@/contexts/AuthContext";
@@ -9,16 +10,6 @@ import { mapFirebaseError } from "@/lib/errors";
 import GuestHousekeepingCard from "@/components/housekeeping/GuestHousekeepingCard";
 import { SkeletonCard } from "@/components/ui/skeleton";
 import { BedDouble, CalendarDays, SprayCan } from "lucide-react";
-
-function formatDate(tsLike) {
-  try {
-    const d = tsLike?.toDate ? tsLike.toDate() : new Date(tsLike);
-    if (!d || isNaN(d)) return "—";
-    return d.toISOString().slice(0, 10);
-  } catch {
-    return "—";
-  }
-}
 
 export default function HousekeepingPage() {
   const { user, profile, trainingMode } = useAuth();

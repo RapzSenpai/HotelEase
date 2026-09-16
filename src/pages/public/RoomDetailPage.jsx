@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useMemo, useCallback } from "react";
+import { formatDate } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -60,15 +61,6 @@ import {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function formatDate(dateLike) {
-  try {
-    const d = dateLike?.toDate ? dateLike.toDate() : new Date(dateLike);
-    if (!d || isNaN(d)) return "—";
-    return d.toISOString().slice(0, 10);
-  } catch {
-    return "—";
-  }
-}
 
 function formatRate(rate) {
   if (rate == null || rate === "") return null;

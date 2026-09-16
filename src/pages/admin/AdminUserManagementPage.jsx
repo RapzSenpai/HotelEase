@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { toJsDate } from "@/lib/time-utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -35,11 +36,6 @@ const FILTER_TABS = [
   { id: "admin", label: "Admin" },
   { id: "training", label: "Training Session Users" },
 ];
-
-function toDate(value) {
-  if (!value) return null;
-  return typeof value?.toDate === "function" ? value.toDate() : new Date(value);
-}
 
 export default function AdminUserManagementPage() {
   const { user: currentUser } = useAuth();
@@ -342,8 +338,8 @@ export default function AdminUserManagementPage() {
                         <TableCell>
                           {u.lastLoginAt ? (
                             (() => {
-                              const loginAt = toDate(u.lastLoginAt);
-                              return loginAt && !isNaN(loginAt) ? (
+                              const loginAt = toJsDate(u.lastLoginAt);
+                              return loginAt ? (
                                 <div className="flex items-center gap-1.5 text-xs text-foreground/70 whitespace-nowrap">
                                   <Clock className="h-3 w-3 text-muted-foreground" />
                                   {loginAt.toLocaleDateString('en-PH', { 

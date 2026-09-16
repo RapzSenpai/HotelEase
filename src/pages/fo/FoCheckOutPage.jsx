@@ -129,10 +129,6 @@ export default function FoCheckOutPage() {
           trainingMode,
         });
         if (!isMounted) return;
-        console.log(
-          `[FoCheckOutPage] loadPayments — bookingId: "${selectedBookingId}", records: ${data.length}`,
-          data,
-        );
         setPayments(data);
       } catch (err) {
         if (!isMounted) return;
@@ -270,10 +266,6 @@ export default function FoCheckOutPage() {
     if (bid) {
       try {
         const data = await listPaymentsForBooking(bid, { trainingMode });
-        console.log(
-          `[FoCheckOutPage] refreshAll — reloaded payments for "${bid}", records: ${data.length}`,
-          data,
-        );
         setPayments(data);
         setPaymentsError(null);
       } catch (err) {
@@ -368,14 +360,6 @@ export default function FoCheckOutPage() {
       setError(null);
       setSubmitting(true);
 
-      console.log("[FoCheckOutPage] onRecordPayment — calling recordPayment", {
-        bookingId: selectedBookingId,
-        amount,
-        method: paymentMethod,
-        note: paymentRef || null,
-        trainingMode,
-      });
-
       const guest = guestsMap[selectedBooking.guestId];
       const room = roomById.get(selectedBooking.roomId);
 
@@ -394,8 +378,6 @@ export default function FoCheckOutPage() {
         roomType: room?.type || "",
         processedBy: profile?.fullName || profile?.email || "Front Office Staff",
       });
-
-      console.log("[FoCheckOutPage] recordPayment succeeded:", result);
 
       setLastReceiptData(result.receiptData);
       setPaymentRef("");

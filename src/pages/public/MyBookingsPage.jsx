@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
+import { formatDate, formatDateTime } from "@/lib/format";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -68,25 +69,7 @@ function sortBookings(list) {
   });
 }
 
-function formatDate(tsLike) {
-  try {
-    const d = tsLike?.toDate ? tsLike.toDate() : new Date(tsLike);
-    if (!d || isNaN(d)) return "—";
-    return d.toISOString().slice(0, 10);
-  } catch {
-    return "—";
-  }
-}
 
-function formatDateTime(tsLike) {
-  try {
-    const d = tsLike?.toDate ? tsLike.toDate() : new Date(tsLike);
-    if (!d || isNaN(d)) return "—";
-    return d.toLocaleString();
-  } catch {
-    return "—";
-  }
-}
 
 const STATUS_VARIANT = {
   "Awaiting Payment": "warning",

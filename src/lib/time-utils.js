@@ -1,3 +1,17 @@
+/**
+ * Parse a booking date. A "YYYY-MM-DD" string is read as LOCAL midnight —
+ * plain `new Date(str)` would parse it as UTC and can shift the day for users
+ * in negative UTC offsets — a Firestore Timestamp via .toDate(), a Date as-is.
+ * Returns null for anything else.
+ */
+export function toLocalDate(dateLike) {
+  if (!dateLike) return null;
+  if (dateLike instanceof Date) return dateLike;
+  if (typeof dateLike === "string") return new Date(`${dateLike}T00:00:00`);
+  if (typeof dateLike.toDate === "function") return dateLike.toDate();
+  return null;
+}
+
 export function toJsDate(dateLike) {
   if (!dateLike) return null;
   const date = dateLike.toDate ? dateLike.toDate() : new Date(dateLike);
