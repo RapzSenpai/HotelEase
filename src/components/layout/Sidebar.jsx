@@ -127,6 +127,7 @@ const ADMIN_LINKS = [
         notification: { type: "count", key: "unresolvedAlertsCount" },
       },
       { to: "/admin/health", label: "System Health", icon: Activity },
+      { to: "/admin/availability", label: "Availability", icon: CalendarDays },
       { to: "/admin/performance", label: "Performance", icon: Gauge },
       { to: "/admin/audit-logs", label: "Audit Logs", icon: Shield },
       { to: "/admin/settings", label: "System Settings", icon: Settings },
