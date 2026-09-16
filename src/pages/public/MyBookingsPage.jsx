@@ -25,11 +25,11 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import BookingDetails from "@/components/bookings/BookingDetails";
 import {
   ChevronDown,
   ChevronUp,
   CalendarDays,
-  Users,
   CreditCard,
   BedDouble,
   Receipt,
@@ -275,62 +275,7 @@ function BookingCard({ booking, room, trainingMode, userProfile, onCancelled }) 
       {/* ── Expanded detail panel ── */}
       {expanded && (
         <div className="border-t border-border p-3.5 space-y-3">
-          {/* ── Info grid ── */}
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 text-sm">
-            <div className="space-y-0.5">
-              <p className="text-xs text-foreground/50 uppercase tracking-wide">
-                Check-in
-              </p>
-              <p className="font-medium">{formatDate(booking.checkInDate)}</p>
-              <p className="text-xs text-foreground/40">2:00 PM</p>
-            </div>
-            <div className="space-y-0.5">
-              <p className="text-xs text-foreground/50 uppercase tracking-wide">
-                Check-out
-              </p>
-              <p className="font-medium">{formatDate(booking.checkOutDate)}</p>
-              <p className="text-xs text-foreground/40">12:00 NN</p>
-            </div>
-            <div className="space-y-0.5">
-              <p className="text-xs text-foreground/50 uppercase tracking-wide">
-                Nights
-              </p>
-              <p className="font-medium">{booking.nights ?? "—"}</p>
-            </div>
-            <div className="space-y-0.5">
-              <p className="text-xs text-foreground/50 uppercase tracking-wide">
-                Guests (pax)
-              </p>
-              <div className="flex items-center gap-1">
-                <Users className="h-3.5 w-3.5 text-foreground/50" />
-                <p className="font-medium">{booking.paxCount ?? 1}</p>
-              </div>
-            </div>
-          </div>
-
-          {/* ── Special requests ── */}
-          {booking.specialRequests ? (
-            <div className="space-y-0.5">
-              <p className="text-xs text-foreground/50 uppercase tracking-wide">
-                Special Requests
-              </p>
-              <p className="text-sm text-foreground/80">
-                {booking.specialRequests}
-              </p>
-            </div>
-          ) : null}
-
-          {/* ── Rejection reason (Cancelled bookings) ── */}
-          {status === "Cancelled" && booking.rejectionReason ? (
-            <div className="rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2 space-y-0.5">
-              <p className="text-xs text-foreground/50 uppercase tracking-wide">
-                Cancellation Reason
-              </p>
-              <p className="text-sm text-foreground/80">
-                {booking.rejectionReason}
-              </p>
-            </div>
-          ) : null}
+          <BookingDetails booking={booking} status={status} />
 
           {/* ── Payment folio ── */}
           <div className="rounded-lg border border-border bg-background p-2.5 space-y-2">
