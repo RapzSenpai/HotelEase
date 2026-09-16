@@ -5,13 +5,14 @@ import { Label } from "@/components/ui/label";
 import RequiredIndicator from "@/components/common/RequiredIndicator";
 import { Card } from "@/components/ui/card";
 import {
-  Upload, Plus, Edit, Trash2, BedDouble, Search,
-  X, SlidersHorizontal, ArrowUpDown, LayoutGrid, List,
+  Upload, Plus, Edit, Trash2, BedDouble,
+  X,
   ChevronDown, Image, Check,
 } from "lucide-react";
 import RoomsTableView from "@/components/rooms/RoomsTableView";
 import RoomsGridView from "@/components/rooms/RoomsGridView";
 import RoomsStatsBar from "@/components/rooms/RoomsStatsBar";
+import RoomsFilterBar from "@/components/rooms/RoomsFilterBar";
 import { SkeletonCard } from "@/components/ui/skeleton";
 import {
   deactivateRoom,
@@ -41,16 +42,6 @@ const SELECT_TRIGGER_CLASS =
   "flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50";
 
 const DEFAULT_TYPE_OPTIONS = ["Single Room", "Suite Room", "Presidential Room"];
-
-const SORT_OPTIONS = [
-  { value: "number-asc", label: "Room # (Low → High)" },
-  { value: "number-desc", label: "Room # (High → Low)" },
-  { value: "name-asc", label: "Name (A → Z)" },
-  { value: "name-desc", label: "Name (Z → A)" },
-  { value: "rate-asc", label: "Rate (Low → High)" },
-  { value: "rate-desc", label: "Rate (High → Low)" },
-  { value: "status", label: "Status" },
-];
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -922,116 +913,21 @@ export default function AdminRoomManagementPage() {
       <RoomsStatsBar stats={stats} />
 
       {/* ── Search + Filter Bar ── */}
-      <div className="flex flex-col gap-3">
-        <div className="flex flex-col sm:flex-row gap-3">
-          {/* Search */}
-          <div className="relative flex-1 group">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-foreground/40 group-focus-within:text-primary transition-colors" />
-            <Input
-              placeholder="Search by name, room #, or type..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9"
-            />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery("")}
-                className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-muted"
-              >
-                <X className="h-3.5 w-3.5 text-foreground/40" />
-              </button>
-            )}
-          </div>
-
-          {/* View toggle */}
-          <div className="flex items-center border border-border rounded-lg overflow-hidden">
-            <button
-              onClick={() => setViewMode("compact")}
-              className={`p-2.5 transition-colors ${viewMode === "compact" ? "bg-primary/10 text-primary" : "text-foreground/40 hover:bg-muted"}`}
-              title="Compact view"
-            >
-              <List className="h-4 w-4" />
-            </button>
-            <button
-              onClick={() => setViewMode("grid")}
-              className={`p-2.5 transition-colors ${viewMode === "grid" ? "bg-primary/10 text-primary" : "text-foreground/40 hover:bg-muted"}`}
-              title="Grid view"
-            >
-              <LayoutGrid className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
-
-        {/* Filter row */}
-        <div className="flex flex-wrap items-center gap-2">
-          <SlidersHorizontal className="h-3.5 w-3.5 text-foreground/40" />
-
-          {/* Status filter */}
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="h-9 rounded-lg border border-border bg-background px-2.5 text-xs font-medium text-foreground/70 focus:outline-none focus:ring-2 focus:ring-ring/50"
-          >
-            <option value="all">All Status</option>
-            {STATUS_OPTIONS.map((s) => (
-              <option key={s} value={s}>{s}</option>
-            ))}
-          </select>
-
-          {/* Type filter */}
-          <select
-            value={typeFilter}
-            onChange={(e) => setTypeFilter(e.target.value)}
-            className="h-9 rounded-lg border border-border bg-background px-2.5 text-xs font-medium text-foreground/70 focus:outline-none focus:ring-2 focus:ring-ring/50"
-          >
-            <option value="all">All Types</option>
-            {existingTypes.map((t) => (
-              <option key={t} value={t}>{t}</option>
-            ))}
-          </select>
-
-          {/* Floor filter */}
-          <select
-            value={floorFilter}
-            onChange={(e) => setFloorFilter(e.target.value)}
-            className="h-9 rounded-lg border border-border bg-background px-2.5 text-xs font-medium text-foreground/70 focus:outline-none focus:ring-2 focus:ring-ring/50"
-          >
-            <option value="all">All Floors</option>
-            {existingFloors.map((f) => (
-              <option key={f} value={f}>Floor {f}</option>
-            ))}
-          </select>
-
-          {/* Sort */}
-          <div className="flex items-center gap-1.5">
-            <ArrowUpDown className="h-3.5 w-3.5 text-foreground/40" />
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
-              className="h-9 rounded-lg border border-border bg-background px-2.5 text-xs font-medium text-foreground/70 focus:outline-none focus:ring-2 focus:ring-ring/50"
-            >
-              {SORT_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>{o.label}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Clear filters */}
-          {hasActiveFilters && (
-            <button
-              onClick={clearFilters}
-              className="h-8 px-3 rounded-lg text-xs font-medium text-foreground/50 hover:text-foreground hover:bg-muted transition-colors"
-            >
-              Clear filters
-            </button>
-          )}
-
-          {/* Result count */}
-          <span className="ml-auto text-xs text-foreground/40">
-            {filteredRooms.length} of {rooms.length} rooms
-          </span>
-        </div>
-      </div>
+      <RoomsFilterBar
+        filters={{ searchQuery, statusFilter, typeFilter, floorFilter, sortBy, viewMode }}
+        options={{ statuses: STATUS_OPTIONS, types: existingTypes, floors: existingFloors }}
+        counts={{ filtered: filteredRooms.length, total: rooms.length }}
+        hasActiveFilters={hasActiveFilters}
+        onChange={{
+          search: setSearchQuery,
+          status: setStatusFilter,
+          type: setTypeFilter,
+          floor: setFloorFilter,
+          sort: setSortBy,
+          view: setViewMode,
+        }}
+        onClear={clearFilters}
+      />
 
       {/* ── Error ── */}
       {error && (
