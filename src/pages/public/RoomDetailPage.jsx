@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import RequiredIndicator from "@/components/common/RequiredIndicator";
 import TermsDialog from "@/components/common/TermsDialog";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -25,11 +24,11 @@ import {
 import { listBookingsForUser, getAvailableRooms } from "@/services/bookingsService";
 import { useAuth } from "@/contexts/AuthContext";
 import { trackEvent, GA_EVENTS } from "@/services/gaService";
-import { StarRatingInput } from "@/components/common/StarRating";
 import RoomReviewsDialog from "@/components/rooms/RoomReviewsDialog";
 import RoomPhotoCarousel from "@/components/rooms/RoomPhotoCarousel";
 import RoomReviewsSection from "@/components/rooms/RoomReviewsSection";
 import RoomBookingBar from "@/components/rooms/RoomBookingBar";
+import RoomReviewFormDialog from "@/components/rooms/RoomReviewFormDialog";
 import {
   Wifi,
   Wind,
@@ -149,12 +148,6 @@ export default function RoomDetailPage() {
   const [canReview, setCanReview] = useState(false);
   const [eligibleBookingId, setEligibleBookingId] = useState(null);
   const [eligibilityChecked, setEligibilityChecked] = useState(false);
-
-  // --- form state ---
-  const [formRating, setFormRating] = useState(0);
-  const [formFeedback, setFormFeedback] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState(null);
 
   // --- favorites state ---
   const [favorites, setFavorites] = useState([]);
@@ -306,42 +299,21 @@ export default function RoomDetailPage() {
   }
 
   // ---- submit review ----
-  async function handleSubmitReview(e) {
-    e.preventDefault();
-    setSubmitError(null);
-
-    if (!formRating || formRating < 1) {
-      setSubmitError("Please select a star rating.");
-      return;
-    }
-    if (!formFeedback.trim()) {
-      setSubmitError("Please enter your feedback.");
-      return;
-    }
-
-    setSubmitting(true);
-    try {
-      await createReview({
-        roomId,
-        bookingId: eligibleBookingId ?? "",
-        guestId: user.uid,
-        guestName: profile?.fullName || user.displayName || user.email || "Guest",
-        rating: formRating,
-        feedback: formFeedback.trim(),
-        trainingMode,
-      });
-      setFormRating(0);
-      setFormFeedback("");
-      setCanReview(false);
-      setReviewFormOpen(false);
-      await loadReviews();
-    } catch (e) {
-      setSubmitError(
-        mapFirebaseError(e) || "Failed to submit review. Please try again.",
-      );
-    } finally {
-      setSubmitting(false);
-    }
+  // Validation and the error box live in RoomReviewFormDialog; this stays the
+  // write, and must reject so the dialog can report the failure.
+  async function handleSubmitReview({ rating, feedback }) {
+    await createReview({
+      roomId,
+      bookingId: eligibleBookingId ?? "",
+      guestId: user.uid,
+      guestName: profile?.fullName || user.displayName || user.email || "Guest",
+      rating,
+      feedback,
+      trainingMode,
+    });
+    setCanReview(false);
+    setReviewFormOpen(false);
+    await loadReviews();
   }
 
   // ---- RENO-2: defensive Book Now — re-validates availability before navigating ----
@@ -620,64 +592,11 @@ export default function RoomDetailPage() {
       />
 
       {/* ── REVIEW FORM DIALOG ── */}
-      <Dialog
+      <RoomReviewFormDialog
         open={reviewFormOpen}
-        onOpenChange={(open) => {
-          setReviewFormOpen(open);
-          if (!open) {
-            setFormRating(0);
-            setFormFeedback("");
-            setSubmitError(null);
-          }
-        }}
-      >
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="font-playfair text-xl">Write a Review</DialogTitle>
-            <DialogDescription>
-              Share your experience staying in this room.
-            </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={handleSubmitReview} className="space-y-4">
-            <div className="space-y-1.5">
-              <span className="text-xs font-medium text-foreground/50 uppercase tracking-wider">
-                Your Rating<RequiredIndicator />
-              </span>
-              <StarRatingInput value={formRating} onChange={setFormRating} />
-            </div>
-            <div className="space-y-1.5">
-              <label
-                htmlFor="review-feedback-dialog"
-                className="text-xs font-medium text-foreground/50 uppercase tracking-wider"
-              >
-                Your Feedback<RequiredIndicator />
-              </label>
-              <textarea
-                id="review-feedback-dialog"
-                value={formFeedback}
-                onChange={(e) => setFormFeedback(e.target.value)}
-                rows={4}
-                placeholder="Share your experience with this room…"
-                className="w-full rounded-xl border border-border/50 bg-background px-3.5 py-2.5 text-sm text-foreground placeholder:text-foreground/35 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/40 resize-none transition-colors"
-                disabled={submitting}
-              />
-            </div>
-            {submitError && (
-              <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-foreground">
-                {submitError}
-              </div>
-            )}
-            <Button
-              type="submit"
-              variant="default"
-              disabled={submitting}
-              className="w-full"
-            >
-              {submitting ? "Submitting…" : "Submit Review"}
-            </Button>
-          </form>
-        </DialogContent>
-      </Dialog>
+        onOpenChange={setReviewFormOpen}
+        onSubmit={handleSubmitReview}
+      />
 
       {/* ── LOGIN PROMPT OVERLAY (Dialog) ── */}
       <Dialog open={loginPromptOpen} onOpenChange={setLoginPromptOpen}>
