@@ -1,12 +1,10 @@
 import { useEffect, useRef, useState, useMemo, useCallback } from "react";
-import { formatDate } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import RequiredIndicator from "@/components/common/RequiredIndicator";
 import TermsDialog from "@/components/common/TermsDialog";
 import { Separator } from "@/components/ui/separator";
-import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog,
   DialogContent,
@@ -28,9 +26,10 @@ import {
 import { listBookingsForUser, getAvailableRooms } from "@/services/bookingsService";
 import { useAuth } from "@/contexts/AuthContext";
 import { trackEvent, GA_EVENTS } from "@/services/gaService";
-import { StarRating, StarRatingInput } from "@/components/common/StarRating";
+import { StarRatingInput } from "@/components/common/StarRating";
 import RoomReviewsDialog from "@/components/rooms/RoomReviewsDialog";
 import RoomPhotoCarousel from "@/components/rooms/RoomPhotoCarousel";
+import RoomReviewsSection from "@/components/rooms/RoomReviewsSection";
 import {
   Wifi,
   Wind,
@@ -49,9 +48,7 @@ import {
   Calendar as CalendarIcon,
   Clock,
   ShieldCheck,
-  Star,
   AlertTriangle,
-  PenLine,
 } from "lucide-react";
 
 // ---------------------------------------------------------------------------
@@ -394,17 +391,6 @@ export default function RoomDetailPage() {
     return total.toLocaleString("en-PH", { minimumFractionDigits: 0 });
   }, [room?.ratePerNight, nights, formattedRate]);
 
-  // Average rating
-  const avgRating = useMemo(() => {
-    if (!reviews.length) return null;
-    const sum = reviews.reduce((acc, r) => acc + Number(r.rating ?? 0), 0);
-    return (sum / reviews.length).toFixed(1);
-  }, [reviews]);
-
-  const showReviewCount = 3;
-  const hasMoreReviews = reviews.length > showReviewCount;
-  const visibleReviews = reviews.slice(0, showReviewCount);
-
   // ---- render ----
   return (
     <>
@@ -619,99 +605,15 @@ export default function RoomDetailPage() {
                 <Separator className="bg-border/50" />
 
                 {/* Guest Reviews — List + Show More */}
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h2 className="font-playfair text-lg font-semibold text-foreground">Guest Reviews</h2>
-                    {avgRating && (
-                      <div className="flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1">
-                        <Star className="h-3.5 w-3.5 fill-primary text-primary" />
-                        <span className="text-sm font-semibold text-foreground">{avgRating}</span>
-                      </div>
-                    )}
-                  </div>
-
-                  {reviewsLoading && (
-                    <div className="space-y-3">
-                      <Skeleton className="h-4 w-1/2" />
-                      <Skeleton className="h-4 w-2/3" />
-                      <Skeleton className="h-4 w-1/3" />
-                    </div>
-                  )}
-                  {reviewsError && !reviewsLoading && (
-                    <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-foreground">
-                      {reviewsError}
-                    </div>
-                  )}
-
-                  {!reviewsLoading && !reviewsError && (
-                    <>
-                      {reviews.length === 0 ? (
-                        <div className="rounded-xl border border-dashed border-border/50 bg-muted/5 px-6 py-10 text-center">
-                          <Star className="mx-auto mb-3 h-8 w-8 text-foreground/20" />
-                          <p className="text-sm font-medium text-foreground/50">No reviews yet</p>
-                          <p className="mt-1 text-xs text-foreground/35">Be the first to share your experience!</p>
-                        </div>
-                      ) : (
-                        <div className="space-y-3">
-                          {visibleReviews.map((review) => (
-                            <div
-                              key={review.id}
-                              className="rounded-xl border border-border/40 bg-white p-4 space-y-2.5 shadow-[0_1px_3px_rgba(28,28,30,0.04)]"
-                            >
-                              <div className="flex flex-wrap items-center justify-between gap-2">
-                                <span className="text-sm font-medium text-foreground">
-                                  {review.guestName || "Guest"}
-                                </span>
-                                <span className="text-xs text-foreground/40">
-                                  {formatDate(review.createdAt)}
-                                </span>
-                              </div>
-                              <StarRating rating={Number(review.rating ?? 0)} />
-                              {review.feedback && (
-                                <p className="text-sm text-foreground/65 leading-relaxed">
-                                  {review.feedback}
-                                </p>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-
-                      {hasMoreReviews && (
-                        <div className="flex gap-2">
-                          {eligibilityChecked && canReview && (
-                            <Button
-                              size="sm"
-                              className="flex-1"
-                              onClick={() => setReviewFormOpen(true)}
-                            >
-                              <PenLine className="mr-1.5 h-3.5 w-3.5" />
-                              Write a Review
-                            </Button>
-                          )}
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className={`bg-white/80 backdrop-blur-sm ${eligibilityChecked && canReview ? "flex-1" : "w-full"}`}
-                            onClick={() => setReviewsOpen(true)}
-                          >
-                            Show All Reviews ({reviews.length})
-                          </Button>
-                        </div>
-                      )}
-                      {!hasMoreReviews && eligibilityChecked && canReview && (
-                        <Button
-                          size="sm"
-                          className="w-full"
-                          onClick={() => setReviewFormOpen(true)}
-                        >
-                          <PenLine className="mr-1.5 h-3.5 w-3.5" />
-                          Write a Review
-                        </Button>
-                      )}
-                    </>
-                  )}
-                </div>
+                <RoomReviewsSection
+                  reviews={reviews}
+                  reviewsLoading={reviewsLoading}
+                  reviewsError={reviewsError}
+                  eligibilityChecked={eligibilityChecked}
+                  canReview={canReview}
+                  onWriteReview={() => setReviewFormOpen(true)}
+                  onShowAllReviews={() => setReviewsOpen(true)}
+                />
 
               </div>
             </div>
