@@ -13,6 +13,8 @@ import RoomsTableView from "@/components/rooms/RoomsTableView";
 import RoomsGridView from "@/components/rooms/RoomsGridView";
 import RoomsStatsBar from "@/components/rooms/RoomsStatsBar";
 import RoomsFilterBar from "@/components/rooms/RoomsFilterBar";
+import RoomPhotoUploader from "@/components/rooms/RoomPhotoUploader";
+import RoomTagInput from "@/components/rooms/RoomTagInput";
 import { SkeletonCard } from "@/components/ui/skeleton";
 import {
   deactivateRoom,
@@ -21,7 +23,6 @@ import {
   listRooms,
   updateRoom,
 } from "@/services/roomsService";
-import { uploadImageToCloudinary } from "@/services/cloudinaryService";
 import { getRoomCapacity, ROOM_TYPE_CAPACITY_DEFAULTS } from "@/lib/roomCapacity";
 
 // ---------------------------------------------------------------------------
@@ -70,169 +71,6 @@ function initialForm() {
   };
 }
 
-const STATUS_COLORS = {
-  "Available": "bg-success/10 text-success border-success/20",
-  "Reserved": "bg-info/10 text-info border-info/20",
-  "Occupied": "bg-warning/10 text-warning border-warning/20",
-  "Being Cleaned": "bg-primary/10 text-primary border-primary/20",
-  "Pending Approval": "bg-purple-100 text-purple-600 border-purple-200",
-  "Out of Order": "bg-destructive/10 text-destructive border-destructive/20",
-  "Dirty / Needs Cleaning": "bg-orange-100 text-orange-600 border-orange-200",
-};
-
-// ---------------------------------------------------------------------------
-// PhotoUploader (preserved from original)
-// ---------------------------------------------------------------------------
-
-function PhotoUploader({ photos, onChange }) {
-  const [uploading, setUploading] = useState([]);
-
-  async function handleFiles(e) {
-    const files = Array.from(e.target.files || []);
-    if (!files.length) return;
-    e.target.value = "";
-
-    const newUploading = files.map((f) => ({
-      // Stable id so the progress rows keep their identity as uploads come
-      // and go (index keys re-use the wrong row when one is removed).
-      id: crypto.randomUUID(),
-      name: f.name,
-      progress: 0,
-      error: null,
-    }));
-    setUploading((prev) => [...prev, ...newUploading]);
-
-    const startIdx = uploading.length;
-    const accumulated = [...photos];
-
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      const globalIdx = startIdx + i;
-      try {
-        const { url } = await uploadImageToCloudinary(file, {
-          folder: "rooms",
-          onProgress: (pct) => {
-            setUploading((prev) => {
-              const next = [...prev];
-              if (next[globalIdx])
-                next[globalIdx] = { ...next[globalIdx], progress: pct };
-              return next;
-            });
-          },
-        });
-        accumulated.push(url);
-        onChange([...accumulated]);
-        setUploading((prev) => {
-          const next = [...prev];
-          if (next[globalIdx])
-            next[globalIdx] = { ...next[globalIdx], progress: 100, done: true };
-          return next;
-        });
-      } catch (err) {
-        setUploading((prev) => {
-          const next = [...prev];
-          if (next[globalIdx])
-            next[globalIdx] = {
-              ...next[globalIdx],
-              error: err?.message || "Upload failed",
-            };
-          return next;
-        });
-      }
-    }
-
-    setTimeout(() => {
-      setUploading((prev) => prev.filter((u) => !u.done && !u.error));
-    }, 2000);
-  }
-
-  function removePhoto(url) {
-    onChange(photos.filter((p) => p !== url));
-  }
-
-  return (
-    <div className="space-y-3">
-      {photos.length > 0 && (
-        <div className="flex flex-wrap gap-2">
-          {photos.map((url, idx) => (
-            <div key={url} className="relative group">
-              <img
-                src={url}
-                alt={`Room photo ${idx + 1}`}
-                className="h-20 w-28 rounded-lg object-cover border border-border"
-              />
-              <button
-                type="button"
-                onClick={() => removePhoto(url)}
-                className="absolute -top-1.5 -right-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-white text-xs leading-none shadow hover:bg-destructive/80"
-                aria-label="Remove photo"
-              >
-                ×
-              </button>
-            </div>
-          ))}
-
-          <label className="flex h-20 w-28 cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed border-border bg-muted/5 transition-all hover:border-primary/50 hover:bg-surface-hover group">
-            <div className="p-1.5 rounded-full bg-background border border-border shadow-sm group-hover:bg-surface-hover transition-colors">
-              <Plus className="h-4 w-4 text-foreground/40" />
-            </div>
-            <span className="text-[10px] font-bold uppercase tracking-wider text-foreground/40">Add More</span>
-            <input
-              type="file"
-              accept="image/*"
-              multiple
-              className="sr-only"
-              onChange={handleFiles}
-            />
-          </label>
-        </div>
-      )}
-
-      {uploading
-        .filter((u) => !u.done)
-        .map((u) => (
-          <div key={u.id} className="space-y-1">
-            <div className="flex items-center justify-between text-xs text-foreground/70">
-              <span className="truncate max-w-[160px]">{u.name}</span>
-              {u.error ? (
-                <span className="text-destructive">{u.error}</span>
-              ) : (
-                <span>{u.progress}%</span>
-              )}
-            </div>
-            {!u.error && (
-              <div className="h-1 rounded-full bg-border overflow-hidden">
-                <div
-                  className="h-full bg-primary transition-all duration-200"
-                  style={{ width: `${u.progress}%` }}
-                />
-              </div>
-            )}
-          </div>
-        ))}
-
-      {photos.length === 0 && (
-        <label className="flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border bg-muted/5 p-6 text-center transition-all hover:border-primary/50 hover:bg-surface-hover cursor-pointer group">
-          <div className="p-2.5 rounded-full bg-background border border-border shadow-sm group-hover:bg-surface-hover transition-colors">
-            <Plus className="h-5 w-5 text-foreground/40" />
-          </div>
-          <div className="space-y-0.5">
-            <p className="text-sm font-semibold">Upload room photos</p>
-            <p className="text-xs text-foreground/50">PNG, JPG or JPEG (Max 5MB)</p>
-          </div>
-          <input
-            type="file"
-            accept="image/*"
-            multiple
-            className="sr-only"
-            onChange={handleFiles}
-          />
-        </label>
-      )}
-    </div>
-  );
-}
-
 // ---------------------------------------------------------------------------
 // Predefined options for tag inputs
 // ---------------------------------------------------------------------------
@@ -246,90 +84,6 @@ const PRESET_FACILITIES = [
   "Swimming Pool", "Gym", "Spa", "Restaurant", "Bar", "Laundry",
   "Concierge", "Airport Shuttle", "Business Center", "Garden",
 ];
-
-// ---------------------------------------------------------------------------
-// Tag Input Component
-// ---------------------------------------------------------------------------
-
-function TagInput({ label, value, onChange, presets, placeholder }) {
-  const [input, setInput] = useState("");
-  const tags = value ? value.split(",").map((s) => s.trim()).filter(Boolean) : [];
-
-  function addTag(tag) {
-    const trimmed = tag.trim();
-    if (trimmed && !tags.includes(trimmed)) {
-      onChange(tags.concat(trimmed).join(", "));
-    }
-    setInput("");
-  }
-
-  function removeTag(tag) {
-    onChange(tags.filter((t) => t !== tag).join(", "));
-  }
-
-  function handleKeyDown(e) {
-    if (e.key === "Enter" || e.key === ",") {
-      e.preventDefault();
-      addTag(input);
-    }
-    if (e.key === "Backspace" && !input && tags.length > 0) {
-      removeTag(tags[tags.length - 1]);
-    }
-  }
-
-  const availablePresets = presets.filter((p) => !tags.includes(p));
-
-  return (
-    <div className="space-y-2">
-      <Label>{label}</Label>
-
-      {/* Selected tags */}
-      {tags.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
-          {tags.map((tag) => (
-            <span
-              key={tag}
-              className="inline-flex items-center gap-1 rounded-full bg-primary/10 border border-primary/20 px-2.5 py-0.5 text-xs font-medium text-primary"
-            >
-              {tag}
-              <button
-                type="button"
-                onClick={() => removeTag(tag)}
-                className="ml-0.5 rounded-full hover:bg-primary/20 p-0.5"
-              >
-                <X className="h-2.5 w-2.5" />
-              </button>
-            </span>
-          ))}
-        </div>
-      )}
-
-      {/* Preset chips */}
-      {availablePresets.length > 0 && (
-        <div className="flex flex-wrap gap-1">
-          {availablePresets.map((preset) => (
-            <button
-              key={preset}
-              type="button"
-              onClick={() => addTag(preset)}
-              className="rounded-full border border-dashed border-border/60 px-2.5 py-0.5 text-[10px] font-medium text-foreground/40 hover:border-primary/40 hover:text-primary hover:bg-primary/5 transition-colors"
-            >
-              + {preset}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* Custom input */}
-      <Input
-        placeholder={placeholder || `Type and press Enter...`}
-        value={input}
-        onChange={(e) => setInput(e.target.value)}
-        onKeyDown={handleKeyDown}
-      />
-    </div>
-  );
-}
 
 // ---------------------------------------------------------------------------
 // Centered Modal Form
@@ -558,7 +312,7 @@ function SlideOverForm({ open, onClose, editingId, form, setForm, submitError, s
           <div className="space-y-3">
             <h3 className="text-xs font-semibold text-foreground/50 uppercase tracking-wider">Photos</h3>
 
-            <PhotoUploader
+            <RoomPhotoUploader
               photos={form.photos}
               onChange={(urls) => setForm((p) => ({ ...p, photos: urls }))}
             />
@@ -568,7 +322,7 @@ function SlideOverForm({ open, onClose, editingId, form, setForm, submitError, s
           <div className="space-y-3">
             <h3 className="text-xs font-semibold text-foreground/50 uppercase tracking-wider">Amenities & Facilities</h3>
 
-            <TagInput
+            <RoomTagInput
               label="Room Amenities"
               value={form.amenitiesCsv}
               onChange={(val) => setForm((p) => ({ ...p, amenitiesCsv: val }))}
@@ -576,7 +330,7 @@ function SlideOverForm({ open, onClose, editingId, form, setForm, submitError, s
               placeholder="Type custom amenity and press Enter..."
             />
 
-            <TagInput
+            <RoomTagInput
               label="Hotel Facilities"
               value={form.facilitiesCsv}
               onChange={(val) => setForm((p) => ({ ...p, facilitiesCsv: val }))}
