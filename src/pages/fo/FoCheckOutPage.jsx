@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "radix-ui";
@@ -17,7 +17,7 @@ import {
   recordPayment,
 } from "@/services/paymentsService";
 import { generateReceipt } from "@/services/receiptService";
-import { CheckCircle, AlertTriangle, CalendarPlus, DollarSign, Calendar } from "lucide-react";
+import { CheckCircle } from "lucide-react";
 import { listRooms } from "@/services/roomsService";
 import { listUsers } from "@/services/userService";
 import { useAuth } from "@/contexts/AuthContext";
@@ -27,6 +27,7 @@ import CheckoutBookingList from "@/components/fo/CheckoutBookingList";
 import CheckoutExtendStayDialog from "@/components/fo/CheckoutExtendStayDialog";
 import CheckoutOverstayFeeDialog from "@/components/fo/CheckoutOverstayFeeDialog";
 import CheckoutPaymentHistory from "@/components/fo/CheckoutPaymentHistory";
+import CheckoutFolioPanel from "@/components/fo/CheckoutFolioPanel";
 
 const METHOD_OPTIONS = ["Cash", "GCash", "Check", "Credit Card"];
 
@@ -427,147 +428,13 @@ export default function FoCheckOutPage() {
           <div className="lg:col-span-3 space-y-3">
             {selectedBooking ? (
               <>
-                {/* Overdue Warning Callout */}
-                {selectedBooking.isOverdue && (
-                  <div className="rounded-xl border border-destructive/40 bg-destructive/10 p-4 space-y-2">
-                    <div className="flex items-center gap-2 text-destructive font-semibold text-sm">
-                      <AlertTriangle className="h-4 w-4 shrink-0" />
-                      <span>Overdue Stay Alert: {selectedBooking.overdueDays} day(s) past check-out deadline</span>
-                    </div>
-                    <p className="text-xs text-foreground/80 leading-relaxed">
-                      This guest was scheduled to check out on{" "}
-                      <strong>
-                        {selectedBooking.checkOutDate?.toDate
-                          ? selectedBooking.checkOutDate.toDate().toLocaleDateString()
-                          : new Date(selectedBooking.checkOutDate).toLocaleDateString()}
-                      </strong>
-                      . You can contact the guest, add an overstay penalty fee, extend their stay if the room is free, or finalize their checkout.
-                    </p>
-                    <div className="flex flex-wrap gap-2 pt-1">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-xs flex items-center gap-1.5 border-destructive/30 hover:bg-destructive/15 text-destructive"
-                        onClick={() => setFeeDialogOpen(true)}
-                      >
-                        <DollarSign className="h-3.5 w-3.5" />
-                        Add Overstay Fee
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-xs flex items-center gap-1.5 border-primary/40 hover:bg-primary/10 text-primary"
-                        onClick={() => setExtendDialogOpen(true)}
-                      >
-                        <CalendarPlus className="h-3.5 w-3.5" />
-                        Extend Stay
-                      </Button>
-                    </div>
-                  </div>
-                )}
-
-                {/* Folio summary */}
-                <Card className="p-4 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <CardHeader className="p-0">
-                      <div className="font-semibold text-base">Folio Summary</div>
-                    </CardHeader>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-xs flex items-center gap-1"
-                        onClick={() => setExtendDialogOpen(true)}
-                      >
-                        <CalendarPlus className="h-3 w-3" />
-                        Extend Stay
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-xs flex items-center gap-1"
-                        onClick={() => setFeeDialogOpen(true)}
-                      >
-                        <DollarSign className="h-3 w-3" />
-                        Add Fee
-                      </Button>
-                    </div>
-                  </div>
-                  <CardContent className="p-0 space-y-3">
-                    <div className="grid grid-cols-3 gap-3 text-center">
-                      <Card className="rounded-lg bg-background/50 p-3">
-                        <CardContent className="p-0">
-                          <div className="text-xs text-foreground/50 mb-1">
-                            Total
-                          </div>
-                          <div className="font-semibold text-sm">
-                            PHP{" "}
-                            {Number(
-                              selectedBooking.totalCost ?? 0,
-                            ).toLocaleString()}
-                          </div>
-                        </CardContent>
-                      </Card>
-                      <Card className="rounded-lg bg-background/50 p-3">
-                        <CardContent className="p-0">
-                          <div className="text-xs text-foreground/50 mb-1">
-                            Paid
-                          </div>
-                          <div className="font-semibold text-sm text-success">
-                            PHP{" "}
-                            {Number(
-                              selectedBooking.payment?.deposit ?? 0,
-                            ).toLocaleString()}
-                          </div>
-                        </CardContent>
-                      </Card>
-                      <Card className="rounded-lg bg-background/50 p-3">
-                        <CardContent className="p-0">
-                          <div className="text-xs text-foreground/50 mb-1">
-                            Outstanding
-                          </div>
-                          <div
-                            className={`font-semibold text-sm ${
-                              selectedBalance > 0
-                                ? "text-destructive"
-                                : "text-success"
-                            }`}
-                          >
-                            PHP {selectedBalance.toLocaleString()}
-                          </div>
-                        </CardContent>
-                      </Card>
-                    </div>
-
-                    {/* Folio itemized breakdown */}
-                    <div className="rounded-lg border border-border/40 bg-muted/10 p-3 space-y-1.5 text-xs">
-                      <div className="flex items-center justify-between text-foreground/70">
-                        <span>Base Room Rate ({selectedBooking.nights} night{selectedBooking.nights !== 1 ? "s" : ""}):</span>
-                        <span className="font-medium">
-                          PHP {Number(selectedBooking.baseTotal ?? (selectedBooking.totalCost - (selectedBooking.extraPaxTotal || 0) - (selectedBooking.overstayFee || 0))).toLocaleString()}
-                        </span>
-                      </div>
-                      {selectedBooking.extraPaxTotal > 0 && (
-                        <div className="flex items-center justify-between text-primary font-medium">
-                          <span>Extra Guests ({selectedBooking.extraPaxCount} pax):</span>
-                          <span>+PHP {Number(selectedBooking.extraPaxTotal).toLocaleString()}</span>
-                        </div>
-                      )}
-                      {selectedBooking.overstayFee > 0 && (
-                        <div className="flex items-center justify-between text-destructive font-semibold">
-                          <span>{selectedBooking.overstayReason || "Overstay / Late Fee"}:</span>
-                          <span>+PHP {Number(selectedBooking.overstayFee).toLocaleString()}</span>
-                        </div>
-                      )}
-                      {selectedBooking.isExtended && (
-                        <div className="flex items-center justify-between text-info text-[11px]">
-                          <span>Stay Extension:</span>
-                          <span>+{selectedBooking.extendedNights || 1} extended night(s)</span>
-                        </div>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
+                {/* Overdue callout + folio summary */}
+                <CheckoutFolioPanel
+                  booking={selectedBooking}
+                  balance={selectedBalance}
+                  onExtendStay={() => setExtendDialogOpen(true)}
+                  onAddFee={() => setFeeDialogOpen(true)}
+                />
 
                 {/* Record payment or Success state */}
                 {selectedBalance <= 0 ? (
