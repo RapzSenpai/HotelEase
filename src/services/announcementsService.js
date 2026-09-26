@@ -52,7 +52,17 @@ export async function listAnnouncements({ limitCount = 6 } = {}) {
  * @param {string} payload.date - YYYY-MM-DD
  * @param {File=} payload.imageFile - optional
  */
-export async function createAnnouncement(payload) {
+// Announcements are production-only (no training_announcements sandbox).
+// Writes from training mode are blocked so trainees can never publish to
+// the real site or notify real guests.
+function blockTrainingWrites(trainingMode) {
+  if (trainingMode === true || trainingMode === "training") {
+    throw new Error("Announcements are turned off in training mode.");
+  }
+}
+
+export async function createAnnouncement(payload, { trainingMode = null } = {}) {
+  blockTrainingWrites(trainingMode);
   const title = String(payload?.title ?? "").trim();
   const description = String(payload?.description ?? "").trim();
   const date = parseDateToTimestamp(payload?.date);
@@ -83,20 +93,21 @@ export async function createAnnouncement(payload) {
 
   try {
     // Notify all guests
-    const allUsers = await listUsers(); // no training mode for announcements based on the file scope
+    const allUsers = await listUsers({ trainingMode });
     const guestUsers = allUsers.filter(u => u.role === "guest");
     await Promise.all(guestUsers.map(guest => createNotification(guest.id, {
       type: "announcement",
       title: "New Announcement 📢",
       message: title,
       link: "/"
-    })));
+    }, { trainingMode })));
   } catch(e) { console.error("Notif error", e); }
 
   return { id: docRef.id };
 }
 
-export async function updateAnnouncement(id, payload) {
+export async function updateAnnouncement(id, payload, { trainingMode = null } = {}) {
+  blockTrainingWrites(trainingMode);
   if (!id) throw new Error("Announcement ID is required.");
   const docRef = doc(db, ANNOUNCEMENTS_COL, id);
   
@@ -116,7 +127,8 @@ export async function updateAnnouncement(id, payload) {
   return { ok: true };
 }
 
-export async function deleteAnnouncement(id) {
+export async function deleteAnnouncement(id, { trainingMode = null } = {}) {
+  blockTrainingWrites(trainingMode);
   if (!id) throw new Error("Announcement ID is required.");
   const docRef = doc(db, ANNOUNCEMENTS_COL, id);
   await deleteDoc(docRef);

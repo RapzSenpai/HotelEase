@@ -35,7 +35,7 @@ const A_COL = "room_availability";
 const TRAINING_A_COL = "training_availability";
 
 /** Marker collection for the given mode. */
-function markersCollection(trainingMode) {
+export function markersCollection(trainingMode) {
   return trainingMode ? TRAINING_A_COL : A_COL;
 }
 

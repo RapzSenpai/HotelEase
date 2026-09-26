@@ -47,6 +47,43 @@ export function AuthProvider({ children }) {
   const profileSnapUnsubRef = useRef(null);
   const profileSnapUserRef = useRef(null);
 
+  // Live profile subscription for one user + mode. Extracted so joining a
+  // training session mid-login (no auth-state change) can repoint the
+  // listener instead of leaving it stuck on the previous collection.
+  function startProfileSubscription(firebaseUser, mode) {
+    if (profileSnapUnsubRef.current) {
+      profileSnapUnsubRef.current();
+      profileSnapUnsubRef.current = null;
+    }
+    profileSnapUserRef.current = firebaseUser;
+    const ref = doc(db, getCol("users", mode), firebaseUser.uid);
+    profileSnapUnsubRef.current = onSnapshot(
+      ref,
+      async (snap) => {
+        if (!snap.exists()) return;
+        const data = snap.data();
+        // Force-logout enforcement (real-time)
+        if (data.forceLogout) {
+          const kickedAt = new Date(data.forceLogoutTimestamp || 0).getTime();
+          const signedInAt = new Date(
+            profileSnapUserRef.current?.metadata?.lastSignInTime || 0
+          ).getTime();
+          if (signedInAt < kickedAt) {
+            if (profileSnapUserRef.current?.isAnonymous) {
+              await deleteOwnTrainingProfile(profileSnapUserRef.current.uid).catch(() => {});
+              await profileSnapUserRef.current.delete().catch(() => {});
+            }
+            signOut(auth).catch(() => {});
+            return;
+          }
+        }
+        setProfile(data);
+        setRole(data.role || "guest");
+      },
+      () => {}
+    );
+  }
+
   useEffect(() => {
     let isMounted = true;
 
@@ -168,37 +205,7 @@ export function AuthProvider({ children }) {
             // Live profile subscription: keeps profile in sync when
             // ProfilePage (or other components) update fullName/photoUrl/phone,
             // and enforces force-logout in real time.
-            if (profileSnapUnsubRef.current) {
-              profileSnapUnsubRef.current();
-              profileSnapUnsubRef.current = null;
-            }
-            profileSnapUserRef.current = firebaseUser;
-            const ref = doc(db, getCol("users", effectiveTrainingMode), firebaseUser.uid);
-            profileSnapUnsubRef.current = onSnapshot(
-              ref,
-              async (snap) => {
-                if (!snap.exists()) return;
-                const data = snap.data();
-                // Force-logout enforcement (real-time)
-                if (data.forceLogout) {
-                  const kickedAt = new Date(data.forceLogoutTimestamp || 0).getTime();
-                  const signedInAt = new Date(
-                    profileSnapUserRef.current?.metadata?.lastSignInTime || 0
-                  ).getTime();
-                  if (signedInAt < kickedAt) {
-                    if (profileSnapUserRef.current?.isAnonymous) {
-                      await deleteOwnTrainingProfile(profileSnapUserRef.current.uid).catch(() => {});
-                      await profileSnapUserRef.current.delete().catch(() => {});
-                    }
-                    signOut(auth).catch(() => {});
-                    return;
-                  }
-                }
-                setProfile(data);
-                setRole(data.role || "guest");
-              },
-              () => {}
-            );
+            startProfileSubscription(firebaseUser, effectiveTrainingMode);
           } else if (assignedRoleRef.current) {
             setRole(assignedRoleRef.current);
           } else {
@@ -373,6 +380,10 @@ export function AuthProvider({ children }) {
         fullName: "Training User",
         trainingMode: true,
       });
+
+      // Same-user join fires no auth-state change, so repoint the profile
+      // listener here instead of leaving it on the previous collection.
+      startProfileSubscription(res.user, true);
     }
 
     async function logout() {

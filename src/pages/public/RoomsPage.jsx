@@ -280,7 +280,7 @@ export default function RoomsPage() {
   const { user, role, trainingMode } = useAuth();
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error] = useState(null);
+  const [error, setError] = useState(null);
   const [favorites, setFavorites] = useState([]);
 
   const [selectedType, setSelectedType] = useState("All Types");
@@ -368,8 +368,13 @@ export default function RoomsPage() {
     }
 
     const unsubscribe = subscribeToRooms(
-      (data) => {
+      (data, err) => {
         setRooms(data);
+        // A denied subscription used to look like an empty room list.
+        // Show the failure instead so training join problems are visible.
+        setError(
+          err ? "Could not load rooms. Check your connection and try again." : null,
+        );
         if (!settled) {
           settled = true;
           setLoading(false);

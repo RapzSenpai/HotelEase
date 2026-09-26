@@ -14,10 +14,10 @@ export const HOTEL_BANK_ACCOUNT_NUMBER = "1234-5678-9012";
 export const HOTEL_BANK_ACCOUNT_NAME = "HotelEase Demo Account";
 
 // Over-the-counter instructions
-export const HOTEL_OTC_INSTRUCTIONS = "Pay the amount due at the hotel front desk upon arrival. Your booking will be reviewed by Front Office staff — no online proof upload is required.";
+export const HOTEL_OTC_INSTRUCTIONS = "Pay at the front desk when you arrive.";
 
 // Credit/Debit card instructions
-export const HOTEL_CARD_INSTRUCTIONS = "Pay using your credit or debit card at the hotel front desk upon arrival. Your booking will be reviewed by Front Office staff — no online proof upload is required.";
+export const HOTEL_CARD_INSTRUCTIONS = "Pay by card at the front desk when you arrive.";
 
 // Partial payment configuration
 export const PARTIAL_PAYMENT_PERCENTAGE = 0.5; // 50% of total cost for partial payment
@@ -42,7 +42,7 @@ export function getPaymentDetails(method) {
       return {
         name: "GCash",
         number: HOTEL_GCASH_NUMBER,
-        instructions: `Send payment to the GCash number above and upload your screenshot as proof.`,
+        instructions: `Send to the number above, then upload your screenshot.`,
       };
     case "Bank Transfer":
       return {
@@ -50,7 +50,7 @@ export function getPaymentDetails(method) {
         bankName: HOTEL_BANK_NAME,
         accountNumber: HOTEL_BANK_ACCOUNT_NUMBER,
         accountName: HOTEL_BANK_ACCOUNT_NAME,
-        instructions: `Transfer to the bank account above and upload your transaction receipt as proof.`,
+        instructions: `Send to the account above, then upload your receipt.`,
       };
     case "Credit/Debit Card":
       return {
@@ -66,7 +66,7 @@ export function getPaymentDetails(method) {
       return {
         name: "GCash",
         number: HOTEL_GCASH_NUMBER,
-        instructions: `Send payment to the GCash number above and upload your screenshot as proof.`,
+        instructions: `Send to the number above, then upload your screenshot.`,
       };
   }
 }

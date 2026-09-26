@@ -1,5 +1,22 @@
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import hotelLogo from '@/assets/Hotellogo.png?inline';
+
+/**
+ * Draws the hotel logo in the header bar. Best-effort: if the image
+ * fails, the text header still stands on its own.
+ */
+function addHeaderLogo(doc, x, y, size) {
+  try {
+    if (hotelLogo) doc.addImage(hotelLogo, 'PNG', x, y, size, size);
+  } catch {
+    // keep the text header
+  }
+}
+
+function pluralizeNight(n) {
+  return `${n} night${Number(n) === 1 ? '' : 's'}`;
+}
 
 /**
  * Generates a professional PDF receipt for HotelEase
@@ -14,8 +31,8 @@ export const generateReceipt = (data) => {
   const pageWidth = doc.internal.pageSize.width; // 210
   const margin = 15;
 
-  const formatAmount = (num) => 
-    `Php ${Number(num).toLocaleString('en-PH', {
+  const formatAmount = (num) =>
+    `PHP ${Number(num).toLocaleString('en-PH', {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2
     })}`
@@ -31,16 +48,19 @@ export const generateReceipt = (data) => {
   doc.setFillColor(...primaryColor);
   doc.rect(0, 0, pageWidth, 26, 'F');
 
-  // "HotelEase" logo
+  // Logo + "HotelEase" name
+  const logoSize = 14;
+  addHeaderLogo(doc, margin, 6, logoSize);
+  const textX = margin + logoSize + 3;
   doc.setFont("helvetica", "bold");
   doc.setFontSize(18);
   doc.setTextColor(...darkTextColor);
-  doc.text("HotelEase", margin, 15);
+  doc.text("HotelEase", textX, 15);
 
   // Subtitle
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8);
-  doc.text("BSHM Property Management System", margin, 21);
+  doc.text("BSHM Property Management System", textX, 21);
 
   // --- OFFICIAL RECEIPT TITLE ---
   doc.setFont("helvetica", "bold");
@@ -65,16 +85,18 @@ export const generateReceipt = (data) => {
   doc.setTextColor(...darkTextColor);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(10);
-  doc.text("Bill To:", margin, 58);
-  
+  doc.text("Guest:", margin, 58);
+
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
   doc.text(`Name: ${data.guestName}`, margin, 63);
   doc.text(`Email: ${data.guestEmail}`, margin, 68);
-  doc.text(`Processed By: ${data.processedBy}`, margin, 73);
+  doc.text(`Assisted by: ${data.processedBy}`, margin, 73);
 
   const baseTotal = data.baseTotal ?? ((data.total ?? data.subtotal) - (data.extraPaxTotal || 0));
   const hasExtraPax = data.extraPaxTotal > 0;
+  const roomLabel = data.roomType ? `${data.roomName} (${data.roomType})` : `${data.roomName}`;
+  const refParts = [data.gatewayRef, data.bankRef, data.reference].filter(Boolean);
 
   // --- STAY DETAILS TABLE ---
   autoTable(doc, {
@@ -82,19 +104,19 @@ export const generateReceipt = (data) => {
     margin: { left: margin, right: margin },
     head: [['Description', 'Details']],
     body: [
-      ['Room', `${data.roomName} (${data.roomType})`],
+      ['Room', roomLabel],
       ['Check-in', `${new Date(data.checkIn).toLocaleDateString()} at 2:00 PM`],
       ['Check-out', `${new Date(data.checkOut).toLocaleDateString()} at 12:00 NN`],
-      ['Duration', `${data.numberOfNights} night(s)`],
-      ['Base Rate per Night', formatAmount(data.ratePerNight)],
-      ...(hasExtraPax ? [['Extra Guest Policy', `${data.extraPaxCount} extra guest(s) @ ${formatAmount(data.extraPaxFee)}/night`]] : []),
+      ['Duration', pluralizeNight(data.numberOfNights)],
+      ['Rate per night', formatAmount(data.ratePerNight)],
+      ...(hasExtraPax ? [[`Extra guests (${data.extraPaxCount} x ${formatAmount(data.extraPaxFee)}/night)`, formatAmount(data.extraPaxTotal)]] : []),
     ],
     theme: 'grid',
     headStyles: { fillColor: primaryColor, textColor: darkTextColor, fontStyle: 'bold' },
     styles: { fontSize: 8.5, cellPadding: 3 },
-    columnStyles: { 
-      0: { fontStyle: 'bold', cellWidth: 50 }, 
-      1: { cellWidth: 130 } 
+    columnStyles: {
+      0: { fontStyle: 'bold', cellWidth: 50 },
+      1: { cellWidth: 130 }
     }
   });
 
@@ -102,15 +124,16 @@ export const generateReceipt = (data) => {
   autoTable(doc, {
     startY: doc.lastAutoTable.finalY + 6,
     margin: { left: margin, right: margin },
-    head: [['Summary Item', 'Amount']],
+    head: [['Charge', 'Amount']],
     body: [
-      ['Base Room Charges', formatAmount(baseTotal)],
-      ...(hasExtraPax ? [['Extra Guest Surcharge', formatAmount(data.extraPaxTotal)]] : []),
-      ...(data.overstayFee > 0 ? [[data.overstayReason || 'Overstay / Late Check-Out Fee', formatAmount(data.overstayFee)]] : []),
-      ['Total Amount', formatAmount(data.total ?? data.subtotal)],
-      ['Amount Paid', formatAmount(data.amountPaid)],
-      ['Balance Due', formatAmount(data.balance)],
-      ['Payment Method', `${data.paymentMethod || 'N/A'}${data.simulated ? ' (Simulated — Demo)' : ''}`],
+      ['Room charges', formatAmount(baseTotal)],
+      ...(hasExtraPax ? [['Extra guests', formatAmount(data.extraPaxTotal)]] : []),
+      ...(data.overstayFee > 0 ? [[data.overstayReason || 'Late checkout fee', formatAmount(data.overstayFee)]] : []),
+      ['Total', formatAmount(data.total ?? data.subtotal)],
+      ['Paid', formatAmount(data.amountPaid)],
+      ['Balance', formatAmount(data.balance)],
+      ['Payment method', `${data.paymentMethod || 'N/A'}${data.simulated ? ' (demo)' : ''}`],
+      ...(refParts.length > 0 ? [['Reference', refParts.join(' / ')]] : []),
     ],
     theme: 'grid',
     headStyles: { fillColor: primaryColor, textColor: darkTextColor, fontStyle: 'bold' },
@@ -130,11 +153,11 @@ export const generateReceipt = (data) => {
   
   doc.setFontSize(8.5);
   doc.setTextColor(...lightTextColor);
-  doc.text("Thank you for choosing HotelEase!", pageWidth / 2, footerY + 6, { align: "center" });
+  doc.text("Thanks for staying with us.", pageWidth / 2, footerY + 6, { align: "center" });
   doc.setFontSize(7.5);
-  doc.text("This is a system-generated receipt.", pageWidth / 2, footerY + 10, { align: "center" });
+  doc.text("This receipt was generated by the system.", pageWidth / 2, footerY + 10, { align: "center" });
   if (data.simulated) {
-    doc.text("Simulated gateway payment — demo transaction, no real funds were transferred.", pageWidth / 2, footerY + 14, { align: "center" });
+    doc.text("Demo payment. No real money moved.", pageWidth / 2, footerY + 14, { align: "center" });
   }
 
   // Save/Download
@@ -163,7 +186,7 @@ export const generateCheckInSlip = (data) => {
   const margin = 15;
 
   const formatAmount = (num) =>
-    `Php ${Number(num).toLocaleString('en-PH', {
+    `PHP ${Number(num).toLocaleString('en-PH', {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2
     })}`
@@ -178,14 +201,17 @@ export const generateCheckInSlip = (data) => {
   doc.setFillColor(...primaryColor);
   doc.rect(0, 0, pageWidth, 26, 'F');
 
+  const slipLogoSize = 14;
+  addHeaderLogo(doc, margin, 6, slipLogoSize);
+  const slipTextX = margin + slipLogoSize + 3;
   doc.setFont("helvetica", "bold");
   doc.setFontSize(18);
   doc.setTextColor(...darkTextColor);
-  doc.text("HotelEase", margin, 15);
+  doc.text("HotelEase", slipTextX, 15);
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8);
-  doc.text("BSHM Property Management System", margin, 21);
+  doc.text("BSHM Property Management System", slipTextX, 21);
 
   // --- CHECK-IN SLIP TITLE ---
   doc.setFont("helvetica", "bold");
@@ -216,8 +242,8 @@ export const generateCheckInSlip = (data) => {
   doc.setFontSize(9);
   doc.text(`Name: ${data.guestName}`, margin, 63);
   doc.text(`Email: ${data.guestEmail}`, margin, 68);
-  doc.text(`Phone: ${data.guestPhone || "—"}`, margin, 73);
-  doc.text(`Front Desk: ${data.processedBy}`, margin, 78);
+  doc.text(`Phone: ${data.guestPhone || "-"}`, margin, 73);
+  doc.text(`Front desk: ${data.processedBy}`, margin, 78);
 
   // --- STAY DETAILS TABLE ---
   let startY = data.guestPhone ? 86 : 83;
@@ -226,13 +252,13 @@ export const generateCheckInSlip = (data) => {
     margin: { left: margin, right: margin },
     head: [['Description', 'Details']],
     body: [
-      ['Room', `${data.roomName} (${data.roomType})`],
-      ['Room No.', `${data.roomNumber || "—"}`],
+      ['Room', data.roomType ? `${data.roomName} (${data.roomType})` : `${data.roomName}`],
+      ['Room no.', `${data.roomNumber || "-"}`],
       ['Check-in', `${new Date(data.checkIn).toLocaleDateString()} at 2:00 PM`],
       ['Check-out', `${new Date(data.checkOut).toLocaleDateString()} at 12:00 NN`],
-      ['Duration', `${data.numberOfNights} night(s)`],
-      ['Base Rate per Night', formatAmount(data.ratePerNight)],
-      ...(data.extraPaxTotal > 0 ? [['Extra Guest Surcharge', formatAmount(data.extraPaxTotal)]] : []),
+      ['Duration', pluralizeNight(data.numberOfNights)],
+      ['Rate per night', formatAmount(data.ratePerNight)],
+      ...(data.extraPaxTotal > 0 ? [['Extra guests', formatAmount(data.extraPaxTotal)]] : []),
     ],
     theme: 'grid',
     headStyles: { fillColor: primaryColor, textColor: darkTextColor, fontStyle: 'bold' },
@@ -247,12 +273,12 @@ export const generateCheckInSlip = (data) => {
   autoTable(doc, {
     startY: doc.lastAutoTable.finalY + 6,
     margin: { left: margin, right: margin },
-    head: [['Payment Position', 'Amount']],
+    head: [['Payment', 'Amount']],
     body: [
-      ['Total Stay Amount', formatAmount(data.total)],
-      ['Amount Paid (to date)', formatAmount(data.amountPaid)],
-      ['Balance Due (at checkout)', formatAmount(data.balance)],
-      ['Payment Method', `${data.paymentMethod || 'N/A'}${data.simulated ? ' (Simulated — Demo)' : ''}`],
+      ['Total', formatAmount(data.total)],
+      ['Paid', formatAmount(data.amountPaid)],
+      ['Balance', formatAmount(data.balance)],
+      ['Payment method', `${data.paymentMethod || 'N/A'}${data.simulated ? ' (demo)' : ''}`],
     ],
     theme: 'grid',
     headStyles: { fillColor: primaryColor, textColor: darkTextColor, fontStyle: 'bold' },
@@ -272,9 +298,9 @@ export const generateCheckInSlip = (data) => {
 
   doc.setFontSize(8.5);
   doc.setTextColor(...lightTextColor);
-  doc.text("Welcome to HotelEase! Please present this slip at check-out.", pageWidth / 2, footerY + 6, { align: "center" });
+  doc.text("Please show this slip at checkout.", pageWidth / 2, footerY + 6, { align: "center" });
   doc.setFontSize(7.5);
-  doc.text("This is a system-generated check-in slip, not an official receipt.", pageWidth / 2, footerY + 10, { align: "center" });
+  doc.text("Check-in slip only, not an official receipt.", pageWidth / 2, footerY + 10, { align: "center" });
 
   // Save/Download
   doc.save(`HotelEase-CheckInSlip-${slipNo}.pdf`);

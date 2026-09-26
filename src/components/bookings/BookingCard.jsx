@@ -90,6 +90,15 @@ export default function BookingCard({ booking, room, trainingMode, userProfile, 
     e.stopPropagation();
     if (!receiptPayment) return;
 
+    // Total paid across all payments so this matches the FO receipt.
+    const totalPaid = payments.reduce((sum, p) => sum + Number(p.amount ?? 0), 0);
+    const paymentRef =
+      receiptPayment.note ||
+      receiptPayment.methodDetails?.referenceNumber ||
+      receiptPayment.methodDetails?.checkNumber ||
+      receiptPayment.methodDetails?.cardLast4 ||
+      null;
+
     generateReceipt({
       receiptNo: receiptPayment.receiptNo || ("RCP-" + (receiptPayment.createdAt?.toMillis?.() || Date.now())),
       guestName: userProfile?.fullName || userProfile?.email || "Guest",
@@ -104,10 +113,15 @@ export default function BookingCard({ booking, room, trainingMode, userProfile, 
       extraPaxCount: Number(booking.extraPaxCount ?? 0),
       extraPaxFee: Number(booking.extraPaxFee ?? 0),
       extraPaxTotal: Number(booking.extraPaxTotal ?? 0),
+      overstayFee: Number(booking.overstayFee ?? 0),
+      overstayReason: booking.overstayReason || "Late checkout fee",
       total: booking.totalCost,
-      amountPaid: receiptPayment.amount,
-      balance: Math.max(0, booking.totalCost - Number(booking.payment?.deposit ?? receiptPayment.amount ?? 0)),
+      amountPaid: totalPaid,
+      balance: Math.max(0, Number(booking.totalCost ?? 0) - totalPaid),
       paymentMethod: receiptPayment.method,
+      gatewayRef: booking.gatewayRef || null,
+      bankRef: booking.bankRef || null,
+      reference: paymentRef,
       simulated: receiptPayment.source === "simulated_gateway" || booking.paymentGateway === "simulated",
       paymentDate: receiptPayment.createdAt?.toDate?.() || new Date(),
       processedBy: receiptPayment.processedBy || "Front Office Staff",

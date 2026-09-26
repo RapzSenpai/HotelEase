@@ -48,12 +48,14 @@ export function generateGatewayRef(method) {
  * @param {Object} params
  * @param {string} params.bookingId
  * @param {string|null} [params.trainingMode]
- * @returns {Promise<{ ok: boolean, gatewayRef: string }>}
+ * @param {string} [params.userBankRef] - required for Bank Transfer, typed from banking app
+ * @returns {Promise<{ ok: boolean, gatewayRef: string, bankRef?: string }>}
  */
-export async function completeSimulatedPayment({ bookingId, trainingMode = null } = {}) {
+export async function completeSimulatedPayment({ bookingId, trainingMode = null, userBankRef } = {}) {
   if (!bookingId || typeof bookingId !== "string") {
     throw new Error("Invalid bookingId passed to completeSimulatedPayment");
   }
+  const trimmedBankRef = typeof userBankRef === "string" ? userBankRef.trim() : "";
 
   const currentUser = auth.currentUser;
   if (!currentUser) {
@@ -66,7 +68,7 @@ export async function completeSimulatedPayment({ bookingId, trainingMode = null 
   // Transaction: double-clicks / double-tabs serialize on the booking doc —
   // the loser re-reads status (now Pending) and aborts instead of writing a
   // second gatewayRef. Also loses cleanly to the expiry sweep (Cancelled).
-  const { booking, gatewayRef } = await runTransaction(db, async (transaction) => {
+  const { booking, gatewayRef, bankRef } = await runTransaction(db, async (transaction) => {
     const bookingSnap = await transaction.get(bookingRef);
 
     if (!bookingSnap.exists()) {
@@ -83,16 +85,25 @@ export async function completeSimulatedPayment({ bookingId, trainingMode = null 
     if (!PROOF_REQUIRED_METHODS.includes(data.paymentMethod)) {
       throw new Error("This booking method does not use the online checkout");
     }
+    if (data.paymentMethod === "Bank Transfer" && trimmedBankRef.length < 4) {
+      throw new Error("Enter the reference number from your banking app.");
+    }
 
     const ref = generateGatewayRef(data.paymentMethod);
-    transaction.update(bookingRef, {
+    const update = {
       paymentGateway: "simulated",
       gatewayRef: ref,
       paidAt: serverTimestamp(),
       status: "Pending",
       updatedAt: serverTimestamp(),
-    });
-    return { booking: data, gatewayRef: ref };
+    };
+    let storedBankRef = null;
+    if (data.paymentMethod === "Bank Transfer") {
+      storedBankRef = trimmedBankRef;
+      update.bankRef = storedBankRef;
+    }
+    transaction.update(bookingRef, update);
+    return { booking: data, gatewayRef: ref, bankRef: storedBankRef };
   });
 
   // Same FO fan-out notification the proof-upload path sends.
@@ -115,5 +126,5 @@ export async function completeSimulatedPayment({ bookingId, trainingMode = null 
     console.error("Notif error", e);
   }
 
-  return { ok: true, gatewayRef };
+  return { ok: true, gatewayRef, bankRef };
 }

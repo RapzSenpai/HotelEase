@@ -443,7 +443,7 @@ export async function extendStayBooking(bookingId, { newCheckOutDate, additional
  * Front Office action: Add an incidental fee (e.g. Late Checkout / Overstay Fee)
  * to a booking folio before checkout.
  */
-export async function addOverstayFee(bookingId, { feeAmount, feeReason = "Overstay / Late Check-Out Fee", trainingMode = null } = {}) {
+export async function addOverstayFee(bookingId, { feeAmount, feeReason = "Late checkout fee", trainingMode = null } = {}) {
   const fee = Number(feeAmount);
   if (!bookingId || !Number.isFinite(fee) || fee <= 0) {
     throw new Error("Please provide a valid positive fee amount.");

@@ -1,7 +1,9 @@
 import { collection, deleteDoc, doc, getDocs } from "firebase/firestore";
 import { db } from "@/firebase/firebase.config";
+import { getCol } from "@/lib/db-utils";
 import {
   ACTIVE_STATUSES,
+  markersCollection,
   nightKeys,
   setBookingMarked,
 } from "./availabilityService";
@@ -68,10 +70,10 @@ export function diffAvailability(bookings = [], markers = []) {
  * ponytail: reads whole collections — fine at this scale, revisit if a hotel
  * ever accumulates tens of thousands of bookings.
  */
-export async function loadAvailabilityDiff() {
+export async function loadAvailabilityDiff({ trainingMode = null } = {}) {
   const [bookingsSnap, markersSnap] = await Promise.all([
-    getDocs(collection(db, "bookings")),
-    getDocs(collection(db, "room_availability")),
+    getDocs(collection(db, getCol("bookings", trainingMode))),
+    getDocs(collection(db, markersCollection(trainingMode))),
   ]);
 
   return diffAvailability(
@@ -81,9 +83,10 @@ export async function loadAvailabilityDiff() {
 }
 
 /** Delete orphan markers, then re-block every night the active holds are missing. */
-export async function repairAvailability({ orphanMarkers = [], missingMarkers = [] } = {}) {
+export async function repairAvailability({ orphanMarkers = [], missingMarkers = [], trainingMode = null } = {}) {
+  const markerCol = markersCollection(trainingMode);
   await Promise.all(
-    orphanMarkers.map((m) => deleteDoc(doc(db, "room_availability", m.id))),
+    orphanMarkers.map((m) => deleteDoc(doc(db, markerCol, m.id))),
   );
 
   // Repair only the missing dates so markers belonging to other bookings survive.
@@ -105,6 +108,7 @@ export async function repairAvailability({ orphanMarkers = [], missingMarkers = 
         dates: b.dates,
         bookingId,
         status: b.status,
+        trainingMode,
       }),
     ),
   );

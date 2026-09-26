@@ -192,7 +192,7 @@ export default function AdminOperationsPage() {
         title: announcementTitle.trim(),
         description: announcementBody.trim(),
         date: announcementDate,
-      });
+      }, { trainingMode });
       toast.success("Announcement published to all guests");
       auditAction(AUDIT_ACTIONS.ANNOUNCEMENT_CREATE, {
         targetType: "announcement",

@@ -149,12 +149,6 @@ export default function BookingPaymentSection({
             Pay Now — ₱{payableAmount.toLocaleString()} via {booking.paymentMethod}
           </Button>
 
-          <div className="flex items-center gap-2">
-            <span className="h-px flex-1 bg-border" />
-            <span className="text-xs text-foreground/50">or upload proof manually</span>
-            <span className="h-px flex-1 bg-border" />
-          </div>
-
           <form onSubmit={onUploadProof} className="space-y-3">
             {/* Payment Method Display (read-only - locked from booking time) */}
             <div className="space-y-2">
@@ -162,37 +156,39 @@ export default function BookingPaymentSection({
               <div className="text-sm font-medium">{booking.paymentMethod}</div>
             </div>
 
-            {/* Payment Instructions */}
-            <div className="rounded-md border border-border bg-background p-3 space-y-2">
-              <div className="text-xs font-semibold">Payment Instructions</div>
-              <div className="space-y-1.5 text-xs">
-                <p>
-                  Please send <span className="font-semibold">
-                    ₱{payableAmount.toLocaleString()}
-                  </span> via {booking.paymentMethod}:
-                </p>
-                {(() => {
-                  const details = getPaymentDetails(booking.paymentMethod);
-                  return (
-                    <div className="space-y-1.5">
-                      {details.number && (
-                        <div className="flex items-center gap-2 bg-surface-hover p-1.5 rounded">
-                          <span className="font-mono font-semibold text-sm">{details.number}</span>
-                        </div>
-                      )}
-                      {details.bankName && (
-                        <div className="space-y-0.5">
-                          <div className="font-medium">{details.bankName}</div>
-                          <div className="font-mono text-sm">{details.accountNumber}</div>
-                          <div className="text-foreground/60">{details.accountName}</div>
-                        </div>
-                      )}
-                      <p className="text-foreground/60">{details.instructions}</p>
-                    </div>
-                  );
-                })()}
+            {/* Payment Instructions - collapsed, sandbox is primary */}
+            <details className="rounded-md border border-border bg-background">
+              <summary className="cursor-pointer p-3 text-xs font-semibold">Manual payment details</summary>
+              <div className="px-3 pb-3 space-y-2">
+                <div className="space-y-1.5 text-xs">
+                  <p>
+                    Send <span className="font-semibold">
+                      ₱{payableAmount.toLocaleString()}
+                    </span> via {booking.paymentMethod}:
+                  </p>
+                  {(() => {
+                    const details = getPaymentDetails(booking.paymentMethod);
+                    return (
+                      <div className="space-y-1.5">
+                        {details.number && (
+                          <div className="flex items-center gap-2 bg-surface-hover p-1.5 rounded">
+                            <span className="font-mono font-semibold text-sm">{details.number}</span>
+                          </div>
+                        )}
+                        {details.bankName && (
+                          <div className="space-y-0.5">
+                            <div className="font-medium">{details.bankName}</div>
+                            <div className="font-mono text-sm">{details.accountNumber}</div>
+                            <div className="text-foreground/60">{details.accountName}</div>
+                          </div>
+                        )}
+                        <p className="text-foreground/60">{details.instructions}</p>
+                      </div>
+                    );
+                  })()}
+                </div>
               </div>
-            </div>
+            </details>
 
             {/* Payment Type Display (read-only - locked from booking time) */}
             <div className="space-y-2">
@@ -274,6 +270,12 @@ export default function BookingPaymentSection({
             <p className="text-xs text-foreground/60">
               Reference Number:{" "}
               <span className="font-mono font-semibold">{booking.gatewayRef}</span>
+            </p>
+          )}
+          {booking.bankRef && (
+            <p className="text-xs text-foreground/60">
+              Bank ref:{" "}
+              <span className="font-mono font-semibold">{booking.bankRef}</span>
             </p>
           )}
         </div>

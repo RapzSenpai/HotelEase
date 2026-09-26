@@ -31,7 +31,7 @@ export default function CheckoutOverstayFeeDialog({
   onSubmit,
 }) {
   const [amount, setAmount] = useState("");
-  const [reason, setReason] = useState("Overstay / Late Check-Out Fee");
+  const [reason, setReason] = useState("Late checkout fee");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
 
@@ -39,7 +39,7 @@ export default function CheckoutOverstayFeeDialog({
     if (open) {
       setError(null);
       setAmount("");
-      setReason("Overstay / Late Check-Out Fee");
+      setReason("Late checkout fee");
     }
   }, [open, booking?.id]);
 
@@ -68,25 +68,25 @@ export default function CheckoutOverstayFeeDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <DollarSign className="h-5 w-5 text-destructive" />
-            Add Overstay / Late Check-Out Fee
-          </DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              <DollarSign className="h-5 w-5 text-destructive" />
+              Add late checkout fee
+            </DialogTitle>
         </DialogHeader>
 
         {booking && (
           <div className="space-y-4 py-2 text-sm">
-            <p className="text-xs text-foreground/70 leading-relaxed">
-              Add an incidental charge or late checkout penalty to this booking folio. It will be added to the outstanding balance and itemized on the official receipt.
-            </p>
+              <p className="text-xs text-foreground/70 leading-relaxed">
+                Add this fee to the booking. It will show on the receipt.
+              </p>
 
             <div className="space-y-2">
-              <Label htmlFor="feeReason">Fee Reason / Description</Label>
+              <Label htmlFor="feeReason">Reason</Label>
               <Input
                 id="feeReason"
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
-                placeholder="e.g. Overstay Penalty / Late Departure Fee"
+                placeholder="e.g. Late checkout fee"
               />
             </div>
 

@@ -9,22 +9,22 @@ export const PAYMENT_METHOD_META = {
   GCash: {
     icon: gcashPng,
     iconAlt: "GCash",
-    description: "Pay via e-wallet and upload a screenshot as proof",
+    description: "Pay online in the next step",
   },
   "Bank Transfer": {
     icon: Landmark,
     iconAlt: "Bank Transfer",
-    description: "Transfer to our bank account and upload the receipt",
+    description: "Pay online in the next step",
   },
   "Credit/Debit Card": {
     icon: CreditCard,
     iconAlt: "Credit/Debit Card",
-    description: "Pay by card at the hotel front desk upon arrival",
+    description: "Pay by card at the front desk",
   },
   "Over-the-Counter": {
     icon: Store,
     iconAlt: "Over-the-Counter",
-    description: "Pay in cash at the hotel front desk upon arrival",
+    description: "Pay cash at the front desk",
   },
 };
 

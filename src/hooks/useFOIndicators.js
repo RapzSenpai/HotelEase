@@ -31,10 +31,13 @@ export function useFOIndicators({ trainingMode = null, role = null } = {}) {
     // 2. Unread messages count — the inbox is shared by FO + Admin per rules,
     //    so both roles subscribe.
     if (role === "admin" || role === "fo") {
-      const unsubMessages = subscribeToMessages((messages) => {
-        const unreadCount = messages.filter((m) => m.status === "unread").length;
-        setUnreadMessagesCount(unreadCount);
-      });
+      const unsubMessages = subscribeToMessages(
+        (messages) => {
+          const unreadCount = messages.filter((m) => m.status === "unread").length;
+          setUnreadMessagesCount(unreadCount);
+        },
+        { trainingMode },
+      );
       unsubscribers.push(unsubMessages);
     }
 

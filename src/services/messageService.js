@@ -64,8 +64,10 @@ export async function submitMessage({ name, email, subject, message, guestId = n
     throw new Error("Message must be between 20 and 2000 characters.");
   }
 
+  // Cooldown key is per-mode so training submits never throttle prod ones.
+  const sentKey = trainingMode ? `${LAST_SENT_KEY}_training` : LAST_SENT_KEY;
   try {
-    const lastSent = Number(localStorage.getItem(LAST_SENT_KEY) || 0);
+    const lastSent = Number(localStorage.getItem(sentKey) || 0);
     const waitMs = MESSAGE_COOLDOWN_MS - (Date.now() - lastSent);
     if (waitMs > 0) {
       throw new Error(`Please wait ${Math.ceil(waitMs / 1000)} seconds before sending another message.`);
@@ -90,7 +92,7 @@ export async function submitMessage({ name, email, subject, message, guestId = n
   });
 
   try {
-    try { localStorage.setItem(LAST_SENT_KEY, String(Date.now())); } catch { /* ignore */ }
+    try { localStorage.setItem(sentKey, String(Date.now())); } catch { /* ignore */ }
     // Guest-safe: only read FO-role users (guests must not list other guests).
     const foUsers = await listFoUsers({ trainingMode });
     await Promise.all(
@@ -110,14 +112,16 @@ export async function submitMessage({ name, email, subject, message, guestId = n
   return { id: ref.id };
 }
 
-export async function getAllMessages() {
-  const q = query(collection(db, MESSAGES_COL), orderBy("createdAt", "desc"));
+export async function getAllMessages({ trainingMode = null } = {}) {
+  const col = getCol(MESSAGES_COL, trainingMode);
+  const q = query(collection(db, col), orderBy("createdAt", "desc"));
   const snap = await getDocs(q);
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
 
-export function subscribeToMessages(callback) {
-  const q = query(collection(db, MESSAGES_COL), orderBy("createdAt", "desc"));
+export function subscribeToMessages(callback, { trainingMode = null } = {}) {
+  const col = getCol(MESSAGES_COL, trainingMode);
+  const q = query(collection(db, col), orderBy("createdAt", "desc"));
   return onSnapshot(
     q,
     (snap) => {
@@ -130,28 +134,34 @@ export function subscribeToMessages(callback) {
   );
 }
 
-export async function markAsRead(messageId) {
+export async function markAsRead(messageId, { trainingMode = null } = {}) {
   if (!messageId) throw new Error("Message ID is required.");
-  await updateDoc(doc(db, MESSAGES_COL, messageId), {
+  await updateDoc(doc(db, getCol(MESSAGES_COL, trainingMode), messageId), {
     status: "read",
   });
   return { ok: true };
 }
 
-export async function replyToMessage(messageId, replyMessage) {
+export async function replyToMessage(messageId, replyMessage, { trainingMode = null } = {}) {
   if (!messageId) throw new Error("Message ID is required.");
   const cleanReply = String(replyMessage || "").trim();
   if (!cleanReply) throw new Error("Reply message is required.");
 
-  const targetSnap = await getDoc(doc(db, MESSAGES_COL, messageId));
+  const col = getCol(MESSAGES_COL, trainingMode);
+  const targetSnap = await getDoc(doc(db, col, messageId));
   if (!targetSnap.exists()) throw new Error("Message not found.");
   const target = { id: targetSnap.id, ...targetSnap.data() };
 
-  await updateDoc(doc(db, MESSAGES_COL, messageId), {
+  await updateDoc(doc(db, col, messageId), {
     status: "replied",
     replyMessage: cleanReply,
     repliedAt: serverTimestamp(),
   });
+
+  // Training replies stay in the sandbox — never send real email for them.
+  if (col !== MESSAGES_COL) {
+    return { ok: true, emailSent: false, reason: "Training message. No email sent." };
+  }
 
   try {
     await sendReplyEmail({

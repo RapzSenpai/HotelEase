@@ -146,7 +146,7 @@ export default function CheckoutFolioPanel({
             )}
             {booking.overstayFee > 0 && (
               <div className="flex items-center justify-between text-destructive font-semibold">
-                <span>{booking.overstayReason || "Overstay / Late Fee"}:</span>
+                <span>{booking.overstayReason || "Late checkout fee"}:</span>
                 <span>+PHP {Number(booking.overstayFee).toLocaleString()}</span>
               </div>
             )}

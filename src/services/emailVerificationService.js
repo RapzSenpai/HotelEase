@@ -91,6 +91,12 @@ export async function issueVerificationCode({
     updatedAt: serverTimestamp(),
   });
 
+  // Training codes stay in the sandbox — surface the code directly and
+  // never send a real email for them.
+  if (trainingMode === true || trainingMode === "training") {
+    return { ok: true, fallbackCode: otp, fallbackReason: "Training mode. No email sent." };
+  }
+
   const sendResult = await sendVerificationEmail({
     toEmail: email,
     toName: fullName || "Guest",

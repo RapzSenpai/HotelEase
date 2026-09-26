@@ -26,11 +26,15 @@ const MAX_UPLOAD_BYTES = 5 * 1024 * 1024; // 5 MB
 
 /**
  * Upload a single File object to Cloudinary.
+ * Training uploads are tagged "training" so they stay filterable apart
+ * from production files. (Full quota isolation needs a separate upload
+ * preset in the Cloudinary dashboard — tags are the most unsigned
+ * uploads can enforce client-side.)
  * @param {File} file
- * @param {{ onProgress?: (pct: number) => void, compressionPreset?: string }} options
+ * @param {{ onProgress?: (pct: number) => void, compressionPreset?: string, trainingMode?: boolean | null }} options
  * @returns {Promise<{ url: string, publicId: string }>}
  */
-export async function uploadImageToCloudinary(file, { onProgress, compressionPreset = "roomPhotos" } = {}) {
+export async function uploadImageToCloudinary(file, { onProgress, compressionPreset = "roomPhotos", trainingMode = null } = {}) {
   if (!file || typeof file.type !== "string" || !file.type.startsWith("image/")) {
     throw new Error("Only image files can be uploaded.");
   }
@@ -44,10 +48,21 @@ export async function uploadImageToCloudinary(file, { onProgress, compressionPre
     );
   }
 
+  // Resolve like getCol: explicit param wins, else the training override.
+  let isTraining = trainingMode === true || trainingMode === "training";
+  if (trainingMode === null || trainingMode === undefined) {
+    try {
+      isTraining = localStorage.getItem("bshm_training_override") === "true";
+    } catch {
+      // ignore
+    }
+  }
+
   return new Promise((resolve, reject) => {
     const formData = new FormData();
     formData.append("file", file);
     formData.append("upload_preset", UPLOAD_PRESET);
+    formData.append("tags", isTraining ? "training" : "prod");
     // Note: folder parameter removed since preset has 'use asset folder as public id prefix: false'
 
     const xhr = new XMLHttpRequest();

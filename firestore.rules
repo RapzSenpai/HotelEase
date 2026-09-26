@@ -52,20 +52,20 @@ service cloud.firestore {
       return isProdAdmin();
     }
 
-    // FIX: isTrainingFOOrAdmin reads training_guests
-    function isTrainingFOOrAdmin() {
-      return isTrainingParticipant() &&
-              request.auth.token.get('trainingRole', '') in ['fo', 'admin'];
+    // Training sandbox access: any signed-in user (including anonymous
+    // trainees) may use training_* collections. No custom claims are issued
+    // (no backend), so gates are identity-based. Blast radius is sandbox-only:
+    // prod collections never grant anything on training identity.
+    function isTrainingParticipant() {
+      return isAuthenticated();
     }
 
-    // Training access must come from a server-issued Auth custom claim.
-    // training_guests is client-writable for profile data and cannot establish
-    // membership or privilege by itself.
-    function isTrainingParticipant() {
+    // Training staff powers come from the trainee's own training_guests doc
+    // (role self-declared at join). Worst case a trainee promotes themself
+    // inside the sandbox — production is untouched.
+    function isTrainingFOOrAdmin() {
       return isAuthenticated() &&
-              request.auth.token.get('trainingParticipant', false) == true &&
-              request.auth.token.get('trainingSession', '') is string &&
-              request.auth.token.get('trainingSession', '').size() > 0;
+              get(/databases/$(database)/documents/training_guests/$(request.auth.uid)).data.role in ['fo', 'admin'];
     }
 
     // Guest read-only access to payments linked to their own prod booking (Phase 18.3 folio).
@@ -158,7 +158,10 @@ service cloud.firestore {
                        (!isAnonymous() && resource.data.role == 'fo');
       allow create: if isOwner(uid) && !isAnonymous() && request.resource.data.role == 'guest';
       allow update: if (isOwner(uid) && !isAnonymous() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['fullName', 'email', 'phone', 'photoUrl', 'updatedAt', 'lastLoginAt', 'lastLoginIp', 'isOnline', 'lastSeenAt', 'sessions', 'lastLoginDevice', 'revokedSessions', 'currentSessionId', 'lastSessionActiveAt', 'activeSessionId', 'sessionRevokeTimestamp', 'emailVerified', 'verifiedAt', 'verificationCodeHash', 'verificationExpiresAt', 'verificationAttempts', 'verificationResendAt'])) || isProdAdmin() ||
-                      (isProdFOOrAdmin() && !isAnonymous() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['cancellationCount', 'updatedAt']));
+                       (isProdFOOrAdmin() && !isAnonymous() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['cancellationCount', 'updatedAt'])) ||
+                       // Guest self-increment on cancel: the cancelBooking transaction bumps
+                       // the guest's own count by exactly 1. Increment check stops forgery.
+                       (isOwner(uid) && !isAnonymous() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['cancellationCount', 'updatedAt']) && request.resource.data.cancellationCount == resource.data.get('cancellationCount', 0) + 1);
       allow delete: if isProdAdmin() && !isAnonymous();
 
       // Favorites subcollection - users can manage their own favorites
@@ -274,10 +277,11 @@ service cloud.firestore {
                           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['paymentProofUrl', 'paymentType', 'paymentMethod', 'proofUploadedAt', 'status', 'updatedAt'])) ||
                          (resource.data.status == "Awaiting Payment" &&
                           request.resource.data.status == "Pending" &&
-                          request.resource.data.paymentGateway == 'simulated' &&
-                          request.resource.data.gatewayRef is string &&
-                          request.resource.data.gatewayRef.size() > 0 &&
-                          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['paymentGateway', 'gatewayRef', 'paidAt', 'status', 'updatedAt']))));
+                           request.resource.data.paymentGateway == 'simulated' &&
+                           request.resource.data.gatewayRef is string &&
+                           request.resource.data.gatewayRef.size() > 0 &&
+                           request.resource.data.get('bankRef', '') is string &&
+                           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['paymentGateway', 'gatewayRef', 'bankRef', 'paidAt', 'status', 'updatedAt']))));
 
       allow delete: if isProdFOOrAdmin() && !isAnonymous();
     }
@@ -356,7 +360,11 @@ service cloud.firestore {
                      (isOwner(uid) &&
                       request.resource.data.diff(resource.data).affectedKeys().hasOnly(
                         ['fullName', 'email', 'phone', 'photoUrl', 'updatedAt', 'lastLoginAt',
-                         'lastLoginIp', 'isOnline', 'lastSeenAt', 'emailVerified', 'verifiedAt']));
+                         'lastLoginIp', 'isOnline', 'lastSeenAt', 'emailVerified', 'verifiedAt'])) ||
+                     // Sandbox mirror of the guest self-increment above.
+                     (isOwner(uid) &&
+                      request.resource.data.diff(resource.data).affectedKeys().hasOnly(['cancellationCount', 'updatedAt']) &&
+                      request.resource.data.cancellationCount == resource.data.get('cancellationCount', 0) + 1);
       allow delete: if isProdFOOrAdmin() || isTrainingFOOrAdmin();
 
       // Favorites subcollection — trainees can manage their own favorites in
@@ -384,10 +392,11 @@ service cloud.firestore {
                           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['paymentProofUrl', 'paymentType', 'paymentMethod', 'proofUploadedAt', 'status', 'updatedAt'])) ||
                          (resource.data.status == "Awaiting Payment" &&
                           request.resource.data.status == "Pending" &&
-                          request.resource.data.paymentGateway == 'simulated' &&
-                          request.resource.data.gatewayRef is string &&
-                          request.resource.data.gatewayRef.size() > 0 &&
-                          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['paymentGateway', 'gatewayRef', 'paidAt', 'status', 'updatedAt']))));
+                           request.resource.data.paymentGateway == 'simulated' &&
+                           request.resource.data.gatewayRef is string &&
+                           request.resource.data.gatewayRef.size() > 0 &&
+                           request.resource.data.get('bankRef', '') is string &&
+                           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['paymentGateway', 'gatewayRef', 'bankRef', 'paidAt', 'status', 'updatedAt']))));
       allow delete: if isTrainingParticipant() &&
                (isOwner(resource.data.guestId) || isProdFOOrAdmin() || isTrainingFOOrAdmin());
     }
@@ -475,6 +484,15 @@ service cloud.firestore {
                        request.resource.data.keys().hasAll(['title', 'message', 'link', 'createdAt']) &&
                        request.resource.data.link is string &&
                        request.resource.data.link.matches('^/.*');
+    }
+
+    // Training contact inbox. Mirrors /messages so trainee questions never
+    // land in the production FO inbox.
+    match /training_messages/{messageId} {
+      allow read: if isTrainingParticipant();
+      allow create: if isTrainingParticipant();
+      allow update: if isTrainingParticipant() && isTrainingFOOrAdmin();
+      allow delete: if isTrainingParticipant() && isTrainingFOOrAdmin();
     }
 
     // Training session state (holds the join code). Authenticated eyes only:

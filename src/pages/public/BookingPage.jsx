@@ -317,6 +317,16 @@ export default function BookingPage() {
   // Phase 14+16: dynamic payment instructions via getPaymentDetails()
   function renderPaymentInstructions(method, amount) {
     const details = getPaymentDetails(method);
+    const hasManualDetails = details.number || details.bankName;
+    if (!hasManualDetails) {
+      const how = method === "Credit/Debit Card" ? "by card" : "in cash";
+      return (
+        <div className="rounded-lg border border-border/40 bg-muted/10 p-3 space-y-2 text-sm">
+          <div className="font-semibold text-sm">Payment Instructions</div>
+          <p>Pay <span className="font-semibold">&#8369;{amount.toLocaleString()}</span> {how} at the front desk when you arrive.</p>
+        </div>
+      );
+    }
     return (
       <div className="rounded-lg border border-border/40 bg-muted/10 p-3 space-y-2 text-sm">
         <div className="font-semibold text-sm">Payment Instructions</div>
@@ -612,7 +622,19 @@ export default function BookingPage() {
                   })}
                 </RadioGroup>
               </div>
-              {renderPaymentInstructions(paymentMethod, amountDue)}
+              {paymentMethod === "GCash" ? (
+                <div className="rounded-lg border border-border/40 bg-muted/10 p-3 space-y-2 text-sm">
+                  <div className="font-semibold text-sm">Payment Instructions</div>
+                  <p>Pay <span className="font-semibold">&#8369;{amountDue.toLocaleString()}</span> via GCash on the next step. No manual transfer needed.</p>
+                </div>
+              ) : paymentMethod === "Bank Transfer" ? (
+                <div className="rounded-lg border border-border/40 bg-muted/10 p-3 space-y-2 text-sm">
+                  <div className="font-semibold text-sm">Payment Instructions</div>
+                  <p>Pay <span className="font-semibold">&#8369;{amountDue.toLocaleString()}</span> to our bank on the next step. Send from your banking app, then enter your bank reference.</p>
+                </div>
+              ) : (
+                renderPaymentInstructions(paymentMethod, amountDue)
+              )}
               <div className="space-y-2">
                 <span className="text-xs font-semibold uppercase tracking-wide text-foreground/60">Payment Type</span>
                 <RadioGroup
@@ -773,12 +795,12 @@ export default function BookingPage() {
                   <CreditCard className="mr-2 h-4 w-4" />
                   Proceed to Payment — &#8369;{amountDue.toLocaleString()} via {paymentMethod}
                 </Button>
-                <div className="flex items-center gap-2">
-                  <span className="h-px flex-1 bg-border" />
-                  <span className="text-xs text-foreground/50">or upload proof manually</span>
-                  <span className="h-px flex-1 bg-border" />
-                </div>
-                {renderPaymentInstructions(paymentMethod, amountDue)}
+                <details className="rounded-lg border border-border/40 bg-muted/10">
+                  <summary className="cursor-pointer p-3 text-sm font-medium">Upload proof manually instead</summary>
+                  <div className="px-3 pb-3">
+                    {renderPaymentInstructions(paymentMethod, amountDue)}
+                  </div>
+                </details>
                 <div className="flex items-center gap-2 text-sm text-foreground/70">
                   <span>Payment type:</span>
                   <span className="font-semibold text-foreground">{paymentType} &mdash; &#8369;{amountDue.toLocaleString()}</span>

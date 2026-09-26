@@ -54,7 +54,18 @@ async function getAnalyticsInstance() {
  * @param {Object} [params] - Standard or custom event parameters
  * @returns {Promise<void>}
  */
+function isTrainingSession() {
+  try {
+    return localStorage.getItem("bshm_training_override") === "true";
+  } catch {
+    return false;
+  }
+}
+
 export async function trackEvent(eventName, params = {}) {
+  // Training traffic is noise in production funnels — drop it centrally
+  // so no caller needs a mode check.
+  if (isTrainingSession()) return;
   const instance = await getAnalyticsInstance();
   if (!instance) return;
   try {

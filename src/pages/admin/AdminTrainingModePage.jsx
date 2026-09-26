@@ -18,6 +18,7 @@ import {
 } from "@/services/trainingService";
 import { seedTrainingData } from "@/services/seedService";
 import { listRooms } from "@/services/roomsService";
+import { isTrainingStepDone } from "@/lib/trainingSteps";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -64,7 +65,23 @@ export default function AdminTrainingModePage() {
 
   const [seeding, setSeeding] = useState(false);
   const [resetting, setResetting] = useState(false);
-  const [sandboxEmpty, setSandboxEmpty] = useState(false);
+  // null = unknown (room check not run yet). Steps 3-4 require an explicit
+  // false so they never light up from the initial value.
+  const [sandboxEmpty, setSandboxEmpty] = useState(null);
+
+  // Re-checks whether the sandbox holds rooms. Returns the fresh value so
+  // callers can act on it; leaves state unknown when the check itself fails.
+  async function refreshSandbox() {
+    try {
+      const rooms = await listRooms({ trainingMode: true });
+      const empty = rooms.length === 0;
+      setSandboxEmpty(empty);
+      return empty;
+    } catch {
+      setSandboxEmpty(null);
+      return null;
+    }
+  }
 
   useEffect(() => {
     let isMounted = true;
@@ -83,11 +100,13 @@ export default function AdminTrainingModePage() {
         );
 
         if (sys.enabled) {
-          const rooms = await listRooms({ trainingMode: true }).catch(() => []);
+          const rooms = await listRooms({ trainingMode: true }).catch(
+            () => null,
+          );
           if (!isMounted) return;
-          setSandboxEmpty(rooms.length === 0);
+          setSandboxEmpty(rooms === null ? null : rooms.length === 0);
         } else {
-          setSandboxEmpty(false);
+          setSandboxEmpty(null);
         }
       } catch (e) {
         if (!isMounted) return;
@@ -108,11 +127,18 @@ export default function AdminTrainingModePage() {
     try {
       await setTrainingModeEnabled(!trainingMode);
       const sys = await getTrainingSystemState();
-      setTrainingMode(Boolean(sys.enabled));
+      const enabled = Boolean(sys.enabled);
+      setTrainingMode(enabled);
       setSessionCode(sys.sessionCode);
       setSessionExpiryIso(
         sys.sessionExpiryIso?.toString?.() ?? sys.sessionExpiryIso ?? null,
       );
+      if (enabled) {
+        setSandboxEmpty(null);
+        await refreshSandbox();
+      } else {
+        setSandboxEmpty(null);
+      }
     } catch (e) {
       setError(e?.message || "Failed to toggle training mode.");
     }
@@ -144,7 +170,7 @@ export default function AdminTrainingModePage() {
           ? `Demo data seeded: ${c.rooms} rooms, ${c.guests} users, ${c.bookings} bookings, ${c.payments} payment(s).`
           : "Demo data seeded successfully.",
       );
-      setSandboxEmpty(false);
+      await refreshSandbox();
     } catch (e) {
       setError(e?.message || "Failed to seed demo data.");
     } finally {
@@ -195,10 +221,11 @@ export default function AdminTrainingModePage() {
       {/* Workflow strip — fused into one panel, sections split by dividers */}
       <div className="grid grid-cols-1 sm:grid-cols-4 divide-y sm:divide-y-0 divide-x divide-border rounded-xl border border-border bg-background shadow-sm overflow-hidden">
         {STEPS.map((step) => {
-          const done =
-            (step.n === 1 && trainingMode) ||
-            (step.n === 2 && Boolean(sessionCode)) ||
-            (step.n === 3 && !sandboxEmpty && trainingMode);
+          const done = isTrainingStepDone(step.n, {
+            trainingMode,
+            sessionCode,
+            sandboxEmpty,
+          });
           return (
             <div key={step.n} className="flex items-center gap-2.5 px-4 py-3.5">
               <span
@@ -358,7 +385,7 @@ export default function AdminTrainingModePage() {
         </CardHeader>
 
         <CardContent className="space-y-4">
-          {trainingMode && sandboxEmpty && (
+          {trainingMode && sandboxEmpty === true && (
             <div className="flex items-center gap-2 rounded-lg border border-warning/30 bg-warning/5 px-3 py-2.5 text-sm text-foreground/80">
               <AlertTriangle className="h-4 w-4 shrink-0 text-warning" />
               The sandbox is currently empty — seed demo data so trainees see a

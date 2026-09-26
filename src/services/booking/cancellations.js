@@ -67,9 +67,12 @@ export async function cancelBooking(bookingId, { trainingMode = null } = {}) {
     const bookingData = bookingSnap.data();
     const previousStatus = bookingData.status;
 
+    // Every guest-initiated cancel counts toward the limit, whatever the
+    // prior status was — the dialog advertises remaining counts on all
+    // cancels, so gating on Approved only left Pending cancels free forever.
     let userSnap = null;
     let userRef = null;
-    if (previousStatus === "Approved") {
+    if (bookingData.guestId) {
       const uCol = getCol("users", trainingMode);
       userRef = doc(db, uCol, bookingData.guestId);
       userSnap = await transaction.get(userRef);

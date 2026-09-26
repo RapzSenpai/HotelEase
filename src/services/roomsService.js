@@ -173,7 +173,7 @@ export function subscribeToRooms(callback, { trainingMode = null } = {}) {
     },
     (error) => {
       console.error("[roomsService] subscribeToRooms error:", error);
-      callback([]);
+      callback([], error);
     }
   );
 }

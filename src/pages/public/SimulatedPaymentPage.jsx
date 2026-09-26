@@ -8,20 +8,102 @@ import { useAuth } from "@/contexts/AuthContext";
 import { getBooking } from "@/services/bookingsService";
 import { getRoom } from "@/services/roomsService";
 import { completeSimulatedPayment } from "@/services/paymentGatewayService";
-import { calculatePartialPayment } from "@/lib/paymentDetails";
+import { calculatePartialPayment, getPaymentDetails } from "@/lib/paymentDetails";
 import PaymentMethodIcon from "@/components/common/PaymentMethodIcon";
 import { mapFirebaseError } from "@/lib/errors";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   ArrowLeft,
   CalendarDays,
   CheckCircle2,
   Clock,
+  Copy,
   CreditCard,
+  Landmark,
   Loader2,
   ShieldCheck,
   Users,
 } from "lucide-react";
 
+
+/**
+ * Bank details + reference input. Bank Transfer only.
+ * Same card shape as the rest of checkout so the UI stays consistent.
+ */
+function BankTransferPanel({
+  amountDue,
+  bankRef,
+  bankRefError,
+  processing,
+  onBankRefChange,
+  onCopy,
+  onConfirm,
+}) {
+  const details = getPaymentDetails("Bank Transfer");
+  return (
+    <div className="rounded-xl border border-border bg-background p-5 space-y-4">
+      <div className="flex items-center gap-2">
+        <Landmark className="h-4 w-4 text-primary" />
+        <span className="text-base font-semibold">Hotel Bank Details</span>
+      </div>
+      <div className="space-y-2 text-sm">
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-foreground/50">Bank</span>
+          <span className="font-medium text-right">{details.bankName}</span>
+        </div>
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-foreground/50">Account number</span>
+          <span className="flex items-center gap-2">
+            <span className="font-mono font-semibold">{details.accountNumber}</span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2"
+              onClick={() => onCopy(details.accountNumber)}
+            >
+              <Copy className="h-3.5 w-3.5" />
+            </Button>
+          </span>
+        </div>
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-foreground/50">Account name</span>
+          <span className="font-medium text-right">{details.accountName}</span>
+        </div>
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-foreground/50">Amount to send</span>
+          <span className="font-semibold">PHP {amountDue.toLocaleString()}</span>
+        </div>
+      </div>
+      <ol className="space-y-1.5 text-sm text-foreground/70">
+        <li>1. Send the amount from your banking app to the account above.</li>
+        <li>2. Copy the reference number from your banking app.</li>
+        <li>3. Paste it below, then confirm.</li>
+      </ol>
+      <div className="space-y-2">
+        <Label htmlFor="bankRef" className="text-sm font-medium">
+          Your bank reference number
+        </Label>
+        <Input
+          id="bankRef"
+          placeholder="e.g. 1234567890"
+          value={bankRef}
+          onChange={(e) => onBankRefChange(e.target.value)}
+          disabled={processing}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") onConfirm();
+          }}
+        />
+        {bankRefError ? (
+          <p className="text-xs text-destructive">{bankRefError}</p>
+        ) : (
+          <p className="text-xs text-foreground/50">Found in your banking app after you send.</p>
+        )}
+      </div>
+    </div>
+  );
+}
 
 /**
  * Simulated gateway checkout (sandbox provider).
@@ -40,6 +122,9 @@ export default function SimulatedPaymentPage() {
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [successRef, setSuccessRef] = useState(null);
+  const [bankRef, setBankRef] = useState("");
+  const [bankRefError, setBankRefError] = useState(null);
+  const [successBankRef, setSuccessBankRef] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -75,18 +160,43 @@ export default function SimulatedPaymentPage() {
       : Number(booking.totalCost ?? 0)
     : 0;
 
+  const isBank = booking?.paymentMethod === "Bank Transfer";
+
   async function handleConfirmPayment() {
+    if (isBank) {
+      const trimmed = bankRef.trim();
+      if (trimmed.length < 4) {
+        setBankRefError("Enter the reference number from your banking app.");
+        return;
+      }
+      setBankRefError(null);
+    }
     setProcessing(true);
     try {
-      const res = await completeSimulatedPayment({ bookingId, trainingMode });
+      const res = await completeSimulatedPayment({
+        bookingId,
+        trainingMode,
+        userBankRef: isBank ? bankRef.trim() : undefined,
+      });
       // Brief pause so the processing state reads as a gateway handshake.
       await new Promise((resolve) => setTimeout(resolve, 1200));
       setSuccessRef(res.gatewayRef);
+      setSuccessBankRef(res.bankRef || (isBank ? bankRef.trim() : null));
       toast.success("Payment successful!");
     } catch (e) {
       toast.error(mapFirebaseError(e) || "Payment failed. Please try again.");
     } finally {
       setProcessing(false);
+    }
+  }
+
+  function handleCopy(text) {
+    if (!text) return;
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(text).then(
+        () => toast.success("Copied."),
+        () => toast.error("Copy failed. Copy it manually.")
+      );
     }
   }
 
@@ -113,6 +223,11 @@ export default function SimulatedPaymentPage() {
               Reference Number
             </p>
             <p className="font-mono font-semibold text-lg">{successRef}</p>
+            {successBankRef ? (
+              <p className="text-xs text-foreground/60">
+                Bank ref: <span className="font-mono font-semibold">{successBankRef}</span>
+              </p>
+            ) : null}
           </div>
           <p className="text-xs text-foreground/60">
             Front Office staff will verify your payment and approve the booking. Keep this
@@ -232,18 +347,38 @@ export default function SimulatedPaymentPage() {
         </div>
       </div>
 
+      {isBank ? (
+        <BankTransferPanel
+          amountDue={amountDue}
+          bankRef={bankRef}
+          bankRefError={bankRefError}
+          processing={processing}
+          onBankRefChange={(v) => {
+            setBankRef(v);
+            if (bankRefError) setBankRefError(null);
+          }}
+          onCopy={handleCopy}
+          onConfirm={handleConfirmPayment}
+        />
+      ) : null}
+
       {/* Confirm */}
       <div className="rounded-xl border border-border bg-background p-5 space-y-3">
         <Button
           size="lg"
           className="w-full"
-          disabled={processing}
+          disabled={processing || (isBank && bankRef.trim().length < 4)}
           onClick={handleConfirmPayment}
         >
           {processing ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               Processing payment…
+            </>
+          ) : isBank ? (
+            <>
+              <Landmark className="mr-2 h-4 w-4" />
+              I Have Transferred — PHP {amountDue.toLocaleString()}
             </>
           ) : (
             <>
