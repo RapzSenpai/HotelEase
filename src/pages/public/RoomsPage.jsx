@@ -373,7 +373,11 @@ export default function RoomsPage() {
         // A denied subscription used to look like an empty room list.
         // Show the failure instead so training join problems are visible.
         setError(
-          err ? "Could not load rooms. Check your connection and try again." : null,
+          !err
+            ? null
+            : err.code === "permission-denied"
+              ? "You don't have access to these rooms. If you just joined a training session, ask your instructor for a new code and rejoin."
+              : "Could not load rooms. Check your connection and try again.",
         );
         if (!settled) {
           settled = true;

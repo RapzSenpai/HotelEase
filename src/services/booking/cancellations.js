@@ -85,6 +85,16 @@ export async function cancelBooking(bookingId, { trainingMode = null } = {}) {
       roomSnap = await transaction.get(roomRef);
     }
 
+    // Retries on an already-cancelled booking succeed without side effects:
+    // no second count increment, no room writes.
+    if (previousStatus === "Cancelled") {
+      const retryRoomName =
+        roomSnap && roomSnap.exists()
+          ? roomSnap.data().name || roomSnap.data().type || "Room"
+          : "Room";
+      return { booking: { id: bookingId, ...bookingData }, roomName: retryRoomName };
+    }
+
     // --- All reads done, now perform writes ---
 
     if (userSnap && userSnap.exists()) {

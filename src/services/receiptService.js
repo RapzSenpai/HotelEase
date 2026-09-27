@@ -93,10 +93,16 @@ export const generateReceipt = (data) => {
   doc.text(`Email: ${data.guestEmail}`, margin, 68);
   doc.text(`Assisted by: ${data.processedBy}`, margin, 73);
 
-  const baseTotal = data.baseTotal ?? ((data.total ?? data.subtotal) - (data.extraPaxTotal || 0));
+  const baseTotal = data.baseTotal ?? ((data.total ?? data.subtotal) - (data.extraPaxTotal || 0) - (data.overstayFee || 0));
   const hasExtraPax = data.extraPaxTotal > 0;
   const roomLabel = data.roomType ? `${data.roomName} (${data.roomType})` : `${data.roomName}`;
-  const refParts = [data.gatewayRef, data.bankRef, data.reference].filter(Boolean);
+  // Each reference keeps its source label so a system ref can never read
+  // as belonging to the guest's payment method row or vice versa.
+  const refParts = [
+    data.gatewayRef ? `System ref ${data.gatewayRef}` : null,
+    data.bankRef ? `Bank ref ${data.bankRef}` : null,
+    data.reference || null,
+  ].filter(Boolean);
 
   // --- STAY DETAILS TABLE ---
   autoTable(doc, {

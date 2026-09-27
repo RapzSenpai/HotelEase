@@ -56,7 +56,16 @@ export async function listAnnouncements({ limitCount = 6 } = {}) {
 // Writes from training mode are blocked so trainees can never publish to
 // the real site or notify real guests.
 function blockTrainingWrites(trainingMode) {
-  if (trainingMode === true || trainingMode === "training") {
+  // Match getCol: an omitted mode falls back to the training override.
+  let mode = trainingMode;
+  if (mode === null || mode === undefined) {
+    try {
+      mode = localStorage.getItem("bshm_training_override") === "true";
+    } catch {
+      mode = false;
+    }
+  }
+  if (mode === true || mode === "training") {
     throw new Error("Announcements are turned off in training mode.");
   }
 }

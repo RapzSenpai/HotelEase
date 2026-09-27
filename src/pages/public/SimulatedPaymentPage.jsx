@@ -77,9 +77,9 @@ function BankTransferPanel({
         </div>
       </div>
       <ol className="space-y-1.5 text-sm text-foreground/70">
-        <li>1. Send the amount from your banking app to the account above.</li>
-        <li>2. Copy the reference number from your banking app.</li>
-        <li>3. Paste it below, then confirm.</li>
+        <li>1. Copy the account details above for practice.</li>
+        <li>2. Type any demo reference below. No real transfer happens here.</li>
+        <li>3. Confirm to finish the demo payment.</li>
       </ol>
       <div className="space-y-2">
         <Label htmlFor="bankRef" className="text-sm font-medium">
@@ -98,7 +98,7 @@ function BankTransferPanel({
         {bankRefError ? (
           <p className="text-xs text-destructive">{bankRefError}</p>
         ) : (
-          <p className="text-xs text-foreground/50">Found in your banking app after you send.</p>
+          <p className="text-xs text-foreground/50">Demo only. Any 4+ character reference works.</p>
         )}
       </div>
     </div>
@@ -166,7 +166,7 @@ export default function SimulatedPaymentPage() {
     if (isBank) {
       const trimmed = bankRef.trim();
       if (trimmed.length < 4) {
-        setBankRefError("Enter the reference number from your banking app.");
+        setBankRefError("Enter a demo reference, at least 4 characters.");
         return;
       }
       setBankRefError(null);
@@ -378,7 +378,7 @@ export default function SimulatedPaymentPage() {
           ) : isBank ? (
             <>
               <Landmark className="mr-2 h-4 w-4" />
-              I Have Transferred — PHP {amountDue.toLocaleString()}
+              Confirm Demo Transfer — PHP {amountDue.toLocaleString()}
             </>
           ) : (
             <>

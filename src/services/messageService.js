@@ -64,8 +64,12 @@ export async function submitMessage({ name, email, subject, message, guestId = n
     throw new Error("Message must be between 20 and 2000 characters.");
   }
 
-  // Cooldown key is per-mode so training submits never throttle prod ones.
-  const sentKey = trainingMode ? `${LAST_SENT_KEY}_training` : LAST_SENT_KEY;
+  // Cooldown key follows the resolved collection (not the raw flag) so it
+  // can never disagree with where the message is actually stored.
+  const sentKey =
+    getCol(MESSAGES_COL, trainingMode) !== MESSAGES_COL
+      ? `${LAST_SENT_KEY}_training`
+      : LAST_SENT_KEY;
   try {
     const lastSent = Number(localStorage.getItem(sentKey) || 0);
     const waitMs = MESSAGE_COOLDOWN_MS - (Date.now() - lastSent);

@@ -52,20 +52,30 @@ service cloud.firestore {
       return isProdAdmin();
     }
 
-    // Training sandbox access: any signed-in user (including anonymous
-    // trainees) may use training_* collections. No custom claims are issued
-    // (no backend), so gates are identity-based. Blast radius is sandbox-only:
-    // prod collections never grant anything on training identity.
+    // Training sandbox access: signed-in users who joined a session
+    // (training_guests doc exists) while training is globally enabled.
+    // No custom claims are issued (no backend), so gates are doc-based.
+    // Blast radius is sandbox-only: prod collections never grant anything
+    // on training identity.
+    function trainingSessionActive() {
+      return get(/databases/$(database)/documents/users/system).data.enabled == true;
+    }
+
     function isTrainingParticipant() {
-      return isAuthenticated();
+      // Prod staff always pass: they own prod access already, and admin
+      // seeding/reset runs as prod admin (no training_guests doc).
+      return isAuthenticated() && (isProdFOOrAdmin() ||
+              (trainingSessionActive() &&
+               exists(/databases/$(database)/documents/training_guests/$(request.auth.uid))));
     }
 
     // Training staff powers come from the trainee's own training_guests doc
     // (role self-declared at join). Worst case a trainee promotes themself
     // inside the sandbox — production is untouched.
     function isTrainingFOOrAdmin() {
-      return isAuthenticated() &&
-              get(/databases/$(database)/documents/training_guests/$(request.auth.uid)).data.role in ['fo', 'admin'];
+      return isProdFOOrAdmin() ||
+              (isTrainingParticipant() &&
+               get(/databases/$(database)/documents/training_guests/$(request.auth.uid)).data.role in ['fo', 'admin']);
     }
 
     // Guest read-only access to payments linked to their own prod booking (Phase 18.3 folio).
@@ -350,6 +360,8 @@ service cloud.firestore {
       // Staff (prod or training) may seed demo users of any role.
       allow create: if (isProdFOOrAdmin() || isTrainingFOOrAdmin()) ||
                      (isOwner(uid) &&
+                      // Self-declared roles only count while a session is live.
+                      trainingSessionActive() &&
                       request.resource.data.role in ['guest', 'fo', 'admin'] &&
                       request.resource.data.uid == request.auth.uid &&
                       request.resource.data.keys().hasOnly(
@@ -487,10 +499,35 @@ service cloud.firestore {
     }
 
     // Training contact inbox. Mirrors /messages so trainee questions never
-    // land in the production FO inbox.
+    // land in the production FO inbox. Same shape validation as /messages.
     match /training_messages/{messageId} {
-      allow read: if isTrainingParticipant();
-      allow create: if isTrainingParticipant();
+      // FO/Admin see all; trainees see only their own submissions.
+      allow read: if isTrainingParticipant() &&
+                     (isTrainingFOOrAdmin() ||
+                      resource.data.get('guestId', null) == request.auth.uid);
+      allow create: if isTrainingParticipant() &&
+                       request.resource.data.get('honeypot', '') == '' &&
+                       request.resource.data.keys().hasOnly(
+                         ['id', 'name', 'email', 'subject', 'message', 'status',
+                          'guestId', 'createdAt', 'repliedAt', 'replyMessage']) &&
+                       request.resource.data.name is string &&
+                       request.resource.data.name.size() >= 1 &&
+                       request.resource.data.name.size() <= 100 &&
+                       request.resource.data.email is string &&
+                       request.resource.data.email.size() <= 254 &&
+                       request.resource.data.email.matches('^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$') &&
+                       request.resource.data.subject is string &&
+                       request.resource.data.subject.size() >= 1 &&
+                       request.resource.data.subject.size() <= 200 &&
+                       request.resource.data.message is string &&
+                       request.resource.data.message.size() >= 1 &&
+                       request.resource.data.message.size() <= 5000 &&
+                       request.resource.data.status == 'unread' &&
+                       request.resource.data.get('repliedAt', null) == null &&
+                       request.resource.data.get('replyMessage', null) == null &&
+                       (request.resource.data.get('guestId', null) == null ||
+                        request.resource.data.get('guestId', null) is string) &&
+                       request.resource.data.createdAt == request.time;
       allow update: if isTrainingParticipant() && isTrainingFOOrAdmin();
       allow delete: if isTrainingParticipant() && isTrainingFOOrAdmin();
     }
