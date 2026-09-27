@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Plus, BedDouble } from "lucide-react";
@@ -86,21 +86,34 @@ export default function AdminRoomManagementPage() {
 
   // ---- fetch rooms ----
   // Explicit mode (never the override fallback) so training edits can
-  // never land in production inventory.
+  // never land in production inventory. Superseded loads are discarded so
+  // a slow request for the previous mode cannot overwrite the live list.
+  const roomsRequestRef = useRef(0);
   async function refresh() {
+    const mode = trainingMode;
+    const requestId = ++roomsRequestRef.current;
     setLoading(true);
     setError(null);
     try {
-      const data = await listRooms({ trainingMode });
+      const data = await listRooms({ trainingMode: mode });
+      if (roomsRequestRef.current !== requestId) return;
       setRooms(data);
     } catch (e) {
+      if (roomsRequestRef.current !== requestId) return;
       setError(e?.message || "Failed to load rooms.");
     } finally {
-      setLoading(false);
+      if (roomsRequestRef.current === requestId) setLoading(false);
     }
   }
 
   useEffect(() => {
+    // Close any open form on mode change: its editingId belongs to the
+    // previous inventory, and submitting it under the new mode would write
+    // one collection's room ID into the other.
+    setEditingId(null);
+    setForm(initialForm());
+    setSubmitError(null);
+    setFormOpen(false);
     refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trainingMode]);

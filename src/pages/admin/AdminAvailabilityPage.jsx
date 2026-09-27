@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   Card,
@@ -60,20 +60,30 @@ function DriftList({ title, description, items, render, tone }) {
 export default function AdminAvailabilityPage() {
   const { trainingMode } = useAuth();
   const [diff, setDiff] = useState(null);
+  const [diffMode, setDiffMode] = useState(null);
   const [loading, setLoading] = useState(true);
   const [repairing, setRepairing] = useState(false);
   const [error, setError] = useState(null);
+  const loadRequestRef = useRef(0);
 
   // Explicit mode so a training session never diffs or repairs prod markers.
+  // Superseded loads are discarded: only the latest request may store its
+  // diff, and repair runs only when the stored diff matches the live mode.
   const load = useCallback(async () => {
+    const mode = trainingMode;
+    const requestId = ++loadRequestRef.current;
     setLoading(true);
     setError(null);
     try {
-      setDiff(await loadAvailabilityDiff({ trainingMode }));
+      const result = await loadAvailabilityDiff({ trainingMode: mode });
+      if (loadRequestRef.current !== requestId) return;
+      setDiff(result);
+      setDiffMode(mode);
     } catch (e) {
+      if (loadRequestRef.current !== requestId) return;
       setError(e?.message || "Failed to load availability data.");
     } finally {
-      setLoading(false);
+      if (loadRequestRef.current === requestId) setLoading(false);
     }
   }, [trainingMode]);
 
@@ -85,7 +95,14 @@ export default function AdminAvailabilityPage() {
   const missing = diff?.missingMarkers ?? [];
   const issueCount = orphans.length + missing.length;
 
+  const diffStale = diffMode !== null && diffMode !== trainingMode;
+
   async function handleRepair() {
+    if (diffStale) {
+      toast.error("Mode changed while loading. Refreshing — repair after reload.");
+      await load();
+      return;
+    }
     setRepairing(true);
     try {
       const result = await repairAvailability({ orphanMarkers: orphans, missingMarkers: missing, trainingMode });
@@ -115,7 +132,7 @@ export default function AdminAvailabilityPage() {
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
             Refresh
           </Button>
-          <Button onClick={handleRepair} disabled={loading || repairing || issueCount === 0} className="gap-2">
+          <Button onClick={handleRepair} disabled={loading || repairing || issueCount === 0 || diffStale} className="gap-2">
             {repairing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wrench className="h-4 w-4" />}
             Repair all
           </Button>
