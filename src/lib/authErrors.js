@@ -1,7 +1,9 @@
 const AUTH_ERROR_MAP = {
   "auth/invalid-credential": "The email or password you entered is incorrect.",
-  "auth/user-not-found": "No account found with this email.",
-  "auth/wrong-password": "The password you entered is incorrect.",
+  // Same generic message as invalid-credential: never reveal whether an
+  // account exists for the typed email (enumeration protection may be off).
+  "auth/user-not-found": "The email or password you entered is incorrect.",
+  "auth/wrong-password": "The email or password you entered is incorrect.",
   "auth/too-many-requests": "Too many attempts. Please wait a moment and try again.",
   "auth/invalid-email": "The email address is not valid.",
   "auth/network-request-failed": "Network error. Please check your connection and try again.",

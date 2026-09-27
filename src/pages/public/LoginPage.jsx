@@ -35,6 +35,18 @@ export default function LoginPage() {
   const [trainingRole, setTrainingRole] = useState("guest");
   const [trainingSubmitting, setTrainingSubmitting] = useState(false);
 
+  // Firebase returns invalid-credential for both bad passwords and unknown
+  // emails (enumeration protection); treat all three codes identically so
+  // the UI never signals which one happened.
+  function isCredentialError(err) {
+    const code = err?.code || "";
+    if (["auth/invalid-credential", "auth/user-not-found", "auth/wrong-password"].includes(code)) {
+      return true;
+    }
+    const match = String(err?.message || "").match(/auth\/([a-zA-Z0-9_-]+)/);
+    return ["invalid-credential", "user-not-found", "wrong-password"].includes(match?.[1]);
+  }
+
   async function onSubmit(e) {
     e.preventDefault();
 
@@ -53,12 +65,17 @@ export default function LoginPage() {
       else navigate("/my-bookings");
     } catch (err) {
       const justLocked = registerFailure();
-      const message = mapAuthError(err) || "Login failed.";
       if (justLocked) {
         toast.error("Too many failed attempts", {
           description: `Account locked for ${lockSeconds} seconds.`,
         });
+      } else if (isCredentialError(err)) {
+        // Wrong email, wrong password, or no account: one generic message,
+        // no attempt countdown (a countdown on a nonexistent account leaks
+        // that the account doesn't exist and reads as a bug).
+        toast.error("The email or password you entered is incorrect.");
       } else {
+        const message = mapAuthError(err) || "Login failed.";
         const remaining = maxAttempts - (failedAttempts + 1);
         toast.error(message, {
           description: `${remaining} attempt${remaining !== 1 ? "s" : ""} remaining before lockout.`,

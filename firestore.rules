@@ -247,11 +247,12 @@ service cloud.firestore {
                          request.resource.data.totalCost >= 0 &&
                          request.resource.data.paxCount is int &&
                          bookingPriceIsValid(request.resource.data) &&
-                         request.resource.data.createdAt is timestamp &&
-                         request.resource.data.createdAt == request.time &&
-                         request.resource.data.paymentDeadline is timestamp &&
-                         request.resource.data.paymentDeadline >= request.resource.data.createdAt &&
-                         request.resource.data.paymentDeadline <= request.resource.data.createdAt + duration.value(48, 'h') &&
+                          request.resource.data.createdAt is timestamp &&
+                          request.resource.data.createdAt <= request.time + duration.value(5, 'm') &&
+                          request.resource.data.createdAt >= request.time - duration.value(5, 'm') &&
+                          request.resource.data.paymentDeadline is timestamp &&
+                          request.resource.data.paymentDeadline >= request.resource.data.createdAt &&
+                          request.resource.data.paymentDeadline <= request.resource.data.createdAt + duration.value(48, 'h') + duration.value(5, 'm') &&
                          request.resource.data.payment.deposit == 0 &&
                          request.resource.data.payment.keys().hasOnly(['method', 'deposit']) &&
                          request.resource.data.paymentProofUrl == null &&

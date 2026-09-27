@@ -466,6 +466,11 @@ export default function RoomsPage() {
     !checkOut;
 
   const datesReady = checkIn && checkOut;
+  const selectedNights = useMemo(() => {
+    if (!checkIn || !checkOut) return 0;
+    const ms = new Date(`${checkOut}T00:00:00`) - new Date(`${checkIn}T00:00:00`);
+    return Math.max(0, Math.round(ms / (1000 * 60 * 60 * 24)));
+  }, [checkIn, checkOut]);
 
   return (
     <div className="space-y-8">
@@ -483,7 +488,8 @@ export default function RoomsPage() {
       <div className="space-y-3">
         {/* Row 1: Date pickers + Search */}
         <div className="flex flex-wrap items-end gap-3">
-          <div className="flex-1 min-w-[150px]">
+          <div className="flex-1 min-w-[150px] space-y-1.5">
+            <label className="text-xs font-semibold uppercase tracking-wide text-foreground/60">Check-in</label>
             <div className="relative">
               <Input
                 type="date"
@@ -498,7 +504,8 @@ export default function RoomsPage() {
               <CalendarIcon className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-foreground/40 pointer-events-none" />
             </div>
           </div>
-          <div className="flex-1 min-w-[150px]">
+          <div className="flex-1 min-w-[150px] space-y-1.5">
+            <label className="text-xs font-semibold uppercase tracking-wide text-foreground/60">Check-out</label>
             <div className="relative">
               <Input
                 type="date"
@@ -514,21 +521,19 @@ export default function RoomsPage() {
               <CalendarIcon className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-foreground/40 pointer-events-none" />
             </div>
           </div>
-          {datesReady && (
-            <Button
-              type="button"
-              onClick={handleCheckAvailability}
-              disabled={availabilityLoading}
-              className="gap-2 h-10 rounded-lg"
-            >
-              <Search className="h-4 w-4" />
-              {availabilityLoading
-                ? "Checking…"
-                : availabilityChecked
-                  ? "Re-check"
-                  : "Check Availability"}
-            </Button>
-          )}
+          <Button
+            type="button"
+            onClick={handleCheckAvailability}
+            disabled={!datesReady || availabilityLoading}
+            className="gap-2 h-10 rounded-lg"
+          >
+            <Search className="h-4 w-4" />
+            {availabilityLoading
+              ? "Checking…"
+              : availabilityChecked
+                ? "Re-check"
+                : "Check Availability"}
+          </Button>
         </div>
 
         {/* Availability status line */}
@@ -542,8 +547,13 @@ export default function RoomsPage() {
           <p className="text-xs text-destructive">{availabilityError}</p>
         )}
         {!datesReady && (
-          <p className="text-xs text-foreground/40">
-            Select dates to check availability — or browse all rooms below.
+          <p className="text-sm text-foreground/60">
+            Pick your dates, then hit <span className="font-medium text-foreground">Check Availability</span> — or browse every room below.
+          </p>
+        )}
+        {datesReady && selectedNights > 0 && !availabilityChecked && (
+          <p className="text-sm text-foreground/60">
+            <span className="font-medium text-foreground">{selectedNights} night{selectedNights === 1 ? "" : "s"}</span> selected — hit <span className="font-medium text-foreground">Check Availability</span> to filter.
           </p>
         )}
 

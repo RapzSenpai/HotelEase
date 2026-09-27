@@ -156,10 +156,10 @@ export default function BookingPaymentSection({
               <div className="text-sm font-medium">{booking.paymentMethod}</div>
             </div>
 
-            {/* Payment Instructions - collapsed, sandbox is primary */}
+            {/* Manual fallback - collapsed, sandbox gateway is primary */}
             <details className="rounded-md border border-border bg-background">
-              <summary className="cursor-pointer p-3 text-xs font-semibold">Manual payment details</summary>
-              <div className="px-3 pb-3 space-y-2">
+              <summary className="cursor-pointer p-3 text-xs font-semibold">Upload proof manually instead</summary>
+              <div className="px-3 pb-3 space-y-3">
                 <div className="space-y-1.5 text-xs">
                   <p>
                     Send <span className="font-semibold">
@@ -187,6 +187,37 @@ export default function BookingPaymentSection({
                     );
                   })()}
                 </div>
+
+                {/* File Input */}
+                <div className="space-y-2">
+                  <label htmlFor={`proof-image-${booking.id}`} className="text-xs font-semibold uppercase text-foreground/70">Proof Image</label>
+                  <div className="relative">
+                    <input
+                      id={`proof-image-${booking.id}`}
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => onPaymentFileChange(e.target.files?.[0] || null)}
+                      className="w-full text-sm text-foreground/70 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-primary file:text-primary-foreground hover:file:bg-primary/90 cursor-pointer"
+                      disabled={uploadingProof}
+                    />
+                  </div>
+                  {paymentFile && (
+                    <p className="text-xs text-foreground/60">
+                      Selected: {paymentFile.name}
+                    </p>
+                  )}
+                </div>
+
+                {/* Submit Button */}
+                <Button
+                  type="submit"
+                  size="sm"
+                  disabled={uploadingProof || !paymentFile}
+                  className="w-full sm:w-auto"
+                >
+                  <Upload className="mr-2 h-4 w-4" />
+                  {uploadingProof ? "Uploading..." : "Upload Payment Proof"}
+                </Button>
               </div>
             </details>
 
@@ -197,37 +228,6 @@ export default function BookingPaymentSection({
                 {booking.paymentType || "Full"} Payment (₱{payableAmount.toLocaleString()})
               </div>
             </div>
-
-            {/* File Input */}
-            <div className="space-y-2">
-              <label htmlFor={`proof-image-${booking.id}`} className="text-xs font-semibold uppercase text-foreground/70">Proof Image</label>
-              <div className="relative">
-                <input
-                  id={`proof-image-${booking.id}`}
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => onPaymentFileChange(e.target.files?.[0] || null)}
-                  className="w-full text-sm text-foreground/70 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-primary file:text-primary-foreground hover:file:bg-primary/90 cursor-pointer"
-                  disabled={uploadingProof}
-                />
-              </div>
-              {paymentFile && (
-                <p className="text-xs text-foreground/60">
-                  Selected: {paymentFile.name}
-                </p>
-              )}
-            </div>
-
-            {/* Submit Button */}
-            <Button
-              type="submit"
-              size="sm"
-              disabled={uploadingProof || !paymentFile}
-              className="w-full sm:w-auto"
-            >
-              <Upload className="mr-2 h-4 w-4" />
-              {uploadingProof ? "Uploading..." : "Upload Payment Proof"}
-            </Button>
           </form>
         </div>
       )}

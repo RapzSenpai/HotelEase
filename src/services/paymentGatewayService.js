@@ -85,8 +85,8 @@ export async function completeSimulatedPayment({ bookingId, trainingMode = null,
     if (!PROOF_REQUIRED_METHODS.includes(data.paymentMethod)) {
       throw new Error("This booking method does not use the online checkout");
     }
-    if (data.paymentMethod === "Bank Transfer" && trimmedBankRef.length < 4) {
-      throw new Error("Enter a demo reference, at least 4 characters.");
+    if (data.paymentMethod === "Bank Transfer" && (trimmedBankRef.length < 4 || trimmedBankRef.length > 32)) {
+      throw new Error("Enter a demo reference, 4 to 32 characters.");
     }
 
     const ref = generateGatewayRef(data.paymentMethod);

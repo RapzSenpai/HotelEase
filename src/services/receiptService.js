@@ -48,10 +48,10 @@ export const generateReceipt = (data) => {
   doc.setFillColor(...primaryColor);
   doc.rect(0, 0, pageWidth, 26, 'F');
 
-  // Logo + "HotelEase" name
+  // Logo right, "HotelEase" name left — keeps the header airy
   const logoSize = 14;
-  addHeaderLogo(doc, margin, 6, logoSize);
-  const textX = margin + logoSize + 3;
+  addHeaderLogo(doc, pageWidth - margin - logoSize, 6, logoSize);
+  const textX = margin;
   doc.setFont("helvetica", "bold");
   doc.setFontSize(18);
   doc.setTextColor(...darkTextColor);
@@ -208,8 +208,8 @@ export const generateCheckInSlip = (data) => {
   doc.rect(0, 0, pageWidth, 26, 'F');
 
   const slipLogoSize = 14;
-  addHeaderLogo(doc, margin, 6, slipLogoSize);
-  const slipTextX = margin + slipLogoSize + 3;
+  addHeaderLogo(doc, pageWidth - margin - slipLogoSize, 6, slipLogoSize);
+  const slipTextX = margin;
   doc.setFont("helvetica", "bold");
   doc.setFontSize(18);
   doc.setTextColor(...darkTextColor);

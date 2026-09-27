@@ -797,36 +797,36 @@ export default function BookingPage() {
                 </Button>
                 <details className="rounded-lg border border-border/40 bg-muted/10">
                   <summary className="cursor-pointer p-3 text-sm font-medium">Upload proof manually instead</summary>
-                  <div className="px-3 pb-3">
+                  <div className="space-y-3 px-3 pb-3">
                     {renderPaymentInstructions(paymentMethod, amountDue)}
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold">Proof Image</Label>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => setPaymentFile(e.target.files?.[0] || null)}
+                        className="w-full text-sm text-foreground/70 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-primary file:text-primary-foreground hover:file:bg-primary/90 cursor-pointer"
+                        disabled={uploadingProof}
+                      />
+                      {paymentFile && (
+                        <p className="text-xs text-foreground/60">Selected: {paymentFile.name}</p>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      <Button type="button" variant="default" onClick={handleUploadProof} disabled={uploadingProof || !paymentFile}>
+                        <Upload className="mr-2 h-4 w-4" />
+                        {uploadingProof ? "Uploading\u2026" : "Upload Payment Proof"}
+                      </Button>
+                      {/* Phase 13: Upload Later — booking held until payment deadline */}
+                      <Button type="button" variant="outline" onClick={handleSkipUpload} disabled={uploadingProof}>
+                        Skip for Now
+                      </Button>
+                    </div>
                   </div>
                 </details>
                 <div className="flex items-center gap-2 text-sm text-foreground/70">
                   <span>Payment type:</span>
                   <span className="font-semibold text-foreground">{paymentType} &mdash; &#8369;{amountDue.toLocaleString()}</span>
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-sm font-semibold">Proof Image</Label>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => setPaymentFile(e.target.files?.[0] || null)}
-                    className="w-full text-sm text-foreground/70 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-primary file:text-primary-foreground hover:file:bg-primary/90 cursor-pointer"
-                    disabled={uploadingProof}
-                  />
-                  {paymentFile && (
-                    <p className="text-xs text-foreground/60">Selected: {paymentFile.name}</p>
-                  )}
-                </div>
-                <div className="flex flex-wrap gap-2 pt-1">
-                  <Button type="button" variant="default" onClick={handleUploadProof} disabled={uploadingProof || !paymentFile}>
-                    <Upload className="mr-2 h-4 w-4" />
-                    {uploadingProof ? "Uploading\u2026" : "Upload Payment Proof"}
-                  </Button>
-                  {/* Phase 13: Upload Later — booking held until payment deadline */}
-                  <Button type="button" variant="outline" onClick={handleSkipUpload} disabled={uploadingProof}>
-                    Skip for Now
-                  </Button>
                 </div>
                 <p className="text-xs text-foreground/50">
                   You can also upload your proof later from{" "}

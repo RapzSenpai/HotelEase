@@ -42,7 +42,7 @@ function BankTransferPanel({
 }) {
   const details = getPaymentDetails("Bank Transfer");
   return (
-    <div className="rounded-xl border border-border bg-background p-5 space-y-4">
+    <div className="rounded-xl border border-border bg-background p-4 sm:p-5 space-y-4">
       <div className="flex items-center gap-2">
         <Landmark className="h-4 w-4 text-primary" />
         <span className="text-base font-semibold">Hotel Bank Details</span>
@@ -88,6 +88,7 @@ function BankTransferPanel({
         <Input
           id="bankRef"
           placeholder="e.g. 1234567890"
+          maxLength={32}
           value={bankRef}
           onChange={(e) => onBankRefChange(e.target.value)}
           disabled={processing}
@@ -98,7 +99,7 @@ function BankTransferPanel({
         {bankRefError ? (
           <p className="text-xs text-destructive">{bankRefError}</p>
         ) : (
-          <p className="text-xs text-foreground/50">Demo only. Any 4+ character reference works.</p>
+          <p className="text-xs text-foreground/50">Demo only. 4 to 32 characters.</p>
         )}
       </div>
     </div>
@@ -165,8 +166,8 @@ export default function SimulatedPaymentPage() {
   async function handleConfirmPayment() {
     if (isBank) {
       const trimmed = bankRef.trim();
-      if (trimmed.length < 4) {
-        setBankRefError("Enter a demo reference, at least 4 characters.");
+      if (trimmed.length < 4 || trimmed.length > 32) {
+        setBankRefError("Enter a demo reference, 4 to 32 characters.");
         return;
       }
       setBankRefError(null);
@@ -263,9 +264,11 @@ export default function SimulatedPaymentPage() {
   }
 
   // ── Checkout ────────────────────────────────────────────────────────────
+  // Bank flow runs two columns on desktop (bank details left, summary
+  // right); single column otherwise. GCash keeps the narrow layout.
   return (
-    <div className="mx-auto max-w-lg px-4 py-10 space-y-4">
-      <div className="flex items-center gap-2">
+    <div className={`mx-auto px-4 py-6 sm:py-10 space-y-4 ${isBank ? "max-w-4xl" : "max-w-lg"}`}>
+      <div className="flex flex-wrap items-center gap-2">
         <Button variant="ghost" size="sm" onClick={() => navigate("/my-bookings")}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
@@ -287,20 +290,22 @@ export default function SimulatedPaymentPage() {
         </p>
       </div>
 
-      {/* Booking summary */}
-      <div className="rounded-xl border border-border bg-background p-5 space-y-3">
+      {/* Booking summary + bank details: side by side on desktop for bank */}
+      <div className={isBank ? "grid gap-4 lg:grid-cols-2 lg:items-stretch" : "space-y-4"}>
+      <div className={isBank ? "lg:order-2 space-y-4" : "space-y-4"}>
+      <div className="rounded-xl border border-border bg-background p-5 sm:p-6 space-y-4 lg:h-full lg:flex lg:flex-col">
         <div className="flex items-center gap-2">
           <CreditCard className="h-4 w-4 text-primary" />
           <span className="text-base font-semibold">Payment Summary</span>
         </div>
-        <div className="grid grid-cols-2 gap-2 text-sm">
+        <div className="grid grid-cols-2 gap-2 sm:gap-3 text-sm">
           <div className="space-y-0.5">
             <p className="text-xs text-foreground/50 uppercase tracking-wide">Room</p>
             <p className="font-medium">{room?.name || room?.type || "Room"}</p>
           </div>
           <div className="space-y-0.5">
             <p className="text-xs text-foreground/50 uppercase tracking-wide">Booking ID</p>
-            <p className="font-mono font-medium text-sm">{bookingId}</p>
+            <p className="font-mono font-medium text-sm break-all min-w-0">{bookingId}</p>
           </div>
           <div className="space-y-0.5">
             <p className="text-xs text-foreground/50 uppercase tracking-wide">Check-in</p>
@@ -334,39 +339,22 @@ export default function SimulatedPaymentPage() {
           </div>
         </div>
 
-        <div className="flex items-center justify-between rounded-lg border border-border bg-muted/10 p-3">
-          <div>
+        <div className="flex items-center justify-between gap-2 rounded-lg border border-border bg-muted/10 p-3 sm:p-4">
+          <div className="min-w-0">
             <p className="text-xs text-foreground/50 uppercase tracking-wide">
               Amount Due ({booking.paymentType || "Full"} Payment)
             </p>
-            <p className="text-2xl font-bold tabular-nums">
+            <p className="text-xl sm:text-2xl font-bold tabular-nums break-words">
               PHP {amountDue.toLocaleString()}
             </p>
           </div>
-          <Clock className="h-5 w-5 text-foreground/30" />
+          <Clock className="h-5 w-5 shrink-0 text-foreground/30" />
         </div>
-      </div>
 
-      {isBank ? (
-        <BankTransferPanel
-          amountDue={amountDue}
-          bankRef={bankRef}
-          bankRefError={bankRefError}
-          processing={processing}
-          onBankRefChange={(v) => {
-            setBankRef(v);
-            if (bankRefError) setBankRefError(null);
-          }}
-          onCopy={handleCopy}
-          onConfirm={handleConfirmPayment}
-        />
-      ) : null}
-
-      {/* Confirm */}
-      <div className="rounded-xl border border-border bg-background p-5 space-y-3">
+        {/* Confirm — merged into the summary card, below Amount Due */}
         <Button
           size="lg"
-          className="w-full"
+          className="w-full lg:mt-auto"
           disabled={processing || (isBank && bankRef.trim().length < 4)}
           onClick={handleConfirmPayment}
         >
@@ -391,6 +379,25 @@ export default function SimulatedPaymentPage() {
           By confirming, a payment reference will be generated and your booking will move
           to <span className="font-medium">Pending</span> for Front Office verification.
         </p>
+      </div>
+      </div>
+
+      {isBank ? (
+        <div className="lg:order-1">
+          <BankTransferPanel
+            amountDue={amountDue}
+            bankRef={bankRef}
+            bankRefError={bankRefError}
+            processing={processing}
+            onBankRefChange={(v) => {
+              setBankRef(v);
+              if (bankRefError) setBankRefError(null);
+            }}
+            onCopy={handleCopy}
+            onConfirm={handleConfirmPayment}
+          />
+        </div>
+      ) : null}
       </div>
     </div>
   );
