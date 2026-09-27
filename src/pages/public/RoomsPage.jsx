@@ -489,9 +489,10 @@ export default function RoomsPage() {
         {/* Row 1: Date pickers + Search */}
         <div className="flex flex-wrap items-end gap-3">
           <div className="flex-1 min-w-[150px] space-y-1.5">
-            <label className="text-xs font-semibold uppercase tracking-wide text-foreground/60">Check-in</label>
+            <label htmlFor="rooms-checkin" className="text-xs font-semibold uppercase tracking-wide text-foreground/60">Check-in</label>
             <div className="relative">
               <Input
+                id="rooms-checkin"
                 type="date"
                 value={checkIn}
                 min={todayStr}
@@ -505,9 +506,10 @@ export default function RoomsPage() {
             </div>
           </div>
           <div className="flex-1 min-w-[150px] space-y-1.5">
-            <label className="text-xs font-semibold uppercase tracking-wide text-foreground/60">Check-out</label>
+            <label htmlFor="rooms-checkout" className="text-xs font-semibold uppercase tracking-wide text-foreground/60">Check-out</label>
             <div className="relative">
               <Input
+                id="rooms-checkout"
                 type="date"
                 value={checkOut}
                 min={minCheckOutStr}

@@ -292,7 +292,24 @@ export default function SimulatedPaymentPage() {
 
       {/* Booking summary + bank details: side by side on desktop for bank */}
       <div className={isBank ? "grid gap-4 lg:grid-cols-2 lg:items-stretch" : "space-y-4"}>
-      <div className={isBank ? "lg:order-2 space-y-4" : "space-y-4"}>
+      {/* Bank panel first in DOM so visual, tab, and reading order align */}
+      {isBank ? (
+        <div>
+          <BankTransferPanel
+            amountDue={amountDue}
+            bankRef={bankRef}
+            bankRefError={bankRefError}
+            processing={processing}
+            onBankRefChange={(v) => {
+              setBankRef(v);
+              if (bankRefError) setBankRefError(null);
+            }}
+            onCopy={handleCopy}
+            onConfirm={handleConfirmPayment}
+          />
+        </div>
+      ) : null}
+      <div className="space-y-4">
       <div className="rounded-xl border border-border bg-background p-5 sm:p-6 space-y-4 lg:h-full lg:flex lg:flex-col">
         <div className="flex items-center gap-2">
           <CreditCard className="h-4 w-4 text-primary" />
@@ -382,22 +399,6 @@ export default function SimulatedPaymentPage() {
       </div>
       </div>
 
-      {isBank ? (
-        <div className="lg:order-1">
-          <BankTransferPanel
-            amountDue={amountDue}
-            bankRef={bankRef}
-            bankRefError={bankRefError}
-            processing={processing}
-            onBankRefChange={(v) => {
-              setBankRef(v);
-              if (bankRefError) setBankRefError(null);
-            }}
-            onCopy={handleCopy}
-            onConfirm={handleConfirmPayment}
-          />
-        </div>
-      ) : null}
       </div>
     </div>
   );
