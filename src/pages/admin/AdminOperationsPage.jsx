@@ -531,6 +531,9 @@ export default function AdminOperationsPage() {
               </CardTitle>
               <CardDescription>
                 Publish a broadcast notification to all registered guest accounts.
+                {trainingMode
+                  ? " Turned off in training mode — announcements only go live."
+                  : null}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -570,7 +573,7 @@ export default function AdminOperationsPage() {
               <Button
                 className="w-full h-9 text-xs gap-2"
                 onClick={onPublishAnnouncement}
-                disabled={announcementBusy}
+                disabled={announcementBusy || trainingMode}
               >
                 {announcementBusy ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />

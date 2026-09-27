@@ -1,10 +1,11 @@
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { getHomePathForRole } from "@/lib/routing";
+import { isHiddenInTraining } from "@/lib/trainingAccess";
 
 export default function PrivateRoute({ allowedRoles = [], children }) {
   const location = useLocation();
-  const { user, role, loading, profile } = useAuth();
+  const { user, role, loading, profile, trainingMode } = useAuth();
 
   if (loading) {
     return (
@@ -37,6 +38,17 @@ export default function PrivateRoute({ allowedRoles = [], children }) {
   }
 
   if (allowedRoles.length > 0 && !allowedRoles.includes(role)) {
+    return (
+      <Navigate
+        to={getHomePathForRole(role)}
+        replace
+        state={{ from: location.pathname }}
+      />
+    );
+  }
+
+  // Training sessions hide instructor-only and prod-identity pages.
+  if (isHiddenInTraining(location.pathname, trainingMode)) {
     return (
       <Navigate
         to={getHomePathForRole(role)}

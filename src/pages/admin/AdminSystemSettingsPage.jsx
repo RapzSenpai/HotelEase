@@ -88,6 +88,7 @@ export default function AdminSystemSettingsPage() {
         targetType: "system",
         changes: { enabled: maint.enabled },
         description: `Maintenance mode ${maint.enabled ? "enabled" : "disabled"}`,
+        trainingMode: sessionTrainingMode,
       });
     } catch (e) {
       setError(e?.message || "Failed to update maintenance status.");
@@ -122,6 +123,7 @@ export default function AdminSystemSettingsPage() {
         targetType: "system",
         changes: { enabled: maint.enabled, message: maint.message },
         description: `Maintenance settings saved (${maint.enabled ? "enabled" : "disabled"})`,
+        trainingMode: sessionTrainingMode,
       });
     } catch (e) {
       setError(e?.message || "Failed to update maintenance status.");

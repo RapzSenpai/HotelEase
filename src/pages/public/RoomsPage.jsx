@@ -359,9 +359,10 @@ export default function RoomsPage() {
     let settled = false;
     setLoading(true);
 
-    // Lazy-expire stale bookings (staff/training only — global sweep reads the
-    // whole bookings collection, which guests aren't allowed to do /rooms rules)
-    if (role === "fo" || role === "admin" || trainingMode) {
+    // Lazy-expire stale bookings (staff only — the sweep reads the whole
+    // bookings collection, which guests aren't allowed to do in either mode;
+    // training FO/admin roles arrive via the profile so this covers training)
+    if (role === "fo" || role === "admin") {
       checkAndExpireStaleBookings({ trainingMode }).catch((e) => {
         console.error("Failed to check stale bookings:", e);
       });

@@ -67,25 +67,9 @@ export async function createBooking(payload) {
   }
 
   // ── Conflict check must run OUTSIDE the transaction.
-  // PROD: read the PII-free availability markers (guests can't query bookings).
-  // Training: legacy overlap query against the open sandbox.
-  let hasConflict = false;
-  if (trainingMode) {
-    const conflictsQuery = query(
-      collection(db, BOOKINGS_COL),
-      where("roomId", "==", roomId),
-      where("status", "in", ["Awaiting Payment", "Pending", "Approved", "Checked In"]),
-    );
-    const conflictsSnap = await getDocs(conflictsQuery);
-    hasConflict = conflictsSnap.docs.some((conflictDoc) => {
-      const b = conflictDoc.data();
-      const bIn = toDate(b.checkInDate);
-      const bOut = toDate(b.checkOutDate);
-      return checkIn < bOut && checkOut > bIn;
-    });
-  } else {
-    hasConflict = (await getBlockedRoomIds(checkIn, checkOut)).has(roomId);
-  }
+  // PII-free markers in both modes (guests can't query bookings — rules deny
+  // trainee guests any collection-wide training_bookings read).
+  const hasConflict = (await getBlockedRoomIds(checkIn, checkOut, { trainingMode })).has(roomId);
 
   if (hasConflict) {
     throw new Error(

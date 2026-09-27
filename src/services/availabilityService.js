@@ -201,13 +201,15 @@ export async function clearBookingMarked({ roomId, bookingId, dates, trainingMod
 }
 
 /** Set of room IDs fully or partially blocked within [checkInStr, checkOutStr]. */
-export async function getBlockedRoomIds(checkInLike, checkOutLike) {
+export async function getBlockedRoomIds(checkInLike, checkOutLike, { trainingMode = null } = {}) {
   const keyIn = dateKey(checkInLike);
   const keyOut = dateKey(checkOutLike);
   if (!keyIn || !keyOut) return new Set();
 
+  // Markers are PII-free, so guests may read them in both modes. Reading
+  // bookings directly would deny trainees with the guest role per rules.
   const q = query(
-    collection(db, A_COL),
+    collection(db, markersCollection(trainingMode)),
     where("date", ">=", keyIn),
     where("date", "<", keyOut),
   );
@@ -216,8 +218,8 @@ export async function getBlockedRoomIds(checkInLike, checkOutLike) {
 }
 
 /** All blocked dates for a single room (used by the guest booking calendar). */
-export async function getRoomAvailabilityCards(roomId) {
-  const q = query(collection(db, A_COL), where("roomId", "==", roomId));
+export async function getRoomAvailabilityCards(roomId, { trainingMode = null } = {}) {
+  const q = query(collection(db, markersCollection(trainingMode)), where("roomId", "==", roomId));
   const snap = await getDocs(q);
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
@@ -227,8 +229,8 @@ export async function getRoomAvailabilityCards(roomId) {
  * calendar). Guests can read room_availability, so this stays accurate when
  * other guests book or staff approve/cancel while the page is open.
  */
-export function subscribeRoomAvailabilityCards(roomId, callback) {
-  const q = query(collection(db, A_COL), where("roomId", "==", roomId));
+export function subscribeRoomAvailabilityCards(roomId, callback, { trainingMode = null } = {}) {
+  const q = query(collection(db, markersCollection(trainingMode)), where("roomId", "==", roomId));
   return onSnapshot(
     q,
     (snap) => {

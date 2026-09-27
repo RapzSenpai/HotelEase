@@ -214,12 +214,8 @@ export default function FavoritesPage() {
   }
 
   // Find the first free night within the next 30 days for each favorite room.
-  // Prod only — training uses the open sandbox where markers don't exist.
+  // Markers exist in both modes (training_availability mirrors prod).
   useEffect(() => {
-    if (trainingMode) {
-      setHints({});
-      return undefined;
-    }
     let isMounted = true;
     async function computeHints() {
       const next = {};
@@ -227,7 +223,7 @@ export default function FavoritesPage() {
       start.setDate(start.getDate() + 1); // scan from tomorrow
       for (const room of rooms) {
         try {
-          const cards = await getRoomAvailabilityCards(room.id);
+          const cards = await getRoomAvailabilityCards(room.id, { trainingMode });
           const blocked = new Set(cards.map((c) => c.date));
           const d = new Date(start);
           let freeFrom = null;

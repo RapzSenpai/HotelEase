@@ -12,6 +12,14 @@ function usersCollection(trainingMode) {
   return getCol("users", trainingMode);
 }
 
+// Reserved docs that live in the users collection but are not people
+// (session state). Never shown in user lists or counts.
+export const NON_USER_DOC_IDS = ["system"];
+
+export function isPersonDoc(docId) {
+  return !NON_USER_DOC_IDS.includes(docId);
+}
+
 export async function getUserDoc(uid, { preferTraining = false } = {}) {
   const trainingCol = getCol("users", true);
   const primary = preferTraining ? trainingCol : "users";
@@ -55,7 +63,9 @@ export async function createUserProfile({
 export async function listUsers({ trainingMode = false } = {}) {
   const col = usersCollection(trainingMode);
   const snap = await getDocs(collection(db, col));
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  return snap.docs
+    .map((d) => ({ id: d.id, ...d.data() }))
+    .filter((u) => isPersonDoc(u.id));
 }
 
 /**
@@ -83,7 +93,11 @@ export function subscribeToUsers({ trainingMode = false, onData, onError }) {
   const unsub = onSnapshot(
     collection(db, col),
     (snap) => {
-      onData(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      onData(
+        snap.docs
+          .map((d) => ({ id: d.id, ...d.data() }))
+          .filter((u) => isPersonDoc(u.id)),
+      );
     },
     (error) => onError?.(error)
   );

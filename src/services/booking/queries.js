@@ -164,29 +164,10 @@ export async function getAvailableRoomIds(checkInStr, checkOutStr, { trainingMod
   const checkOut = toDate(checkOutStr);
   if (!checkIn || !checkOut || checkOut <= checkIn) return new Set();
 
-  // PROD: read the PII-free availability markers. Guests cannot read other
-  // guests' bookings, so this is the only safe source.
-  if (!trainingMode) {
-    return getBlockedRoomIds(checkInStr, checkOutStr);
-  }
-
-  // Training: legacy path against the open training_bookings sandbox.
-  const activeBookings = await listBookingsByStatuses(
-    ["Awaiting Payment", "Pending", "Approved", "Checked In"],
-    { trainingMode },
-  );
-
-  const conflictingRoomIds = new Set();
-  for (const b of activeBookings) {
-    const bIn = toDate(b.checkInDate);
-    const bOut = toDate(b.checkOutDate);
-    if (bIn && bOut && checkIn < bOut && checkOut > bIn) {
-      if (b.roomId) {
-        conflictingRoomIds.add(b.roomId);
-      }
-    }
-  }
-  return conflictingRoomIds;
+  // PII-free markers in both modes. Guests cannot read other guests'
+  // bookings, so markers are the only safe source — the old training branch
+  // queried training_bookings directly and rules denied every trainee guest.
+  return getBlockedRoomIds(checkInStr, checkOutStr, { trainingMode });
 }
 
 /**

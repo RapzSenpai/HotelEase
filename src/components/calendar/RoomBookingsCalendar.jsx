@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 
-import { listBookingsForRoom } from "@/services/bookingsService";
 import { subscribeRoomAvailabilityCards } from "@/services/availabilityService";
 
 const statusToColor = {
@@ -51,55 +50,24 @@ export default function RoomBookingsCalendar({ roomId, trainingMode = false }) {
     }
 
     if (!normalizedRoomId) {
+      // Pre-existing sync reset; kept as-is to avoid behavior change.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setEvents([]);
       setLoading(false);
       return undefined;
     }
 
-    if (trainingMode) {
-      // Legacy path: full booking objects from the open training sandbox.
-      async function load() {
-        try {
-          setLoading(true);
-          setError(null);
-          const bookings = await listBookingsForRoom(normalizedRoomId, { trainingMode });
-          const mapped = bookings.map((b) => {
-            const start = b.checkInDate?.toDate ? b.checkInDate.toDate() : b.checkInDate;
-            const end = b.checkOutDate?.toDate ? b.checkOutDate.toDate() : b.checkOutDate;
-            return {
-              id: b.id,
-              title: b.status,
-              start,
-              end,
-              backgroundColor: statusToColor[b.status] || "#F5C518",
-              borderColor: statusToColor[b.status] || "#F5C518",
-              allDay: true,
-            };
-          });
-          if (!isMounted) return;
-          setEvents(mapped);
-        } catch (e) {
-          if (!isMounted) return;
-          setError(e?.message || "Failed to load room bookings.");
-        } finally {
-          if (isMounted) setLoading(false);
-        }
-      }
-      load();
-      return () => {
-        isMounted = false;
-      };
-    }
-
-    // PROD: live PII-free night markers — stays in sync as guests book and
-    // staff approve / check in / cancel while the page is open.
+    // PII-free night markers in both modes — stays in sync as guests book
+    // and staff approve / check in / cancel while the page is open. Trainee
+    // guests cannot read training_bookings directly, so markers are the only
+    // source the rules allow them.
     setLoading(true);
     setError(null);
     const unsubscribe = subscribeRoomAvailabilityCards(normalizedRoomId, (cards) => {
       if (!isMounted) return;
       setEvents(fromMarkers(cards));
       setLoading(false);
-    });
+    }, { trainingMode });
     return () => {
       isMounted = false;
       if (typeof unsubscribe === "function") unsubscribe();

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Plus, BedDouble } from "lucide-react";
 import RoomsTableView from "@/components/rooms/RoomsTableView";
@@ -64,6 +65,7 @@ function initialForm() {
 // ---------------------------------------------------------------------------
 
 export default function AdminRoomManagementPage() {
+  const { trainingMode } = useAuth();
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -83,11 +85,13 @@ export default function AdminRoomManagementPage() {
   const [formOpen, setFormOpen] = useState(false);
 
   // ---- fetch rooms ----
+  // Explicit mode (never the override fallback) so training edits can
+  // never land in production inventory.
   async function refresh() {
     setLoading(true);
     setError(null);
     try {
-      const data = await listRooms();
+      const data = await listRooms({ trainingMode });
       setRooms(data);
     } catch (e) {
       setError(e?.message || "Failed to load rooms.");
@@ -98,7 +102,8 @@ export default function AdminRoomManagementPage() {
 
   useEffect(() => {
     refresh();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trainingMode]);
 
   // ---- derived lists for filters ----
   const existingTypes = useMemo(() => {
@@ -236,9 +241,9 @@ export default function AdminRoomManagementPage() {
     try {
       setSubmitting(true);
       if (editingId) {
-        await updateRoom(editingId, payload);
+        await updateRoom(editingId, { ...payload, trainingMode });
       } else {
-        await createRoom(payload);
+        await createRoom({ ...payload, trainingMode });
       }
       setEditingId(null);
       setForm(initialForm());
@@ -254,7 +259,7 @@ export default function AdminRoomManagementPage() {
   async function onArchive(id) {
     if (!window.confirm("Archive this room? It will be hidden from guests.")) return;
     try {
-      await deactivateRoom(id);
+      await deactivateRoom(id, { trainingMode });
       await refresh();
     } catch (e) {
       setSubmitError(e?.message || "Failed to archive room.");
@@ -263,7 +268,7 @@ export default function AdminRoomManagementPage() {
 
   async function onRestore(id) {
     try {
-      await activateRoom(id);
+      await activateRoom(id, { trainingMode });
       await refresh();
     } catch (e) {
       setSubmitError(e?.message || "Failed to restore room.");

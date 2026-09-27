@@ -20,6 +20,7 @@ import {
   loadAvailabilityDiff,
   repairAvailability,
 } from "@/services/availabilityReconciliation";
+import { useAuth } from "@/contexts/AuthContext";
 
 const PREVIEW_LIMIT = 25;
 
@@ -57,22 +58,24 @@ function DriftList({ title, description, items, render, tone }) {
 }
 
 export default function AdminAvailabilityPage() {
+  const { trainingMode } = useAuth();
   const [diff, setDiff] = useState(null);
   const [loading, setLoading] = useState(true);
   const [repairing, setRepairing] = useState(false);
   const [error, setError] = useState(null);
 
+  // Explicit mode so a training session never diffs or repairs prod markers.
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      setDiff(await loadAvailabilityDiff());
+      setDiff(await loadAvailabilityDiff({ trainingMode }));
     } catch (e) {
       setError(e?.message || "Failed to load availability data.");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [trainingMode]);
 
   useEffect(() => {
     load();
@@ -85,7 +88,7 @@ export default function AdminAvailabilityPage() {
   async function handleRepair() {
     setRepairing(true);
     try {
-      const result = await repairAvailability({ orphanMarkers: orphans, missingMarkers: missing });
+      const result = await repairAvailability({ orphanMarkers: orphans, missingMarkers: missing, trainingMode });
       toast.success(
         `Cleaned up ${result.removed} orphan night(s) and restored ${result.restored} missing night(s).`,
       );

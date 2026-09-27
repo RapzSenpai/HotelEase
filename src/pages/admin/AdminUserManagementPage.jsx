@@ -38,12 +38,14 @@ const FILTER_TABS = [
 ];
 
 export default function AdminUserManagementPage() {
-  const { user: currentUser } = useAuth();
+  const { user: currentUser, trainingMode } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [users, setUsers] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [activeTab, setActiveTab] = useState("all");
+  // Backstop: even if this page is reached in training, default to the
+  // sandbox tab so prod users are never the first thing shown.
+  const [activeTab, setActiveTab] = useState(trainingMode ? "training" : "all");
 
   const isTrainingSource = activeTab === "training";
 

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { isHiddenInTraining } from "@/lib/trainingAccess";
 import { useFOIndicators } from "@/hooks/useFOIndicators";
 import { subscribeToUnresolvedCount } from "@/services/alertService";
 import { X } from "lucide-react";
@@ -307,7 +308,17 @@ export default function Sidebar({ open, onClose }) {
 
   if (!user || (role !== "fo" && role !== "admin")) return null;
 
-  const groups = role === "fo" ? FO_LINKS : ADMIN_LINKS;
+  const baseGroups = role === "fo" ? FO_LINKS : ADMIN_LINKS;
+  // Training hides instructor-only and prod-identity pages (same gate as
+  // PrivateRoute, so hidden pages are unreachable by URL too).
+  const groups = trainingMode
+    ? baseGroups
+        .map((group) => ({
+          ...group,
+          items: group.items.filter((l) => !isHiddenInTraining(l.to, true)),
+        }))
+        .filter((group) => group.items.length > 0)
+    : baseGroups;
   const roleLabel = role === "fo" ? "Front Office" : "Administrator";
 
   const shouldShowIndicator = (linkPath, value) => {

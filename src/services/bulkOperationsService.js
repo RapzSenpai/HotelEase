@@ -114,5 +114,7 @@ export async function exportRooms({ trainingMode = null } = {}) {
 export async function exportUsers({ trainingMode = null } = {}) {
   const col = getCol("users", trainingMode);
   const snap = await getDocs(query(collection(db, col)));
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  return snap.docs
+    .map((d) => ({ id: d.id, ...d.data() }))
+    .filter((u) => u.id !== "system");
 }
