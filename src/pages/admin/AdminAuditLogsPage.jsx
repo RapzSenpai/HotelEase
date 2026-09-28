@@ -252,13 +252,13 @@ export default function AdminAuditLogsPage() {
                   <Select.Value placeholder="All Actions" />
                 </Select.Trigger>
                 <Select.Portal>
-                  <Select.Content className="z-50 max-h-64 overflow-hidden rounded-md border border-border bg-background p-1 text-foreground shadow-md">
+                  <Select.Content position="popper" side="bottom" align="start" sideOffset={4} className="z-50 max-h-64 overflow-hidden rounded-md border border-border bg-background p-1 text-foreground shadow-md">
                     <Select.Viewport>
                       {ACTION_TYPE_OPTIONS.map((opt) => (
                         <Select.Item
                           key={opt.value}
                           value={opt.value}
-                          className="relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-xs outline-none data-[highlighted]:bg-muted data-[highlighted]:text-foreground"
+                          className="relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-xs outline-none data-[highlighted]:bg-surface-hover data-[state=checked]:bg-primary/15 data-[highlighted]:text-foreground"
                         >
                           <Select.ItemText>{opt.label}</Select.ItemText>
                         </Select.Item>
@@ -277,13 +277,13 @@ export default function AdminAuditLogsPage() {
                   <Select.Value placeholder="All Targets" />
                 </Select.Trigger>
                 <Select.Portal>
-                  <Select.Content className="z-50 max-h-64 overflow-hidden rounded-md border border-border bg-background p-1 text-foreground shadow-md">
+                  <Select.Content position="popper" side="bottom" align="start" sideOffset={4} className="z-50 max-h-64 overflow-hidden rounded-md border border-border bg-background p-1 text-foreground shadow-md">
                     <Select.Viewport>
                       {TARGET_TYPE_OPTIONS.map((opt) => (
                         <Select.Item
                           key={opt.value}
                           value={opt.value}
-                          className="relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-xs outline-none data-[highlighted]:bg-muted data-[highlighted]:text-foreground"
+                          className="relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-xs outline-none data-[highlighted]:bg-surface-hover data-[state=checked]:bg-primary/15 data-[highlighted]:text-foreground"
                         >
                           <Select.ItemText>{opt.label}</Select.ItemText>
                         </Select.Item>
@@ -302,13 +302,13 @@ export default function AdminAuditLogsPage() {
                   <Select.Value />
                 </Select.Trigger>
                 <Select.Portal>
-                  <Select.Content className="z-50 max-h-64 overflow-hidden rounded-md border border-border bg-background p-1 text-foreground shadow-md">
+                  <Select.Content position="popper" side="bottom" align="start" sideOffset={4} className="z-50 max-h-64 overflow-hidden rounded-md border border-border bg-background p-1 text-foreground shadow-md">
                     <Select.Viewport>
                       {[50, 100, 200, 500].map((val) => (
                         <Select.Item
                           key={val}
                           value={String(val)}
-                          className="relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-xs outline-none data-[highlighted]:bg-muted data-[highlighted]:text-foreground"
+                          className="relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-xs outline-none data-[highlighted]:bg-surface-hover data-[state=checked]:bg-primary/15 data-[highlighted]:text-foreground"
                         >
                           <Select.ItemText>{val}</Select.ItemText>
                         </Select.Item>

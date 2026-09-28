@@ -5,10 +5,12 @@ import { NavLink } from "react-router-dom";
 import { subscribeToRooms } from "@/services/roomsService";
 import { toggleFavorite, subscribeToFavorites } from "@/services/favoritesService";
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Heart, Calendar as CalendarIcon, Search, X, CheckCircle2, XCircle, ChevronDown } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { getAvailableRooms, checkAndExpireStaleBookings } from "@/services/bookingsService";
@@ -582,8 +584,8 @@ export default function RoomsPage() {
           <div className="w-px h-5 bg-border/60 mx-1" />
 
           {/* Price sort dropdown */}
-          <Popover>
-            <PopoverTrigger asChild>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
               <button
                 type="button"
                 className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors text-foreground/60 hover:bg-surface-hover hover:text-foreground/90"
@@ -591,24 +593,17 @@ export default function RoomsPage() {
                 {priceSort === "Default" ? "Sort by Price" : priceSort}
                 <ChevronDown className="h-3.5 w-3.5" />
               </button>
-            </PopoverTrigger>
-            <PopoverContent className="w-44 p-1 bg-background" align="start">
-              {["Default", "Low to High", "High to Low"].map((opt) => (
-                <button
-                  key={opt}
-                  type="button"
-                  onClick={() => setPriceSort(opt)}
-                  className={`w-full text-left rounded-md px-2.5 py-1.5 text-xs transition-colors ${
-                    priceSort === opt
-                      ? "bg-primary/15 text-foreground font-medium"
-                      : "text-foreground/70 hover:bg-surface-hover"
-                  }`}
-                >
-                  {opt === "Default" ? "Default Order" : `Price: ${opt}`}
-                </button>
-              ))}
-            </PopoverContent>
-          </Popover>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="w-44" align="start">
+              <DropdownMenuGroup>
+                {["Default", "Low to High", "High to Low"].map((opt) => (
+                  <DropdownMenuItem key={opt} active={priceSort === opt} onClick={() => setPriceSort(opt)}>
+                    {opt === "Default" ? "Default Order" : `Price: ${opt}`}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
 
         {/* Row 3: Result count + clear */}

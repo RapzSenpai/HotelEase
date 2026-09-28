@@ -43,13 +43,13 @@ function getLocalDateString(date = new Date()) {
 
 function StepIndicator({ current }) {
   return (
-    <div className="flex items-center justify-center gap-0 mb-8">
+    <div className="flex items-center justify-center gap-0 mb-8 max-w-full overflow-hidden px-1">
       {STEPS.map((step, i) => {
         const isDone = current > step.index;
         const isActive = current === step.index;
         return (
-          <div key={step.index} className="flex items-center">
-            <div className="flex flex-col items-center">
+          <div key={step.index} className="flex min-w-0 items-center">
+            <div className="flex min-w-0 flex-col items-center">
               <div
                 className={`flex h-8 w-8 items-center justify-center rounded-full border-2 text-sm font-semibold transition-colors ${
                   isDone
@@ -62,7 +62,7 @@ function StepIndicator({ current }) {
                 {isDone ? <CheckCircle2 className="h-4 w-4" /> : step.index}
               </div>
               <span
-                className={`mt-1.5 text-xs font-medium whitespace-nowrap ${
+                className={`mt-1.5 text-[11px] sm:text-xs font-medium whitespace-nowrap ${
                   isActive ? "text-primary" : isDone ? "text-foreground/60" : "text-foreground/30"
                 }`}
               >
@@ -71,7 +71,7 @@ function StepIndicator({ current }) {
             </div>
             {i < STEPS.length - 1 && (
               <div
-                className={`mx-2 mb-5 h-0.5 w-16 transition-colors ${
+                className={`mx-1 sm:mx-2 mb-5 h-0.5 w-8 sm:w-16 shrink-0 transition-colors ${
                   current > step.index ? "bg-primary" : "bg-border"
                 }`}
               />
@@ -333,7 +333,7 @@ export default function BookingPage() {
         <div className="space-y-1.5">
           <p>Please send <span className="font-semibold">&#8369;{amount.toLocaleString()}</span> via {method}:</p>
           {details.number && (
-            <div className="flex items-center gap-2 bg-background border border-border p-2 rounded font-mono font-semibold">{details.number}</div>
+            <div className="flex items-center gap-2 bg-background border border-border p-2 rounded font-mono font-semibold break-all min-w-0">{details.number}</div>
           )}
           {details.bankName && (
             <div className="space-y-0.5">
@@ -753,8 +753,8 @@ export default function BookingPage() {
       {/* STEP 3 — Confirmation + Payment Proof Upload */}
       {/* Phase 13: immediate post-booking prompt, inline (no Dialog). Phase 11: upload widget. */}
       {step === 3 && bookingId && createdBookingData && (
-        <div className="grid gap-6 lg:grid-cols-5">
-          <div className="lg:col-span-3 space-y-4">
+        <div className="grid min-w-0 gap-6 lg:grid-cols-5">
+          <div className="min-w-0 lg:col-span-3 space-y-4">
             <div className="rounded-xl border border-success/30 bg-success/10 p-5 space-y-3">
               <div className="flex items-center gap-2 text-success">
                 <CheckCircle2 className="h-5 w-5" />
@@ -780,9 +780,9 @@ export default function BookingPage() {
                   return <>Pay the remaining balance at the front desk upon arrival. Your booking is pending FO review.</>;
                 })()}
               </p>
-              <div className="text-sm">
+              <div className="text-sm min-w-0">
                 <span className="text-foreground/60">Booking ID: </span>
-                <span className="font-mono font-semibold">{bookingId}</span>
+                <span className="font-mono font-semibold break-all">{bookingId}</span>
               </div>
             </div>
             
@@ -791,12 +791,12 @@ export default function BookingPage() {
               <div className="rounded-xl border border-border bg-background p-5 space-y-4">
                 <div className="text-base font-semibold">Complete Payment</div>
                 {/* Primary: simulated gateway checkout (sandbox provider) */}
-                <Button type="button" className="w-full" onClick={() => navigate(`/my-bookings/${bookingId}/pay`)}>
-                  <CreditCard className="mr-2 h-4 w-4" />
-                  Proceed to Payment — &#8369;{amountDue.toLocaleString()} via {paymentMethod}
+                <Button type="button" size="sm" className="w-full h-auto min-h-8 whitespace-normal py-1.5 text-center leading-snug" onClick={() => navigate(`/my-bookings/${bookingId}/pay`)}>
+                  <CreditCard className="mr-2 h-4 w-4 shrink-0" />
+                  <span className="min-w-0 break-words">Proceed to Payment via {paymentMethod}</span>
                 </Button>
                 <details className="rounded-lg border border-border/40 bg-muted/10">
-                  <summary className="cursor-pointer p-3 text-sm font-medium">Upload proof manually instead</summary>
+                  <summary className="cursor-pointer px-3 py-2 text-[13px] font-medium leading-snug">Upload proof manually instead</summary>
                   <div className="space-y-3 px-3 pb-3">
                     {renderPaymentInstructions(paymentMethod, amountDue)}
                     <div className="space-y-2">
@@ -805,11 +805,11 @@ export default function BookingPage() {
                         type="file"
                         accept="image/*"
                         onChange={(e) => setPaymentFile(e.target.files?.[0] || null)}
-                        className="w-full text-sm text-foreground/70 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-primary file:text-primary-foreground hover:file:bg-primary/90 cursor-pointer"
+                        className="w-full min-w-0 max-w-full text-sm text-foreground/70 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-primary file:text-primary-foreground hover:file:bg-primary/90 cursor-pointer"
                         disabled={uploadingProof}
                       />
                       {paymentFile && (
-                        <p className="text-xs text-foreground/60">Selected: {paymentFile.name}</p>
+                        <p className="text-xs text-foreground/60 break-all">Selected: {paymentFile.name}</p>
                       )}
                     </div>
                     <div className="flex flex-wrap gap-2 pt-1">
@@ -861,48 +861,48 @@ export default function BookingPage() {
               </div>
             )}
           </div>
-          <div className="lg:col-span-2">
-            <div className="rounded-xl border border-border bg-background p-5 space-y-4 sticky top-6">
+          <div className="min-w-0 lg:col-span-2">
+            <div className="rounded-xl border border-border bg-background p-5 space-y-4 lg:sticky lg:top-6">
               <div className="text-base font-semibold">Booking Summary</div>
               <div className="space-y-2 text-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-foreground/70">Room</span>
-                  <span className="font-medium text-right">{createdBookingData.roomName}</span>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="shrink-0 text-foreground/70">Room</span>
+                  <span className="min-w-0 break-words font-medium text-right">{createdBookingData.roomName}</span>
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-foreground/70">Check-in</span>
-                  <span className="font-medium">{checkIn}</span>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="shrink-0 text-foreground/70">Check-in</span>
+                  <span className="min-w-0 break-words font-medium">{checkIn}</span>
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-foreground/70">Check-out</span>
-                  <span className="font-medium">{checkOut}</span>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="shrink-0 text-foreground/70">Check-out</span>
+                  <span className="min-w-0 break-words font-medium">{checkOut}</span>
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-foreground/70">Nights</span>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="shrink-0 text-foreground/70">Nights</span>
                   <span className="font-medium">{nights}</span>
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-foreground/70">Guests (pax)</span>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="shrink-0 text-foreground/70">Guests (pax)</span>
                   <span className="font-medium">{paxCount}</span>
                 </div>
               </div>
               <div className="border-t border-border pt-3 space-y-2 text-sm">
                 <p className="text-xs text-foreground/50 uppercase tracking-wide mb-1">Guest Info</p>
-                <div className="flex items-center justify-between">
-                  <span className="text-foreground/70">Name</span>
-                  <span className="font-medium text-right">{createdBookingData.leadGuestName}</span>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="shrink-0 text-foreground/70">Name</span>
+                  <span className="min-w-0 break-words font-medium text-right">{createdBookingData.leadGuestName}</span>
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-foreground/70">Email</span>
-                  <span className="font-medium text-right">{createdBookingData.leadGuestEmail}</span>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="shrink-0 text-foreground/70">Email</span>
+                  <span className="min-w-0 break-all font-medium text-right">{createdBookingData.leadGuestEmail}</span>
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-foreground/70">Phone</span>
-                  <span className="font-medium text-right">{createdBookingData.leadGuestPhone}</span>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="shrink-0 text-foreground/70">Phone</span>
+                  <span className="min-w-0 break-words font-medium text-right">{createdBookingData.leadGuestPhone}</span>
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-foreground/70">Arrival</span>
-                  <span className="font-medium text-right">{createdBookingData.arrivalTime}</span>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="shrink-0 text-foreground/70">Arrival</span>
+                  <span className="min-w-0 break-words font-medium text-right">{createdBookingData.arrivalTime}</span>
                 </div>
               </div>
               <div className="border-t border-border pt-3 space-y-2 text-sm">

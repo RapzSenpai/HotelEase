@@ -123,13 +123,13 @@ export default function CheckoutPaymentPanel({
               <Select.Value />
             </Select.Trigger>
             <Select.Portal>
-              <Select.Content className="z-50 max-h-64 min-w-[8rem] overflow-hidden rounded-md border border-border bg-background p-1 text-foreground shadow-md">
+              <Select.Content position="popper" side="bottom" align="start" sideOffset={4} className="z-50 max-h-64 min-w-[8rem] overflow-hidden rounded-md border border-border bg-background p-1 text-foreground shadow-md">
                 <Select.Viewport>
                   {METHOD_OPTIONS.map((m) => (
                     <Select.Item
                       key={m}
                       value={m}
-                      className="relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none data-[highlighted]:bg-muted data-[highlighted]:text-foreground"
+                      className="relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none data-[highlighted]:bg-surface-hover data-[state=checked]:bg-primary/15 data-[highlighted]:text-foreground"
                     >
                       <Select.ItemText>{m}</Select.ItemText>
                     </Select.Item>

@@ -370,8 +370,8 @@ export default function SimulatedPaymentPage() {
 
         {/* Confirm — merged into the summary card, below Amount Due */}
         <Button
-          size="lg"
-          className="w-full lg:mt-auto"
+          size="sm"
+          className="w-full h-auto min-h-8 whitespace-normal py-1.5 text-center leading-snug lg:mt-auto"
           disabled={processing || (isBank && bankRef.trim().length < 4)}
           onClick={handleConfirmPayment}
         >
@@ -382,13 +382,13 @@ export default function SimulatedPaymentPage() {
             </>
           ) : isBank ? (
             <>
-              <Landmark className="mr-2 h-4 w-4" />
-              Confirm Demo Transfer — PHP {amountDue.toLocaleString()}
+              <Landmark className="mr-2 h-4 w-4 shrink-0" />
+              Confirm Bank Transfer
             </>
           ) : (
             <>
-              <CreditCard className="mr-2 h-4 w-4" />
-              Confirm {booking.paymentMethod} Payment — PHP {amountDue.toLocaleString()}
+              <CreditCard className="mr-2 h-4 w-4 shrink-0" />
+              Confirm {booking.paymentMethod} Payment
             </>
           )}
         </Button>

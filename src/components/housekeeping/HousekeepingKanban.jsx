@@ -137,7 +137,7 @@ function KanbanCardContent({
                           key={staff.id}
                           type="button"
                           onClick={() => onReassign?.(room.id, staff.id)}
-                          className="w-full rounded-sm px-2 py-1.5 text-xs text-left hover:bg-muted data-[highlighted]:bg-muted"
+                          className="w-full rounded-sm px-2 py-1.5 text-xs text-left hover:bg-surface-hover data-[highlighted]:bg-surface-hover"
                         >
                           {staff.fullName || staff.email || staff.id}
                         </button>

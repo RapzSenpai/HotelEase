@@ -235,7 +235,19 @@ export default function BookingCard({ booking, room, trainingMode, userProfile, 
 
           {/* ── CTA: re-book & download receipt actions ── */}
           {(status === "Checked Out" || status === "Cancelled") && (
-            <div className="flex flex-col sm:flex-row items-center gap-2 pt-2">
+            <div className="flex flex-col sm:flex-row sm:justify-end items-center gap-2 pt-2">
+              {status === "Checked Out" && paymentsFetched && receiptPayment && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full sm:w-auto"
+                  onClick={handleDownloadReceipt}
+                >
+                  <Receipt className="mr-2 h-4 w-4" />
+                  Download Receipt
+                </Button>
+              )}
+
               {booking.roomId && isRoomActive(room) && (
                 <Button
                   asChild
@@ -246,18 +258,6 @@ export default function BookingCard({ booking, room, trainingMode, userProfile, 
                   <NavLink to={`/rooms/${booking.roomId}`}>
                     Book This Room Again
                   </NavLink>
-                </Button>
-              )}
-
-              {status === "Checked Out" && paymentsFetched && receiptPayment && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full sm:w-auto"
-                  onClick={handleDownloadReceipt}
-                >
-                  <Receipt className="mr-2 h-4 w-4" />
-                  Download Receipt
                 </Button>
               )}
             </div>

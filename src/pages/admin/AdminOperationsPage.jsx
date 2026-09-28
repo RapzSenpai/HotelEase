@@ -3,6 +3,7 @@ import { Select } from "radix-ui";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -289,15 +290,15 @@ export default function AdminOperationsPage() {
                       <ChevronDown className="h-4 w-4 opacity-50 ml-1.5 shrink-0 text-muted-foreground" />
                     </Select.Trigger>
                     <Select.Portal>
-                      <Select.Content className="z-50 max-h-64 overflow-hidden rounded-md border border-border bg-background p-1 text-foreground shadow-md">
+                      <Select.Content position="popper" side="bottom" align="start" sideOffset={4} className="z-50 max-h-64 overflow-hidden rounded-md border border-border bg-background p-1 text-foreground shadow-md">
                         <Select.Viewport>
-                          <Select.Item value="all" className="relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-xs outline-none data-[highlighted]:bg-muted data-[highlighted]:text-foreground">
+                          <Select.Item value="all" className="relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-xs outline-none data-[highlighted]:bg-surface-hover data-[state=checked]:bg-primary/15 data-[highlighted]:text-foreground">
                             <Select.ItemText>All Statuses ({activeRooms.length})</Select.ItemText>
                           </Select.Item>
                           {STATUS_OPTIONS.map((s) => {
                             const count = activeRooms.filter(r => r.status === s).length;
                             return (
-                              <Select.Item key={s} value={s} className="relative flex w-full cursor-pointer select-none items-center justify-between rounded-sm px-2 py-1.5 text-xs outline-none data-[highlighted]:bg-muted data-[highlighted]:text-foreground">
+                              <Select.Item key={s} value={s} className="relative flex w-full cursor-pointer select-none items-center justify-between rounded-sm px-2 py-1.5 text-xs outline-none data-[highlighted]:bg-surface-hover data-[state=checked]:bg-primary/15 data-[highlighted]:text-foreground">
                                 <Select.ItemText>{s} ({count})</Select.ItemText>
                               </Select.Item>
                             );
@@ -336,11 +337,11 @@ export default function AdminOperationsPage() {
                         }`}
                       >
                         <div className="flex items-center gap-3">
-                          <input
-                            type="checkbox"
-                            className="h-4 w-4 accent-primary rounded cursor-pointer"
+                          <Checkbox
                             checked={isSelected}
-                            onChange={() => toggleSelect(r.id)}
+                            onCheckedChange={() => toggleSelect(r.id)}
+                            onClick={(e) => e.stopPropagation()}
+                            aria-label={`Select ${r.roomNumber ? `Room ${r.roomNumber}` : r.id}`}
                           />
                           <span className="font-mono text-xs font-semibold text-foreground">
                             {r.roomNumber ? `Room ${r.roomNumber}` : r.id.slice(0, 8)}
@@ -364,10 +365,10 @@ export default function AdminOperationsPage() {
                     <ChevronDown className="h-4 w-4 opacity-50 ml-1 shrink-0 text-muted-foreground" />
                   </Select.Trigger>
                   <Select.Portal>
-                    <Select.Content className="z-50 max-h-64 overflow-hidden rounded-md border border-border bg-background p-1 text-foreground shadow-md">
+                    <Select.Content position="popper" side="bottom" align="start" sideOffset={4} className="z-50 max-h-64 overflow-hidden rounded-md border border-border bg-background p-1 text-foreground shadow-md">
                       <Select.Viewport>
                         {STATUS_OPTIONS.map((s) => (
-                          <Select.Item key={s} value={s} className="relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-xs outline-none data-[highlighted]:bg-muted data-[highlighted]:text-foreground">
+                          <Select.Item key={s} value={s} className="relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-xs outline-none data-[highlighted]:bg-surface-hover data-[state=checked]:bg-primary/15 data-[highlighted]:text-foreground">
                             <Select.ItemText>{s}</Select.ItemText>
                           </Select.Item>
                         ))}
@@ -455,10 +456,10 @@ export default function AdminOperationsPage() {
                     <ChevronDown className="h-4 w-4 opacity-50 ml-2 shrink-0 text-muted-foreground" />
                   </Select.Trigger>
                   <Select.Portal>
-                    <Select.Content className="z-50 max-h-64 overflow-hidden rounded-md border border-border bg-background p-1 text-foreground shadow-md">
+                    <Select.Content position="popper" side="bottom" align="start" sideOffset={4} className="z-50 max-h-64 overflow-hidden rounded-md border border-border bg-background p-1 text-foreground shadow-md">
                       <Select.Viewport>
                         {activeRooms.map((r) => (
-                          <Select.Item key={r.id} value={r.id} className="relative flex w-full cursor-pointer select-none items-center justify-between rounded-sm px-2 py-1.5 text-xs outline-none data-[highlighted]:bg-muted data-[highlighted]:text-foreground">
+                          <Select.Item key={r.id} value={r.id} className="relative flex w-full cursor-pointer select-none items-center justify-between rounded-sm px-2 py-1.5 text-xs outline-none data-[highlighted]:bg-surface-hover data-[state=checked]:bg-primary/15 data-[highlighted]:text-foreground">
                             <Select.ItemText>
                               {r.roomNumber ? `Room ${r.roomNumber}` : r.name || r.id.slice(0, 8)}
                             </Select.ItemText>
@@ -479,10 +480,10 @@ export default function AdminOperationsPage() {
                     <ChevronDown className="h-4 w-4 opacity-50 ml-2 shrink-0 text-muted-foreground" />
                   </Select.Trigger>
                   <Select.Portal>
-                    <Select.Content className="z-50 max-h-64 overflow-hidden rounded-md border border-border bg-background p-1 text-foreground shadow-md">
+                    <Select.Content position="popper" side="bottom" align="start" sideOffset={4} className="z-50 max-h-64 overflow-hidden rounded-md border border-border bg-background p-1 text-foreground shadow-md">
                       <Select.Viewport>
                         {STATUS_OPTIONS.map((s) => (
-                          <Select.Item key={s} value={s} className="relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-xs outline-none data-[highlighted]:bg-muted data-[highlighted]:text-foreground">
+                          <Select.Item key={s} value={s} className="relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-xs outline-none data-[highlighted]:bg-surface-hover data-[state=checked]:bg-primary/15 data-[highlighted]:text-foreground">
                             <Select.ItemText>{s}</Select.ItemText>
                           </Select.Item>
                         ))}

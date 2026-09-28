@@ -139,14 +139,14 @@ export default function BookingPaymentSection({
           <Button
             type="button"
             size="sm"
-            className="w-full"
+            className="w-full h-auto min-h-8 whitespace-normal py-1.5 text-center leading-snug"
             onClick={(e) => {
               e.stopPropagation();
               navigate(`/my-bookings/${booking.id}/pay`);
             }}
           >
-            <CreditCard className="mr-2 h-4 w-4" />
-            Pay Now — ₱{payableAmount.toLocaleString()} via {booking.paymentMethod}
+            <CreditCard className="mr-2 h-4 w-4 shrink-0" />
+            <span className="min-w-0 break-words">Pay Now via {booking.paymentMethod}</span>
           </Button>
 
           <form onSubmit={onUploadProof} className="space-y-3">
@@ -158,7 +158,7 @@ export default function BookingPaymentSection({
 
             {/* Manual fallback - collapsed, sandbox gateway is primary */}
             <details className="rounded-md border border-border bg-background">
-              <summary className="cursor-pointer p-3 text-xs font-semibold">Upload proof manually instead</summary>
+              <summary className="cursor-pointer px-3 py-2 text-xs font-semibold leading-snug">Upload proof manually instead</summary>
               <div className="px-3 pb-3 space-y-3">
                 <div className="space-y-1.5 text-xs">
                   <p>

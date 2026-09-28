@@ -7,11 +7,16 @@ import { listBookingsForUser, subscribeToUserBookings } from "@/services/booking
 import { mapFirebaseError } from "@/lib/errors";
 import { subscribeToRooms } from "@/services/roomsService";
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import BookingCard from "@/components/bookings/BookingCard";
+import PastBookingRow from "@/components/bookings/PastBookingRow";
 import { ChevronDown, BedDouble, SlidersHorizontal } from "lucide-react";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -240,8 +245,8 @@ export default function MyBookingsPage() {
           {/* Filter controls */}
           <div className="flex flex-wrap gap-2 border-b border-border pb-3">
             {/* Status filter dropdown */}
-            <Popover>
-              <PopoverTrigger asChild>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
                 <button
                   type="button"
                   className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors text-foreground/60 hover:bg-surface-hover hover:text-foreground/90"
@@ -250,64 +255,33 @@ export default function MyBookingsPage() {
                   <span>{dropdownStatus === "All" ? "All Statuses" : dropdownStatus}</span>
                   <ChevronDown className="h-3.5 w-3.5" />
                 </button>
-              </PopoverTrigger>
-              <PopoverContent className="w-52 p-1 bg-background" align="start">
-                {/* All Statuses option */}
-                <button
-                  type="button"
-                  onClick={() => handleStatusSelect("All")}
-                  className={`w-full text-left rounded-md px-2.5 py-1.5 text-xs transition-colors ${
-                    dropdownStatus === "All"
-                      ? "bg-primary/15 text-foreground font-medium"
-                      : "text-foreground/70 hover:bg-surface-hover"
-                  }`}
-                >
-                  All Statuses
-                </button>
-
-                <div className="h-px bg-border/60 my-1" />
-
-                {/* Active statuses */}
-                <div className="px-2.5 py-1">
-                  <span className="text-[10px] font-semibold text-foreground/30 uppercase tracking-wider">Active</span>
-                </div>
-                {FILTER_STATUSES.filter(s => ACTIVE_STATUSES.has(s)).map((status) => (
-                  <button
-                    key={status}
-                    type="button"
-                    onClick={() => handleStatusSelect(status)}
-                    className={`w-full text-left rounded-md px-2.5 py-1.5 text-xs transition-colors ${
-                      dropdownStatus === status
-                        ? "bg-primary/15 text-foreground font-medium"
-                        : "text-foreground/70 hover:bg-surface-hover"
-                    }`}
-                  >
-                    {status}
-                  </button>
-                ))}
-
-                <div className="h-px bg-border/60 my-1" />
-
-                {/* Past statuses */}
-                <div className="px-2.5 py-1">
-                  <span className="text-[10px] font-semibold text-foreground/30 uppercase tracking-wider">Past</span>
-                </div>
-                {FILTER_STATUSES.filter(s => !ACTIVE_STATUSES.has(s)).map((status) => (
-                  <button
-                    key={status}
-                    type="button"
-                    onClick={() => handleStatusSelect(status)}
-                    className={`w-full text-left rounded-md px-2.5 py-1.5 text-xs transition-colors ${
-                      dropdownStatus === status
-                        ? "bg-primary/15 text-foreground font-medium"
-                        : "text-foreground/70 hover:bg-surface-hover"
-                    }`}
-                  >
-                    {status}
-                  </button>
-                ))}
-              </PopoverContent>
-            </Popover>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-52" align="start">
+                <DropdownMenuGroup>
+                  <DropdownMenuItem active={dropdownStatus === "All"} onClick={() => handleStatusSelect("All")}>
+                    All Statuses
+                  </DropdownMenuItem>
+                </DropdownMenuGroup>
+                <DropdownMenuSeparator />
+                <DropdownMenuGroup>
+                  <DropdownMenuLabel>Active</DropdownMenuLabel>
+                  {FILTER_STATUSES.filter(s => ACTIVE_STATUSES.has(s)).map((status) => (
+                    <DropdownMenuItem key={status} active={dropdownStatus === status} onClick={() => handleStatusSelect(status)}>
+                      {status}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuGroup>
+                <DropdownMenuSeparator />
+                <DropdownMenuGroup>
+                  <DropdownMenuLabel>Past</DropdownMenuLabel>
+                  {FILTER_STATUSES.filter(s => !ACTIVE_STATUSES.has(s)).map((status) => (
+                    <DropdownMenuItem key={status} active={dropdownStatus === status} onClick={() => handleStatusSelect(status)}>
+                      {status}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
 
             {/* Quick filter tabs */}
             {QUICK_FILTERS.map((tab) => {
@@ -385,13 +359,12 @@ export default function MyBookingsPage() {
                     <div className="h-px flex-1 bg-border/60" />
                   </div>
                   {showPastBookings && pastBookings.map((b) => (
-                    <BookingCard
+                    <PastBookingRow
                       key={b.id}
                       booking={b}
                       room={roomsMap[b.roomId] || { id: b.roomId, isActive: false }}
                       trainingMode={trainingMode}
                       userProfile={profile}
-                      onCancelled={refreshBookings}
                     />
                   ))}
                 </div>
@@ -399,15 +372,14 @@ export default function MyBookingsPage() {
 
               {/* Past Bookings — shown directly when filtering to Past status */}
               {pastBookings.length > 0 && activeTab !== "All" && (
-                <div className="space-y-3">
+                <div className="space-y-2">
                   {pastBookings.map((b) => (
-                    <BookingCard
+                    <PastBookingRow
                       key={b.id}
                       booking={b}
                       room={roomsMap[b.roomId] || { id: b.roomId, isActive: false }}
                       trainingMode={trainingMode}
                       userProfile={profile}
-                      onCancelled={refreshBookings}
                     />
                   ))}
                 </div>

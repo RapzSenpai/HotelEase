@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Select } from "radix-ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -118,11 +119,9 @@ export default function RoomFormSlideOver({
 
             <div className="space-y-1.5">
               <Label htmlFor="so-room-type" className="text-xs font-medium text-foreground/60">Room Type</Label>
-              <select
-                id="so-room-type"
+              <Select.Root
                 value={existingTypes.includes(form.type) ? form.type : (form.type ? "Custom" : "")}
-                onChange={(e) => {
-                  const val = e.target.value;
+                onValueChange={(val) => {
                   const defaults = ROOM_TYPE_CAPACITY_DEFAULTS[val];
                   if (val === "Custom") {
                     setForm((p) => ({ ...p, type: "" }));
@@ -138,14 +137,26 @@ export default function RoomFormSlideOver({
                     setForm((p) => ({ ...p, type: val }));
                   }
                 }}
-                className={SELECT_TRIGGER_CLASS}
               >
-                <option value="" disabled>Select Type...</option>
-                {existingTypes.map((t) => (
-                  <option key={t} value={t}>{t}</option>
-                ))}
-                <option value="Custom">+ Add New Type</option>
-              </select>
+                <Select.Trigger id="so-room-type" className={SELECT_TRIGGER_CLASS}>
+                  <Select.Value placeholder="Select Type..." />
+                  <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+                </Select.Trigger>
+                <Select.Portal>
+                  <Select.Content position="popper" side="bottom" align="start" sideOffset={4} className="z-50 max-h-64 overflow-hidden rounded-md border border-border bg-background p-1 text-foreground shadow-md">
+                    <Select.Viewport>
+                      {existingTypes.map((t) => (
+                        <Select.Item key={t} value={t} className="relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-xs outline-none data-[highlighted]:bg-surface-hover data-[state=checked]:bg-primary/15 data-[highlighted]:text-foreground">
+                          <Select.ItemText>{t}</Select.ItemText>
+                        </Select.Item>
+                      ))}
+                      <Select.Item value="Custom" className="relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-xs outline-none data-[highlighted]:bg-surface-hover data-[state=checked]:bg-primary/15 data-[highlighted]:text-foreground">
+                        <Select.ItemText>+ Add New Type</Select.ItemText>
+                      </Select.Item>
+                    </Select.Viewport>
+                  </Select.Content>
+                </Select.Portal>
+              </Select.Root>
               {(!existingTypes.includes(form.type) || existingTypes.includes(form.type) === false) && (
                 <Input
                   placeholder="Enter Custom Room Type..."
@@ -157,20 +168,28 @@ export default function RoomFormSlideOver({
 
             <div className="space-y-1.5">
               <Label htmlFor="so-room-status" className="text-xs font-medium text-foreground/60">Room Status</Label>
-              <select
-                id="so-room-status"
-                value={form.status}
-                onChange={(e) => setForm((p) => ({ ...p, status: e.target.value }))}
-                className={SELECT_TRIGGER_CLASS}
-              >
-                <option value="" disabled>Select Status...</option>
-                {statusOptions.map((s) => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
-                {!statusOptions.includes(form.status) && form.status && (
-                  <option value={form.status}>{form.status}</option>
-                )}
-              </select>
+              <Select.Root value={form.status} onValueChange={(val) => setForm((p) => ({ ...p, status: val }))}>
+                <Select.Trigger id="so-room-status" className={SELECT_TRIGGER_CLASS}>
+                  <Select.Value placeholder="Select Status..." />
+                  <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+                </Select.Trigger>
+                <Select.Portal>
+                  <Select.Content position="popper" side="bottom" align="start" sideOffset={4} className="z-50 max-h-64 overflow-hidden rounded-md border border-border bg-background p-1 text-foreground shadow-md">
+                    <Select.Viewport>
+                      {statusOptions.map((s) => (
+                        <Select.Item key={s} value={s} className="relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-xs outline-none data-[highlighted]:bg-surface-hover data-[state=checked]:bg-primary/15 data-[highlighted]:text-foreground">
+                          <Select.ItemText>{s}</Select.ItemText>
+                        </Select.Item>
+                      ))}
+                      {!statusOptions.includes(form.status) && form.status && (
+                        <Select.Item value={form.status} className="relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-xs outline-none data-[highlighted]:bg-surface-hover data-[state=checked]:bg-primary/15 data-[highlighted]:text-foreground">
+                          <Select.ItemText>{form.status}</Select.ItemText>
+                        </Select.Item>
+                      )}
+                    </Select.Viewport>
+                  </Select.Content>
+                </Select.Portal>
+              </Select.Root>
             </div>
 
             <div className="space-y-1.5">

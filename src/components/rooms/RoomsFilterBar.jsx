@@ -1,3 +1,4 @@
+import { Select } from "radix-ui";
 import { Input } from "@/components/ui/input";
 import {
   Search,
@@ -6,6 +7,7 @@ import {
   LayoutGrid,
   SlidersHorizontal,
   ArrowUpDown,
+  ChevronDown,
 } from "lucide-react";
 
 const SORT_OPTIONS = [
@@ -27,6 +29,37 @@ const SORT_OPTIONS = [
  * have been ~19 props. SORT_OPTIONS moved in here because only this toolbar
  * used it.
  */
+
+// Styled filter picker — same slim yellow recipe as the admin Select filters.
+// Native <select> panels are OS-rendered and can't match it.
+function FilterSelect({ value, onChange, options, ariaLabel }) {
+  return (
+    <Select.Root value={value} onValueChange={onChange}>
+      <Select.Trigger
+        aria-label={ariaLabel}
+        className="flex h-9 items-center justify-between gap-2 rounded-lg border border-border bg-background px-2.5 text-xs font-medium text-foreground/70 focus:outline-none focus:ring-2 focus:ring-ring/50"
+      >
+        <Select.Value />
+        <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
+      </Select.Trigger>
+      <Select.Portal>
+        <Select.Content position="popper" side="bottom" align="start" sideOffset={4} className="z-50 max-h-64 overflow-hidden rounded-md border border-border bg-background p-1 text-foreground shadow-md">
+          <Select.Viewport>
+            {options.map((o) => (
+              <Select.Item
+                key={o.value}
+                value={o.value}
+                className="relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-xs outline-none data-[highlighted]:bg-surface-hover data-[state=checked]:bg-primary/15 data-[highlighted]:text-foreground"
+              >
+                <Select.ItemText>{o.label}</Select.ItemText>
+              </Select.Item>
+            ))}
+          </Select.Viewport>
+        </Select.Content>
+      </Select.Portal>
+    </Select.Root>
+  );
+}
 export default function RoomsFilterBar({
   filters,
   options,
@@ -81,53 +114,38 @@ export default function RoomsFilterBar({
         <SlidersHorizontal className="h-3.5 w-3.5 text-foreground/40" />
 
         {/* Status filter */}
-        <select
+        <FilterSelect
+          ariaLabel="Filter by status"
           value={filters.statusFilter}
-          onChange={(e) => onChange.status(e.target.value)}
-          className="h-9 rounded-lg border border-border bg-background px-2.5 text-xs font-medium text-foreground/70 focus:outline-none focus:ring-2 focus:ring-ring/50"
-        >
-          <option value="all">All Status</option>
-          {options.statuses.map((s) => (
-            <option key={s} value={s}>{s}</option>
-          ))}
-        </select>
+          onChange={onChange.status}
+          options={[{ value: "all", label: "All Status" }, ...options.statuses.map((s) => ({ value: s, label: s }))]}
+        />
 
         {/* Type filter */}
-        <select
+        <FilterSelect
+          ariaLabel="Filter by type"
           value={filters.typeFilter}
-          onChange={(e) => onChange.type(e.target.value)}
-          className="h-9 rounded-lg border border-border bg-background px-2.5 text-xs font-medium text-foreground/70 focus:outline-none focus:ring-2 focus:ring-ring/50"
-        >
-          <option value="all">All Types</option>
-          {options.types.map((t) => (
-            <option key={t} value={t}>{t}</option>
-          ))}
-        </select>
+          onChange={onChange.type}
+          options={[{ value: "all", label: "All Types" }, ...options.types.map((t) => ({ value: t, label: t }))]}
+        />
 
         {/* Floor filter */}
-        <select
+        <FilterSelect
+          ariaLabel="Filter by floor"
           value={filters.floorFilter}
-          onChange={(e) => onChange.floor(e.target.value)}
-          className="h-9 rounded-lg border border-border bg-background px-2.5 text-xs font-medium text-foreground/70 focus:outline-none focus:ring-2 focus:ring-ring/50"
-        >
-          <option value="all">All Floors</option>
-          {options.floors.map((f) => (
-            <option key={f} value={f}>Floor {f}</option>
-          ))}
-        </select>
+          onChange={onChange.floor}
+          options={[{ value: "all", label: "All Floors" }, ...options.floors.map((f) => ({ value: f, label: `Floor ${f}` }))]}
+        />
 
         {/* Sort */}
         <div className="flex items-center gap-1.5">
           <ArrowUpDown className="h-3.5 w-3.5 text-foreground/40" />
-          <select
+          <FilterSelect
+            ariaLabel="Sort rooms"
             value={filters.sortBy}
-            onChange={(e) => onChange.sort(e.target.value)}
-            className="h-9 rounded-lg border border-border bg-background px-2.5 text-xs font-medium text-foreground/70 focus:outline-none focus:ring-2 focus:ring-ring/50"
-          >
-            {SORT_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </select>
+            onChange={onChange.sort}
+            options={SORT_OPTIONS}
+          />
         </div>
 
         {/* Clear filters */}

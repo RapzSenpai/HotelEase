@@ -235,10 +235,10 @@ export default function AdminAlertsPage() {
                     <ChevronDown className="h-4 w-4 opacity-50 ml-1.5 shrink-0 text-muted-foreground" />
                   </Select.Trigger>
                   <Select.Portal>
-                    <Select.Content className="z-50 max-h-64 overflow-hidden rounded-md border border-border bg-background p-1 text-foreground shadow-md">
+                    <Select.Content position="popper" side="bottom" align="start" sideOffset={4} className="z-50 max-h-64 overflow-hidden rounded-md border border-border bg-background p-1 text-foreground shadow-md">
                       <Select.Viewport>
                         {SEVERITIES.map((s) => (
-                          <Select.Item key={s} value={s} className="relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-xs outline-none data-[highlighted]:bg-muted data-[highlighted]:text-foreground">
+                          <Select.Item key={s} value={s} className="relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-xs outline-none data-[highlighted]:bg-surface-hover data-[state=checked]:bg-primary/15 data-[highlighted]:text-foreground">
                             <Select.ItemText>{s}</Select.ItemText>
                           </Select.Item>
                         ))}
@@ -282,15 +282,15 @@ export default function AdminAlertsPage() {
                 <ChevronDown className="h-4 w-4 opacity-50 ml-1.5 shrink-0 text-muted-foreground" />
               </Select.Trigger>
               <Select.Portal>
-                <Select.Content className="z-50 max-h-64 overflow-hidden rounded-md border border-border bg-background p-1 text-foreground shadow-md">
+                <Select.Content position="popper" side="bottom" align="start" sideOffset={4} className="z-50 max-h-64 overflow-hidden rounded-md border border-border bg-background p-1 text-foreground shadow-md">
                   <Select.Viewport>
-                    <Select.Item value="all" className="relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-xs outline-none data-[highlighted]:bg-muted data-[highlighted]:text-foreground">
+                    <Select.Item value="all" className="relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-xs outline-none data-[highlighted]:bg-surface-hover data-[state=checked]:bg-primary/15 data-[highlighted]:text-foreground">
                       <Select.ItemText>All Statuses</Select.ItemText>
                     </Select.Item>
-                    <Select.Item value="unresolved" className="relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-xs outline-none data-[highlighted]:bg-muted data-[highlighted]:text-foreground">
+                    <Select.Item value="unresolved" className="relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-xs outline-none data-[highlighted]:bg-surface-hover data-[state=checked]:bg-primary/15 data-[highlighted]:text-foreground">
                       <Select.ItemText>Unresolved</Select.ItemText>
                     </Select.Item>
-                    <Select.Item value="resolved" className="relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-xs outline-none data-[highlighted]:bg-muted data-[highlighted]:text-foreground">
+                    <Select.Item value="resolved" className="relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-xs outline-none data-[highlighted]:bg-surface-hover data-[state=checked]:bg-primary/15 data-[highlighted]:text-foreground">
                       <Select.ItemText>Resolved</Select.ItemText>
                     </Select.Item>
                   </Select.Viewport>
@@ -304,13 +304,13 @@ export default function AdminAlertsPage() {
                 <ChevronDown className="h-4 w-4 opacity-50 ml-1.5 shrink-0 text-muted-foreground" />
               </Select.Trigger>
               <Select.Portal>
-                <Select.Content className="z-50 max-h-64 overflow-hidden rounded-md border border-border bg-background p-1 text-foreground shadow-md">
+                <Select.Content position="popper" side="bottom" align="start" sideOffset={4} className="z-50 max-h-64 overflow-hidden rounded-md border border-border bg-background p-1 text-foreground shadow-md">
                   <Select.Viewport>
-                    <Select.Item value="all" className="relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-xs outline-none data-[highlighted]:bg-muted data-[highlighted]:text-foreground">
+                    <Select.Item value="all" className="relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-xs outline-none data-[highlighted]:bg-surface-hover data-[state=checked]:bg-primary/15 data-[highlighted]:text-foreground">
                       <Select.ItemText>All Severities</Select.ItemText>
                     </Select.Item>
                     {SEVERITIES.map((s) => (
-                      <Select.Item key={s} value={s} className="relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-xs outline-none data-[highlighted]:bg-muted data-[highlighted]:text-foreground">
+                      <Select.Item key={s} value={s} className="relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-xs outline-none data-[highlighted]:bg-surface-hover data-[state=checked]:bg-primary/15 data-[highlighted]:text-foreground">
                         <Select.ItemText>{s}</Select.ItemText>
                       </Select.Item>
                     ))}
