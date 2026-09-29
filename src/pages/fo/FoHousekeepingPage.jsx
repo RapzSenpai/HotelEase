@@ -3,7 +3,7 @@ import { toast } from "sonner";
 import { History } from "lucide-react";
 import { StarRating } from "@/components/common/StarRating";
 import { subscribeToRooms } from "@/services/roomsService";
-import { listUsers } from "@/services/userService";
+import { listStaffUsers } from "@/services/userService";
 import HousekeepingKanban from "@/components/housekeeping/HousekeepingKanban";
 import HousekeepingList from "@/components/housekeeping/HousekeepingList";
 import { Button } from "@/components/ui/button";
@@ -85,11 +85,10 @@ export default function FoHousekeepingPage() {
     let isMounted = true;
     async function loadStaff() {
       try {
-        const users = await listUsers({ trainingMode: !!trainingMode });
+        // P2 scalability: staff-only query instead of the whole users list.
+        const users = await listStaffUsers({ trainingMode: !!trainingMode });
         if (!isMounted) return;
-        setStaffUsers(
-          users.filter((u) => u.role === "fo" || u.role === "admin"),
-        );
+        setStaffUsers(users);
       } catch {
         if (!isMounted) return;
         setStaffUsers([]);

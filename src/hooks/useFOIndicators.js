@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { subscribeToPendingBookingRequests, subscribeToAllBookings } from "@/services/bookingsService";
+import { subscribeToPendingBookingRequests, subscribeToHasBookings } from "@/services/bookingsService";
 import { subscribeToMessages } from "@/services/messageService";
 import { subscribeToRooms } from "@/services/roomsService";
 import { subscribeToAllTestimonials } from "@/services/testimonialsService";
@@ -13,6 +13,21 @@ export function useFOIndicators({ trainingMode = null, role = null } = {}) {
   const [dirtyRoomsCount, setDirtyRoomsCount] = useState(0);
   const [pendingTestimonialsCount, setPendingTestimonialsCount] = useState(0);
   const [hasPendingCancellations, setHasPendingCancellations] = useState(false);
+  // Day key: the `tomorrow` cutoff below goes stale across midnight in a long
+  // session. A 60s checker bumps the key at rollover, resubscribing the effect.
+  const [dayKey, setDayKey] = useState(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+  });
+
+  useEffect(() => {
+    const iv = setInterval(() => {
+      const d = new Date();
+      const k = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+      setDayKey((prev) => (prev === k ? prev : k));
+    }, 60000);
+    return () => clearInterval(iv);
+  }, []);
 
   useEffect(() => {
     // Staff-only hook. Bail out for guests/signed-out states so a stale or
@@ -41,26 +56,23 @@ export function useFOIndicators({ trainingMode = null, role = null } = {}) {
       unsubscribers.push(unsubMessages);
     }
 
-    // One booking listener supplies all booking indicators.
-    const unsubBookings = subscribeToAllBookings((bookings) => {
-      setHasApprovedCheckIns(bookings.some((b) => b.status === "Approved"));
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      
-      const dueCheckOuts = bookings.filter((booking) => {
-        if (booking.status !== "Checked In") return false;
-        if (!booking.checkOutDate) return false;
-        
-        const checkOutDate = booking.checkOutDate.toDate ? 
-          booking.checkOutDate.toDate() : 
-          new Date(booking.checkOutDate);
-        checkOutDate.setHours(0, 0, 0, 0);
-        return checkOutDate <= today;
-      });
-      setHasDueCheckOuts(dueCheckOuts.length > 0);
-      setHasPendingCancellations(bookings.some((b) => b.status === "Cancellation Requested"));
-    }, { trainingMode });
-    unsubscribers.push(unsubBookings);
+    // P2 scalability: badges only need existence, so three limit(1) live
+    // queries replace the whole-collection subscription. Same semantics:
+    // any Approved / due checkout / cancellation request flips its badge.
+    const tomorrow = new Date();
+    tomorrow.setHours(0, 0, 0, 0);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    unsubscribers.push(
+      subscribeToHasBookings({ status: "Approved", trainingMode }, setHasApprovedCheckIns),
+      subscribeToHasBookings(
+        { status: "Checked In", checkOutBefore: tomorrow, trainingMode },
+        setHasDueCheckOuts,
+      ),
+      subscribeToHasBookings(
+        { status: "Cancellation Requested", trainingMode },
+        setHasPendingCancellations,
+      ),
+    );
 
     // 5. Dirty / in-progress housekeeping rooms
     const unsubDirtyRooms = subscribeToRooms((rooms) => {
@@ -89,7 +101,7 @@ export function useFOIndicators({ trainingMode = null, role = null } = {}) {
     return () => {
       unsubscribers.forEach((unsub) => unsub());
     };
-  }, [trainingMode, role]);
+  }, [trainingMode, role, dayKey]);
 
   return {
     pendingBookingsCount,

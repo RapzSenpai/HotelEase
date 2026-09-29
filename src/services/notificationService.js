@@ -34,6 +34,45 @@ export async function createNotification(userId, { type, title, message, link },
   });
 }
 
+const FANOUT_CHUNK_SIZE = 500;
+
+/**
+ * P1 scalability: fan-out to many users in batched commits (≤500 writes each)
+ * instead of N individual setDocs. Same docs, same content, same recipients —
+ * fewer RPC round-trips and a partial failure only loses one chunk instead of
+ * aborting the whole fan-out. Note: billed writes are unchanged (Firestore
+ * bills per document); true write reduction needs a pull model (P2).
+ */
+export async function createNotificationsBulk(recipients, { trainingMode = null } = {}) {
+  const list = (recipients || []).filter((r) => r?.userId);
+  let sent = 0;
+  const errors = [];
+  for (let i = 0; i < list.length; i += FANOUT_CHUNK_SIZE) {
+    const chunk = list.slice(i, i + FANOUT_CHUNK_SIZE);
+    const batch = writeBatch(db);
+    chunk.forEach(({ userId, type, title, message, link }) => {
+      const notifRef = doc(collection(db, getCol("notifications", trainingMode), userId, "items"));
+      batch.set(notifRef, {
+        id: notifRef.id,
+        type,
+        title,
+        message,
+        link: link || "/",
+        isRead: false,
+        createdAt: serverTimestamp(),
+      });
+    });
+    try {
+      await batch.commit();
+      sent += chunk.length;
+    } catch (e) {
+      errors.push(e);
+      console.error("[notificationService] fan-out chunk failed:", e);
+    }
+  }
+  return { sent, failed: list.length - sent, errors };
+}
+
 /**
  * Marks a specific notification as read.
  */

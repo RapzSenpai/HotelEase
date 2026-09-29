@@ -76,6 +76,32 @@ export async function listSubcollectionIds(accessToken, projectId, parentPath, c
 }
 
 /**
+ * List full documents of a subcollection, newest/oldest first. Paginated via
+ * pageToken (pass back the returned nextPageToken until empty).
+ */
+export async function listSubcollectionDocs(accessToken, projectId, parentPath, collectionId, { orderBy = null, pageSize = 300, pageToken = "" } = {}) {
+  const encodedParent = parentPath.split("/").map(encodeURIComponent).join("/");
+  const params = new URLSearchParams({ pageSize: String(pageSize) });
+  if (orderBy) params.set("orderBy", orderBy);
+  if (pageToken) params.set("pageToken", pageToken);
+  const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/${encodedParent}/${encodeURIComponent(collectionId)}?${params.toString()}`;
+  const resp = await fetch(url, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (resp.status === 404) return { docs: [], nextPageToken: "" };
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => "");
+    throw new Error(`Failed to list ${parentPath}/${collectionId} (${resp.status}): ${text.slice(0, 300)}`);
+  }
+  const data = await resp.json().catch(() => ({}));
+  const docs = (Array.isArray(data.documents) ? data.documents : []).map((d) => ({
+    id: (d.name || "").split("/").pop() || "",
+    fields: d.fields || {},
+  }));
+  return { docs, nextPageToken: data.nextPageToken || "" };
+}
+
+/**
  * GET a single Firestore document. Returns { exists, fields } — a 404 means the
  * document is gone (exists: false) rather than an error.
  */

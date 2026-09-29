@@ -2,8 +2,12 @@ import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/firebase/firebase.config";
 import { getCol } from "@/lib/db-utils";
 
-const HEARTBEAT_INTERVAL_MS = 20000;
-export const ONLINE_WINDOW_MS = 60000;
+// P1 scalability: a 20s beat costs every online user ~180 writes/hr just for
+// the green dot. 90s + 150s window cuts that ~4.5x. Tradeoff: a closed tab
+// can read "Online" for up to ~2.5 min. Window must stay comfortably above
+// the beat or the dot flaps.
+const HEARTBEAT_INTERVAL_MS = 90000;
+export const ONLINE_WINDOW_MS = 150000;
 
 const sessions = new Map();
 
@@ -20,6 +24,9 @@ export function startPresence(uid, { trainingMode = false } = {}) {
   writeHeartbeat(uid, trainingMode).catch(() => {});
 
   const interval = setInterval(() => {
+    // Background tabs don't need fresh dots — the visibility/pagehide
+    // handlers already record the exit write.
+    if (typeof document !== "undefined" && document.hidden) return;
     writeHeartbeat(uid, trainingMode).catch(() => {});
   }, HEARTBEAT_INTERVAL_MS);
 

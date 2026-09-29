@@ -1,7 +1,7 @@
 // Moved verbatim from src/index.js — delete-user handler, no logic changes.
 import { verifyFirebaseIdToken } from "../firebase-jwt.js";
 import { getGoogleAccessToken } from "../google-auth.js";
-import { deleteAuthAccount, deleteFirestoreDoc, deleteUserProfileWithAdminGuard, getFirestoreDoc, getFirestoreUserRole, listSubcollectionIds } from "../firestore.js";
+import { deleteAuthAccount, deleteFirestoreDoc, deleteUserProfileWithAdminGuard, getFirestoreDoc, getFirestoreUserRole, listSubcollectionIds, runFirestoreQuery, patchFirestoreDoc, fsValue } from "../firestore.js";
 import { json } from "../http.js";
 
 export async function handleDeleteUser(request, workerEnv) {
@@ -87,6 +87,40 @@ export async function handleDeleteUser(request, workerEnv) {
       return json({ error: "You cannot delete your own admin account." }, 403, request, workerEnv);
     }
 
+    // Pre-deletion checks FIRST: both refusals below must fire before ANY
+    // write. (The last-admin path deletes the profile inside its own
+    // transaction, so a live-booking 409 after it would strand a half-delete.)
+    const PAIRS = [["bookings", "room_availability"], ["training_bookings", "training_availability"]];
+    const BLOCKING = new Set(["Pending", "Approved", "Checked In", "Cancellation Requested"]);
+    const holdsByCol = new Map();
+    for (const [col] of PAIRS) {
+      const holds = await runFirestoreQuery(accessToken, projectId, col, {
+        from: [{ collectionId: col }],
+        where: {
+          fieldFilter: {
+            field: { fieldPath: "guestId" },
+            op: "EQUAL",
+            value: { stringValue: uid },
+          },
+        },
+      });
+      holdsByCol.set(col, holds);
+    }
+    const blocking = [];
+    for (const holds of holdsByCol.values()) {
+      for (const h of holds) {
+        if (BLOCKING.has(fsValue(h.fields, "status"))) blocking.push(h.id);
+      }
+    }
+    if (blocking.length > 0) {
+      return json(
+        { error: `Refusing to delete: this account has ${blocking.length} live booking(s) needing admin handling (Pending / Approved / Checked In). Resolve them first.` },
+        409,
+        request,
+        workerEnv,
+      );
+    }
+
     // Last-admin shield: check and delete the profile in one Firestore transaction.
     const victim = await getFirestoreDoc(accessToken, projectId, "users", uid);
     if (victim.exists && victim.fields?.role?.stringValue === "admin") {
@@ -112,15 +146,89 @@ export async function handleDeleteUser(request, workerEnv) {
       deleted.push(col);
     }
 
+    // Cascade: cancel the victim's unpaid Awaiting Payment holds and release
+    // their markers so the nights reopen. No CAS precondition — the payer's
+    // Auth account is gone, so no payment can race this write. Skipped
+    // notification: the guest's notification items were just purged.
+    const nowIso = new Date().toISOString();
+    let cancelledHolds = 0;
+    let releasedMarkers = 0;
+    // IDs whose cleanup failed — returned so the caller can report a partial
+    // cascade instead of a clean success.
+    const failedHolds = [];
+    const failedMarkers = [];
+    for (const [col, markerCol] of PAIRS) {
+      for (const h of holdsByCol.get(col)) {
+        if (fsValue(h.fields, "status") !== "Awaiting Payment") continue;
+        const bookingId = h.id;
+        try {
+          await patchFirestoreDoc(
+            accessToken,
+            projectId,
+            col,
+            bookingId,
+            {
+              status: { stringValue: "Cancelled" },
+              rejectionReason: { stringValue: "Account deleted" },
+              updatedAt: { timestampValue: nowIso },
+            },
+            ["status", "rejectionReason", "updatedAt"],
+          );
+          cancelledHolds += 1;
+          const markers = await runFirestoreQuery(accessToken, projectId, markerCol, {
+            from: [{ collectionId: markerCol }],
+            where: {
+              fieldFilter: {
+                field: { fieldPath: "bookingId" },
+                op: "EQUAL",
+                value: { stringValue: bookingId },
+              },
+            },
+          });
+          for (const m of markers) {
+            try {
+              await deleteFirestoreDoc(accessToken, projectId, `${markerCol}/${m.id}`);
+              releasedMarkers += 1;
+            } catch (e) {
+              failedMarkers.push(`${col}/${bookingId}/${m.id}`);
+              console.error(`[delete-user] marker delete failed ${m.id}:`, String(e?.message || e));
+            }
+          }
+        } catch (e) {
+          failedHolds.push(`${col}/${bookingId}`);
+          console.error(`[delete-user] hold cancel failed ${col}/${bookingId}:`, String(e?.message || e));
+        }
+      }
+    }
+
     if (authResult === "not_found") {
       return json(
-        { ok: false, uid, reason: "auth_not_found", deletedFirestore: deleted },
+        {
+          ok: false,
+          uid,
+          reason: "auth_not_found",
+          deletedFirestore: deleted,
+          incomplete: { holds: failedHolds, markers: failedMarkers },
+        },
         404,
         request,
         workerEnv,
       );
     }
-    return json({ ok: true, uid, deletedFirestore: deleted }, 200, request, workerEnv);
+    const incomplete = failedHolds.length > 0 || failedMarkers.length > 0;
+    return json(
+      {
+        ok: !incomplete,
+        uid,
+        deletedFirestore: deleted,
+        cancelledHolds,
+        releasedMarkers,
+        incomplete: { holds: failedHolds, markers: failedMarkers },
+      },
+      incomplete ? 207 : 200,
+      request,
+      workerEnv,
+    );
   } catch (e) {
     return json({ error: "Delete failed.", detail: String(e?.message || e) }, 502, request, workerEnv);
   }

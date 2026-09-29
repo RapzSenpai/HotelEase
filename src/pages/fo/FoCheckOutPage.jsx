@@ -14,7 +14,7 @@ import {
 } from "@/services/paymentsService";
 import { generateReceipt } from "@/services/receiptService";
 import { listRooms } from "@/services/roomsService";
-import { listUsers } from "@/services/userService";
+import { getUserDoc } from "@/services/userService";
 import { useAuth } from "@/contexts/AuthContext";
 import { trackEvent, GA_EVENTS } from "@/services/gaService";
 import { toast } from "sonner";
@@ -37,6 +37,34 @@ export default function FoCheckOutPage() {
   const [guestsMap, setGuestsMap] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  // P2 scalability: on-demand guest objects instead of the whole users list.
+  // Shape matches the old map ({ id, fullName, email, ... }); null = resolved.
+  const guestsMapRef = useRef({});
+  // Generation guard: reset bumps this, so a slow lookup resolving after a
+  // training-mode switch can't write stale names into the fresh cache.
+  const guestsGenRef = useRef(0);
+
+  async function ensureGuestObjects(list) {
+    const missing = [...new Set(list.map((b) => b.guestId).filter(Boolean))]
+      .filter((id) => !(id in guestsMapRef.current));
+    if (missing.length === 0) return;
+    const gen = guestsGenRef.current;
+    const entries = await Promise.all(
+      missing.map(async (id) => {
+        try {
+          const d = await getUserDoc(id, { preferTraining: trainingMode });
+          return [id, d ? { id, ...d } : null];
+        } catch {
+          return [id, null];
+        }
+      }),
+    );
+    if (gen !== guestsGenRef.current) return;
+    entries.forEach(([id, obj]) => {
+      guestsMapRef.current[id] = obj;
+    });
+    setGuestsMap({ ...guestsMapRef.current });
+  }
 
   // ── Selected booking ──────────────────────────────────────────────────────
   const [selectedBookingId, setSelectedBookingId] = useState(null);
@@ -64,24 +92,21 @@ export default function FoCheckOutPage() {
       try {
         setLoading(true);
         setError(null);
-        const [roomData, bookingData, userData] = await Promise.all([
+        // Guest cache is per-mode: a uid can exist in both collections.
+        guestsGenRef.current += 1;
+        guestsMapRef.current = {};
+        setGuestsMap({});
+        const [roomData, bookingData] = await Promise.all([
           listRooms(),
           listBookingsByStatuses(["Checked In"], { trainingMode }),
-          listUsers({ trainingMode }),
         ]);
         if (!isMounted) return;
         setRooms(roomData);
-
-        const gMap = {};
-        userData.forEach((u) => {
-          gMap[u.id || u.uid] = u;
-        });
-        setGuestsMap(gMap);
-        setBookings(
-          roomIdParam
-            ? bookingData.filter((b) => b.roomId === roomIdParam)
-            : bookingData,
-        );
+        const visible = roomIdParam
+          ? bookingData.filter((b) => b.roomId === roomIdParam)
+          : bookingData;
+        setBookings(visible);
+        ensureGuestObjects(visible);
       } catch (e) {
         if (!isMounted) return;
         setError(e?.message || "Failed to load check-out data.");
@@ -93,6 +118,9 @@ export default function FoCheckOutPage() {
     return () => {
       isMounted = false;
     };
+    // ensureGuestObjects is a stable per-render helper over refs; trainingMode
+    // is already a dep.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomIdParam, trainingMode]);
 
   // ── Load payment history whenever selected booking changes ────────────────
@@ -238,11 +266,11 @@ export default function FoCheckOutPage() {
       listBookingsByStatuses(["Checked In"], { trainingMode }),
     ]);
     setRooms(roomData);
-    setBookings(
-      roomIdParam
-        ? bookingData.filter((b) => b.roomId === roomIdParam)
-        : bookingData,
-    );
+    const visible = roomIdParam
+      ? bookingData.filter((b) => b.roomId === roomIdParam)
+      : bookingData;
+    setBookings(visible);
+    ensureGuestObjects(visible);
 
     // Reload payment history for the same booking.
     // Explicit null skips the reload (used after checkout clears selection).

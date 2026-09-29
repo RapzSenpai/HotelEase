@@ -6,6 +6,7 @@ import {
   deleteFirestoreDoc,
   fsValue,
   getFirestoreDoc,
+  listSubcollectionDocs,
   listSubcollectionIds,
   patchFirestoreDoc,
   runFirestoreQuery,
@@ -234,6 +235,237 @@ export async function sweepOrphanMarkers(workerEnv) {
       `[sweep] orphan deletion capped at ${ORPHAN_SWEEP_MAX_DELETES}; ` +
         `${orphanIds.length - targets.length} left for the next run`,
     );
+  }
+
+  return { ok: true, ...summary };
+}
+
+/**
+ * Notification retention: per inbox, keep the latest INBOX_KEEP_COUNT items
+ * newer than INBOX_KEEP_DAYS — delete an item when it is past EITHER bound
+ * (whichever is more restrictive). Unread safety: an unread item is only
+ * purged when it is past BOTH bounds (abandoned); read items go by either.
+ * Current notifications and the unread badge (latest-20 bell) are unaffected
+ * in practice — the bell only ever shows the newest items, which are kept.
+ */
+const INBOX_KEEP_COUNT = 200;
+const INBOX_KEEP_DAYS = 90;
+const INBOX_PAGE_SIZE = 400;
+const INBOX_PAGE_FAILURE_RETRIES = 3;
+// Per-run budgets; the active owner's page token persists separately from
+// the completed-owner cursor so partial scans resume without skipping owners.
+const INBOX_MAX_OWNERS_PER_RUN = 200;
+const INBOX_MAX_PAGES_PER_RUN = 100;
+const INBOX_MAX_DELETES_PER_RUN = 2000;
+const INBOX_MAX_PAGES_PER_COLLECTION = INBOX_MAX_PAGES_PER_RUN / 2;
+const INBOX_MAX_DELETES_PER_COLLECTION = INBOX_MAX_DELETES_PER_RUN / 2;
+const INBOX_CURSOR_KEY = "inbox-retention-cursor";
+const INBOX_PAGE_CURSOR_KEY = "inbox-retention-page-cursor";
+
+function inboxRank(item, rank, ageCutoff) {
+  const isRead = fsValue(item.fields, "isRead") === true;
+  const createdRaw = fsValue(item.fields, "createdAt");
+  const createdMs = createdRaw ? Date.parse(createdRaw) : NaN;
+  const pastCount = rank > INBOX_KEEP_COUNT;
+  // Missing createdAt: rank-only (never age-purge what we can't date).
+  const pastAge = !Number.isNaN(createdMs) && createdMs < ageCutoff;
+  return {
+    purge: isRead ? (pastCount || pastAge) : (pastCount && pastAge),
+  };
+}
+
+export async function purgeNotificationInboxes(workerEnv) {
+  const sa = workerEnv.FIREBASE_SERVICE_ACCOUNT;
+  if (!sa) return { ok: false, reason: "FIREBASE_SERVICE_ACCOUNT not configured" };
+
+  let projectId;
+  try {
+    projectId = JSON.parse(sa).project_id;
+  } catch {
+    return { ok: false, reason: "FIREBASE_SERVICE_ACCOUNT is not valid JSON" };
+  }
+  if (!projectId) return { ok: false, reason: "project_id missing" };
+
+  const accessToken = await getGoogleAccessToken(sa);
+  const now = Date.now();
+  const ageCutoff = now - INBOX_KEEP_DAYS * 86400000;
+  const summary = { ownersScanned: 0, pagesScanned: 0, kept: 0, purged: 0, errors: 0, resumed: false, completed: true };
+
+  const kv = workerEnv.AI_LIMITS || null;
+  async function readCursor(col) {
+    try {
+      return (await kv?.get(`${INBOX_CURSOR_KEY}:${col}`)) || "";
+    } catch {
+      return "";
+    }
+  }
+  async function writeCursor(col, value) {
+    try {
+      if (!kv) return;
+      if (value) await kv.put(`${INBOX_CURSOR_KEY}:${col}`, value);
+      else await kv.delete(`${INBOX_CURSOR_KEY}:${col}`);
+    } catch (e) {
+      console.error("[sweep] inbox cursor persist failed:", String(e?.message || e));
+    }
+  }
+  async function readPageCursor(col) {
+    try {
+      const raw = await kv?.get(`${INBOX_PAGE_CURSOR_KEY}:${col}`);
+      const value = raw ? JSON.parse(raw) : null;
+      if (
+        value && typeof value.uid === "string" &&
+        (value.stage === "ordered" || value.stage === "missing") &&
+        typeof value.pageToken === "string" &&
+        Number.isFinite(value.orderedSeen) &&
+        Number.isFinite(Number(value.pageFailures ?? 0))
+      ) return value;
+    } catch {
+      // A malformed or unavailable resume token restarts the active owner.
+    }
+    return null;
+  }
+  async function writePageCursor(col, value) {
+    try {
+      if (!kv) return;
+      const key = `${INBOX_PAGE_CURSOR_KEY}:${col}`;
+      if (value) await kv.put(key, JSON.stringify(value));
+      else await kv.delete(key);
+    } catch (e) {
+      console.error("[sweep] inbox page cursor persist failed:", String(e?.message || e));
+    }
+  }
+
+  for (const [inboxCol, ownerCol] of [["notifications", "users"], ["training_notifications", "training_guests"]]) {
+    let pagesScanned = 0;
+    let purged = 0;
+    const lastDoneUid = await readCursor(ownerCol);
+    const pageCursor = await readPageCursor(ownerCol);
+    if (lastDoneUid || pageCursor) summary.resumed = true;
+    let owners;
+    try {
+      owners = await runFirestoreQuery(accessToken, projectId, ownerCol, {
+        from: [{ collectionId: ownerCol }],
+        orderBy: [{ field: { fieldPath: "__name__" }, direction: "ASCENDING" }],
+        ...(lastDoneUid
+          ? { startAt: { values: [{ referenceValue: `projects/${projectId}/databases/(default)/documents/${ownerCol}/${lastDoneUid}` }], before: false } }
+          : {}),
+        limit: INBOX_MAX_OWNERS_PER_RUN + 1,
+      });
+    } catch (e) {
+      summary.errors += 1;
+      console.error(`[sweep] inbox owners query failed ${ownerCol}:`, String(e?.message || e));
+      continue;
+    }
+
+    let stoppedEarly = false;
+    for (const owner of owners.slice(0, INBOX_MAX_OWNERS_PER_RUN)) {
+      const uid = owner.id;
+      if (!uid) continue;
+      if (
+        purged >= INBOX_MAX_DELETES_PER_COLLECTION ||
+        pagesScanned >= INBOX_MAX_PAGES_PER_COLLECTION
+      ) {
+        stoppedEarly = true;
+        break;
+      }
+      summary.ownersScanned += 1;
+      let progress = pageCursor?.uid === uid
+        ? { ...pageCursor, pageFailures: Number.isFinite(Number(pageCursor.pageFailures ?? 0)) ? Number(pageCursor.pageFailures) : 0 }
+        : { uid, stage: "ordered", pageToken: "", orderedSeen: 0, pageFailures: 0 };
+      let ownerFinished = false;
+      try {
+        for (;;) {
+          if (
+            purged >= INBOX_MAX_DELETES_PER_COLLECTION ||
+            pagesScanned >= INBOX_MAX_PAGES_PER_COLLECTION
+          ) break;
+          const { docs, nextPageToken } = await listSubcollectionDocs(
+            accessToken, projectId, `${inboxCol}/${uid}`, "items",
+            {
+              ...(progress.stage === "ordered" ? { orderBy: "createdAt desc" } : {}),
+              pageSize: INBOX_PAGE_SIZE,
+              pageToken: progress.pageToken,
+            },
+          );
+          summary.pagesScanned += 1;
+          pagesScanned += 1;
+          let orderedSeen = progress.orderedSeen;
+          let pageFinished = true;
+          for (const item of docs) {
+            if (purged >= INBOX_MAX_DELETES_PER_COLLECTION) {
+              pageFinished = false;
+              break;
+            }
+            const hasCreatedAt = fsValue(item.fields, "createdAt") !== undefined;
+            let purge;
+            if (progress.stage === "ordered") {
+              orderedSeen += 1;
+              purge = inboxRank(item, orderedSeen, ageCutoff).purge;
+            } else {
+              if (hasCreatedAt) continue;
+              const isRead = fsValue(item.fields, "isRead") === true;
+              purge = isRead && progress.orderedSeen >= INBOX_KEEP_COUNT;
+            }
+            if (purge) {
+              try {
+                await deleteFirestoreDoc(accessToken, projectId, `${inboxCol}/${uid}/items/${item.id}`);
+                summary.purged += 1;
+                purged += 1;
+              } catch (e) {
+                summary.errors += 1;
+                console.error(`[sweep] inbox purge failed ${uid}/${item.id}:`, String(e?.message || e));
+              }
+            } else {
+              summary.kept += 1;
+            }
+          }
+          if (!pageFinished) break;
+
+          progress.orderedSeen = orderedSeen;
+          progress.pageFailures = 0;
+          if (nextPageToken) {
+            progress.pageToken = nextPageToken;
+          } else if (progress.stage === "ordered") {
+            progress.stage = "missing";
+            progress.pageToken = "";
+          } else {
+            ownerFinished = true;
+            break;
+          }
+          await writePageCursor(ownerCol, progress);
+        }
+      } catch (e) {
+        summary.errors += 1;
+        console.error(`[sweep] inbox scan failed ${uid}:`, String(e?.message || e));
+        progress.pageFailures = (Number.isFinite(Number(progress.pageFailures ?? 0)) ? Number(progress.pageFailures) : 0) + 1;
+        if (progress.stage === "ordered") {
+          progress.orderedSeen = 0;
+        }
+        progress.pageToken = "";
+        if (progress.pageFailures >= INBOX_PAGE_FAILURE_RETRIES) {
+          await writePageCursor(ownerCol, null);
+          await writeCursor(ownerCol, uid);
+          ownerFinished = true;
+        } else {
+          await writePageCursor(ownerCol, progress);
+        }
+      }
+      if (!ownerFinished) {
+        await writePageCursor(ownerCol, progress);
+        stoppedEarly = true;
+        break;
+      }
+      await writePageCursor(ownerCol, null);
+      await writeCursor(ownerCol, uid);
+    }
+
+    const moreOwners = owners.length > INBOX_MAX_OWNERS_PER_RUN || stoppedEarly;
+    const collectionComplete = !moreOwners;
+    summary.completed = summary.completed && collectionComplete;
+    if (collectionComplete) {
+      await writePageCursor(ownerCol, null);
+      await writeCursor(ownerCol, "");
+    }
   }
 
   return { ok: true, ...summary };

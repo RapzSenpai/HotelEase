@@ -1,20 +1,23 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { formatDate, formatCurrency } from "@/lib/format";
 import {
-  subscribeToAllBookings,
+  BOOKINGS_PAGE_SIZE,
+  subscribeToBookingsPage,
+  countBookingsByStatus,
+  countBookingsPage,
   approveBooking,
   rejectBooking,
   checkAndExpireStaleBookings,
   getOverdueDays,
 } from "@/services/bookingsService";
 import { listRooms } from "@/services/roomsService";
-import { listUsers } from "@/services/userService";
+import { getUserDoc } from "@/services/userService";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Check, X, Search, Image as ImageIcon, ChevronDown, CheckCircle2, AlertTriangle, ArrowRight } from "lucide-react";
+import { Check, X, Search, Image as ImageIcon, ChevronDown, CheckCircle2, AlertTriangle, ArrowRight, Clock } from "lucide-react";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -69,6 +72,24 @@ function BookingCard({
   const [imageDialogOpen, setImageDialogOpen] = useState(false);
   const overdueDays = booking.status === "Checked In" ? getOverdueDays(booking.checkOutDate) : 0;
   const isOverdue = overdueDays > 0;
+  const deadlineInfo = useMemo(() => {
+    if (booking.status !== "Awaiting Payment" || !booking.paymentDeadline) return null;
+    const d = booking.paymentDeadline?.toDate?.() || new Date(booking.paymentDeadline);
+    if (!(d instanceof Date) || isNaN(d)) return null;
+    // Intentional wall-clock read: countdown is only as fresh as the last render/subscription update.
+    // eslint-disable-next-line react-hooks/purity
+    const ms = d.getTime() - Date.now();
+    const expired = ms <= 0;
+    const h = Math.floor(Math.max(0, ms) / 3600000);
+    const m = Math.floor((Math.max(0, ms) % 3600000) / 60000);
+    return {
+      expired,
+      urgent: !expired && ms < 12 * 3600000,
+      text: expired
+        ? "Payment expired — auto-cancel pending"
+        : `Pay by ${d.toLocaleString()} · expires in ${h}h ${m}m`,
+    };
+  }, [booking.status, booking.paymentDeadline]);
 
   return (
     <div className={`rounded-xl border p-4 shadow-sm transition-shadow hover:shadow-md ${
@@ -124,6 +145,14 @@ function BookingCard({
           </p>
         </div>
       </div>
+
+      {/* ── Payment deadline (Awaiting Payment holds block the room until the sweep frees them) ── */}
+      {deadlineInfo && (
+        <p className={`mt-2 text-xs font-medium ${deadlineInfo.expired ? "text-destructive" : deadlineInfo.urgent ? "text-warning" : "text-foreground/60"}`}>
+          <Clock className="mr-1 inline h-3.5 w-3.5 align-middle" />
+          {deadlineInfo.text}
+        </p>
+      )}
 
       {/* ── Extra info ── */}
       {(booking.nights != null ||
@@ -495,16 +524,66 @@ export default function FoBookingsPage() {
   const [actionLoading, setActionLoading] = useState(null); // bookingId currently acting on
   const [showPastBookings, setShowPastBookings] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  // P0 scalability: bounded live window instead of the whole collection.
+  const [pageSize, setPageSize] = useState(BOOKINGS_PAGE_SIZE);
+  const [tabCounts, setTabCounts] = useState({});
+  const countRequestSeqRef = useRef({ tabs: {}, range: 0 });
+  // P2 date filter on check-in date. Presets + custom range; bounds are
+  // local-midnight inclusive on both ends.
+  const [datePreset, setDatePreset] = useState("all");
+  const [customFrom, setCustomFrom] = useState("");
+  const [customTo, setCustomTo] = useState("");
+  const [rangeCount, setRangeCount] = useState(null);
 
-  // ── Fetch rooms and guests for name mapping ──
+  function dayStart(d) {
+    const x = new Date(d);
+    x.setHours(0, 0, 0, 0);
+    return x;
+  }
+
+  const dateBounds = useMemo(() => {
+    const today = dayStart(new Date());
+    if (datePreset === "today") {
+      return { fromDate: today, toDate: new Date(today.getTime() + 86400000 - 1), label: "today", active: true };
+    }
+    if (datePreset === "7" || datePreset === "30") {
+      const days = Number(datePreset);
+      return {
+        fromDate: today,
+        toDate: new Date(today.getTime() + days * 86400000 - 1),
+        label: `the next ${days} days`,
+        active: true,
+      };
+    }
+    if (datePreset === "custom" && (customFrom || customTo)) {
+      const fromDate = customFrom ? dayStart(new Date(`${customFrom}T00:00:00`)) : null;
+      const toDate = customTo
+        ? new Date(dayStart(new Date(`${customTo}T00:00:00`)).getTime() + 86400000 - 1)
+        : null;
+      if (fromDate && toDate && fromDate > toDate) {
+        return { fromDate: null, toDate: null, label: "", active: false, invalid: true };
+      }
+      return { fromDate, toDate, label: "the selected dates", active: true };
+    }
+    return { fromDate: null, toDate: null, label: "", active: false };
+  }, [datePreset, customFrom, customTo]);
+
+  function handleDatePreset(preset) {
+    setDatePreset(preset);
+    setPageSize(BOOKINGS_PAGE_SIZE);
+    setRangeCount(null);
+  }
+  // Guest-name cache mirror: on-demand getUserDoc per visible guest, so the
+  // page never reads the whole users collection. "" = resolved, no name.
+  const guestsMapRef = useRef({});
+  const guestsGenerationRef = useRef(0);
+
+  // ── Fetch rooms for name mapping (rooms are tens, not thousands) ──
   useEffect(() => {
     let isMounted = true;
     async function loadResources() {
       try {
-        const [rooms, users] = await Promise.all([
-          listRooms({ trainingMode }),
-          listUsers({ trainingMode }),
-        ]);
+        const rooms = await listRooms({ trainingMode });
 
         if (!isMounted) return;
         const rMap = {};
@@ -512,12 +591,6 @@ export default function FoBookingsPage() {
           rMap[r.id] = r.name || r.roomNumber || r.id;
         });
         setRoomsMap(rMap);
-
-        const gMap = {};
-        users.forEach((u) => {
-          gMap[u.id || u.uid] = u.fullName || u.email || u.id;
-        });
-        setGuestsMap(gMap);
       } catch (err) {
         console.error("[FoBookingsPage] Failed to load resources:", err);
       }
@@ -526,24 +599,125 @@ export default function FoBookingsPage() {
     return () => { isMounted = false; };
   }, [trainingMode]);
 
-  // ── Real-time bookings subscription ──
+  // Guest-name cache clears only on training-mode switch — tab changes,
+  // date changes and "Show more" reuse already-resolved names.
+  useEffect(() => {
+    guestsGenerationRef.current += 1;
+    guestsMapRef.current = {};
+    setGuestsMap({});
+  }, [trainingMode]);
+
+  // Resolve display names for guests visible in the current window.
+  async function ensureGuestNames(list) {
+    const generation = guestsGenerationRef.current;
+    const missing = [...new Set(list.map((b) => b.guestId).filter(Boolean))]
+      .filter((id) => !(id in guestsMapRef.current));
+    if (missing.length === 0) return;
+    const entries = await Promise.all(
+      missing.map(async (id) => {
+        try {
+          const d = await getUserDoc(id, { preferTraining: trainingMode });
+          return [id, d?.fullName || d?.email || ""];
+        } catch {
+          return [id, ""];
+        }
+      }),
+    );
+    if (generation !== guestsGenerationRef.current) return;
+    entries.forEach(([id, name]) => {
+      guestsMapRef.current[id] = name;
+    });
+    setGuestsMap({ ...guestsMapRef.current });
+  }
+
+  // ── Real-time bookings subscription (bounded per-tab window) ──
   useEffect(() => {
     setLoading(true);
-    
+    let cancelled = false;
+    let countsTimer = null;
+
+    // Server-side counts stay exact without loading docs. Defined in-effect
+    // so the flag drops late results from a previous tab/mode/page.
+    async function refreshTabCounts() {
+      await Promise.all(TABS.map(async (tab) => {
+        const request = (countRequestSeqRef.current.tabs[tab] || 0) + 1;
+        countRequestSeqRef.current.tabs[tab] = request;
+        try {
+          const count = await countBookingsByStatus(tab === "All" ? null : tab, { trainingMode });
+          if (!cancelled && countRequestSeqRef.current.tabs[tab] === request) {
+            setTabCounts((prev) => ({ ...prev, [tab]: count }));
+          }
+        } catch (err) {
+          console.error(`[FoBookingsPage] Failed to load ${tab} count:`, err);
+        }
+      }));
+    }
+
+    // Exact in-range total for the caption (count, not docs).
+    async function refreshRangeCount(bounds, status) {
+      const request = ++countRequestSeqRef.current.range;
+      if (!bounds.active) {
+        if (!cancelled && countRequestSeqRef.current.range === request) setRangeCount(null);
+        return;
+      }
+      try {
+        const n = await countBookingsPage({
+          status: status === "All" ? null : status,
+          fromDate: bounds.fromDate,
+          toDate: bounds.toDate,
+          trainingMode,
+        });
+        if (!cancelled && countRequestSeqRef.current.range === request) setRangeCount(n);
+      } catch (err) {
+        console.error("[FoBookingsPage] range count failed (index?):", err);
+        if (!cancelled && countRequestSeqRef.current.range === request) setRangeCount(null);
+      }
+    }
     // Check for stale bookings (lazy-expiry)
     checkAndExpireStaleBookings({ trainingMode }).catch((e) => {
       console.error("Failed to check stale bookings:", e);
     });
 
-    const unsub = subscribeToAllBookings(
+    // Badge/range counts stay live, but snapshots must not fan out count
+    // queries 1:1 — snapshot-triggered refreshes are trailing-edge debounced
+    // (bookings themselves stay realtime-immediate). The flag drops late
+    // results after tab/mode/page changes.
+    function refreshCountsSoon() {
+      if (countsTimer) return;
+      countsTimer = setTimeout(() => {
+        countsTimer = null;
+        if (cancelled) return;
+        refreshTabCounts();
+        refreshRangeCount(dateBounds, activeTab);
+      }, 3000);
+    }
+
+    refreshTabCounts();
+    refreshRangeCount(dateBounds, activeTab);
+
+    const unsub = subscribeToBookingsPage(
+      {
+        status: activeTab === "All" ? null : activeTab,
+        pageSize,
+        fromDate: dateBounds.invalid ? null : dateBounds.fromDate,
+        toDate: dateBounds.invalid ? null : dateBounds.toDate,
+        trainingMode,
+      },
       (data) => {
+        if (cancelled) return;
         setBookings(data);
         setLoading(false);
+        ensureGuestNames(data);
+        refreshCountsSoon();
       },
-      { trainingMode },
     );
-    return () => unsub();
-  }, [trainingMode]);
+    return () => {
+      cancelled = true;
+      if (countsTimer) clearTimeout(countsTimer);
+      unsub();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trainingMode, activeTab, pageSize, dateBounds]);
 
 
   // ── Filtered list ──
@@ -566,10 +740,9 @@ export default function FoBookingsPage() {
     [bookings, searchQuery, guestsMap, roomsMap],
   );
 
-  // ── Tab badge counts ──
+  // ── Tab badge counts (server-side, exact without loading docs) ──
   function countForTab(tab) {
-    if (tab === "All") return bookings.length;
-    return bookings.filter((b) => b.status === tab).length;
+    return tabCounts[tab] ?? "…";
   }
 
   // ── Search filter ──
@@ -660,9 +833,9 @@ export default function FoBookingsPage() {
           const count = countForTab(tab);
           const isActive = activeTab === tab;
           return (
-            <button
-              key={tab}
-              onClick={() => { setActiveTab(tab); setShowPastBookings(false); }}
+              <button
+                key={tab}
+                onClick={() => { setActiveTab(tab); setShowPastBookings(false); setPageSize(BOOKINGS_PAGE_SIZE); }}
               className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
                 isActive
                   ? "bg-primary text-primary-foreground"
@@ -683,6 +856,79 @@ export default function FoBookingsPage() {
           );
         })}
       </div>
+
+      {/* ── Date filter (check-in date, server-side) ── */}
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs font-medium text-foreground/50">Check-in:</span>
+        {[
+          ["all", "All dates"],
+          ["today", "Today"],
+          ["7", "Next 7 days"],
+          ["30", "Next 30 days"],
+          ["custom", "Custom"],
+        ].map(([id, label]) => {
+          const isActive = datePreset === id;
+          return (
+            <button
+              key={id}
+              type="button"
+              onClick={() => handleDatePreset(id)}
+              className={`rounded-lg px-2.5 py-1 text-xs font-medium transition-colors ${
+                isActive
+                  ? "bg-primary text-primary-foreground"
+                  : "text-foreground/60 hover:bg-surface-hover hover:text-foreground/90"
+              }`}
+            >
+              {label}
+            </button>
+          );
+        })}
+        {datePreset === "custom" && (
+          <>
+            <input
+              type="date"
+              value={customFrom}
+              max={customTo || undefined}
+              onChange={(e) => { setCustomFrom(e.target.value); setPageSize(BOOKINGS_PAGE_SIZE); setRangeCount(null); }}
+              className="h-8 rounded-lg border border-border bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring/50"
+              aria-label="Check-in from date"
+            />
+            <span className="text-xs text-foreground/40">to</span>
+            <input
+              type="date"
+              value={customTo}
+              min={customFrom || undefined}
+              onChange={(e) => { setCustomTo(e.target.value); setPageSize(BOOKINGS_PAGE_SIZE); setRangeCount(null); }}
+              className="h-8 rounded-lg border border-border bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring/50"
+              aria-label="Check-in to date"
+            />
+          </>
+        )}
+        {dateBounds.active && (
+          <button
+            type="button"
+            onClick={() => { handleDatePreset("all"); setCustomFrom(""); setCustomTo(""); }}
+            className="rounded-lg px-2.5 py-1 text-xs font-medium text-foreground/50 hover:text-foreground hover:bg-surface-hover transition-colors"
+          >
+            Clear
+          </button>
+        )}
+      </div>
+      {dateBounds.invalid && (
+        <p className="text-xs text-destructive">From date is after To date — showing unfiltered.</p>
+      )}
+      {dateBounds.active && !dateBounds.invalid && !loading && (
+        <p className="text-xs text-foreground/50">
+          {rangeCount ?? "…"} booking{rangeCount === 1 ? "" : "s"} checking in {dateBounds.label}.
+        </p>
+      )}
+
+      {/* Search covers the loaded window only — the note keeps that honest. */}
+      {searchQuery.trim() !== "" && !loading && (
+        <p className="text-xs text-foreground/50">
+          Searching the {bookings.length} loaded bookings — use Show more below to search deeper.
+        </p>
+      )}
 
       {/* ── Content ── */}
       {loading ? (
@@ -801,6 +1047,13 @@ export default function FoBookingsPage() {
                   );
                 })
               )}
+            </div>
+          )}
+          {!loading && filtered.length > 0 && bookings.length >= pageSize && (
+            <div className="flex justify-center pt-1">
+              <Button variant="outline" size="sm" onClick={() => setPageSize((n) => n + BOOKINGS_PAGE_SIZE)}>
+                Show more (+{BOOKINGS_PAGE_SIZE})
+              </Button>
             </div>
           )}
         </div>

@@ -18,8 +18,8 @@ import {
 } from "firebase/firestore";
 import { db } from "@/firebase/firebase.config";
 import { uploadImageToCloudinary } from "./cloudinaryService";
-import { listUsers } from "./userService";
-import { createNotification } from "./notificationService";
+import { listGuests } from "./userService";
+import { createNotificationsBulk } from "./notificationService";
 
 const ANNOUNCEMENTS_COL = "announcements";
 
@@ -101,15 +101,27 @@ export async function createAnnouncement(payload, { trainingMode = null } = {}) 
   });
 
   try {
-    // Notify all guests
-    const allUsers = await listUsers({ trainingMode });
-    const guestUsers = allUsers.filter(u => u.role === "guest");
-    await Promise.all(guestUsers.map(guest => createNotification(guest.id, {
-      type: "announcement",
-      title: "New Announcement 📢",
-      message: title,
-      link: "/"
-    }, { trainingMode })));
+    // Notify all guests — batched commits instead of N individual writes.
+    // Same recipient set as before (role === "guest"), same payload.
+    const guestUsers = await listGuests({ trainingMode });
+    const result = await createNotificationsBulk(
+      guestUsers.map((guest) => ({
+        userId: guest.id,
+        type: "announcement",
+        title: "New Announcement 📢",
+        message: title,
+        link: "/",
+      })),
+      { trainingMode },
+    );
+    // Partial fan-out must not pass silently: the announcement itself is
+    // already created, so report (don't throw) — staff can resend if needed.
+    if (result.failed > 0) {
+      console.error(
+        `[announcements] fan-out partial failure: ${result.failed}/${guestUsers.length} notifications failed.`,
+        result.errors,
+      );
+    }
   } catch(e) { console.error("Notif error", e); }
 
   return { id: docRef.id };

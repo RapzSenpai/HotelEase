@@ -1,10 +1,15 @@
 import {
   collection,
   doc,
+  documentId,
+  getCountFromServer,
   getDocs,
+  limit,
+  orderBy,
   query,
   serverTimestamp,
   updateDoc,
+  where,
   writeBatch,
 } from "firebase/firestore";
 import { db } from "@/firebase/firebase.config";
@@ -96,25 +101,44 @@ export function downloadDataCSV(filename, rows = []) {
 }
 
 /**
- * Fetch all rooms (used by export tooling). Reads live from Firestore.
- * @param {boolean} [trainingMode]
- * @returns {Promise<Array>}
+ * Safety cap for CSV exports: a bounded window instead of the whole
+ * collection, so a large dataset can't freeze the tab or spike the bill.
+ * Callers must surface `truncated` + `total` to the user (see onExport).
  */
-export async function exportRooms({ trainingMode = null } = {}) {
-  const col = getCol(ROOMS_COL, trainingMode);
-  const snap = await getDocs(query(collection(db, col)));
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+export const EXPORT_MAX_ROWS = 5000;
+
+async function exportWindow(col, { maxRows = EXPORT_MAX_ROWS, excludeId = null } = {}) {
+  const ref = collection(db, col);
+  const filters = excludeId ? [where(documentId(), "!=", excludeId)] : [];
+  const totalSnap = await getCountFromServer(query(ref, ...filters));
+  const total = totalSnap.data().count;
+  const snap = await getDocs(query(ref, ...filters, orderBy(documentId()), limit(maxRows)));
+  return {
+    docs: snap.docs.map((d) => ({ id: d.id, ...d.data() })),
+    total,
+    truncated: total > snap.docs.length,
+  };
 }
 
 /**
- * Fetch all users (used by export tooling).
- * @param {boolean} [trainingMode]
- * @returns {Promise<Array>}
+ * Fetch rooms for export tooling (capped window). Reads live from Firestore.
  */
-export async function exportUsers({ trainingMode = null } = {}) {
+export async function exportRooms({ trainingMode = null, maxRows = EXPORT_MAX_ROWS } = {}) {
+  const { docs, total, truncated } = await exportWindow(getCol(ROOMS_COL, trainingMode), { maxRows });
+  return { rows: docs, total, truncated };
+}
+
+/**
+ * Fetch users for export tooling (capped window, system doc excluded before
+ * the cap so it can never displace a real user — or skew the total — at the
+ * window boundary.
+ */
+export async function exportUsers({ trainingMode = null, maxRows = EXPORT_MAX_ROWS } = {}) {
   const col = getCol("users", trainingMode);
-  const snap = await getDocs(query(collection(db, col)));
-  return snap.docs
-    .map((d) => ({ id: d.id, ...d.data() }))
-    .filter((u) => u.id !== "system");
+  const { docs, total, truncated } = await exportWindow(col, { maxRows, excludeId: "system" });
+  return {
+    rows: docs,
+    total,
+    truncated,
+  };
 }

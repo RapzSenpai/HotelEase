@@ -3,6 +3,7 @@ import {
   doc,
   getDoc,
   getDocs,
+  limit,
   onSnapshot,
   orderBy,
   query,
@@ -116,16 +117,20 @@ export async function submitMessage({ name, email, subject, message, guestId = n
   return { id: ref.id };
 }
 
-export async function getAllMessages({ trainingMode = null } = {}) {
+// P2 scalability: support inboxes stay small, but neither reader assumes it.
+// 500 is far above any real inbox — the cap only guards pathological growth.
+export const MESSAGES_PAGE_SIZE = 500;
+
+export async function getAllMessages({ trainingMode = null, limitCount = MESSAGES_PAGE_SIZE } = {}) {
   const col = getCol(MESSAGES_COL, trainingMode);
-  const q = query(collection(db, col), orderBy("createdAt", "desc"));
+  const q = query(collection(db, col), orderBy("createdAt", "desc"), limit(limitCount));
   const snap = await getDocs(q);
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
 
-export function subscribeToMessages(callback, { trainingMode = null } = {}) {
+export function subscribeToMessages(callback, { trainingMode = null, limitCount = MESSAGES_PAGE_SIZE } = {}) {
   const col = getCol(MESSAGES_COL, trainingMode);
-  const q = query(collection(db, col), orderBy("createdAt", "desc"));
+  const q = query(collection(db, col), orderBy("createdAt", "desc"), limit(limitCount));
   return onSnapshot(
     q,
     (snap) => {

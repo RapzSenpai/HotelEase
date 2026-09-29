@@ -2,10 +2,11 @@ import { useState, useEffect, useMemo } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { getLogoHomePath, isStaffRole } from "@/lib/routing";
-import { 
+import {
   collection,
   query,
   orderBy,
+  limit,
   onSnapshot
 } from "firebase/firestore";
 import { db } from "@/firebase/firebase.config";
@@ -98,6 +99,9 @@ export default function NotificationsPage() {
   const navigate = useNavigate();
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
+  // P2 scalability: bounded inbox window (retention cron keeps growth slow,
+  // but the page must never assume the inbox is small).
+  const [pageSize, setPageSize] = useState(100);
   const subscriptionKey = `${user?.uid ?? ""}:${trainingMode}`;
   const [activeSubscriptionKey, setActiveSubscriptionKey] = useState(subscriptionKey);
   const subscriptionIsCurrent = activeSubscriptionKey === subscriptionKey;
@@ -121,7 +125,8 @@ export default function NotificationsPage() {
 
     const q = query(
       collection(db, getCol("notifications", trainingMode), user.uid, "items"),
-      orderBy("createdAt", "desc")
+      orderBy("createdAt", "desc"),
+      limit(pageSize)
     );
 
     const unsub = onSnapshot(
@@ -139,7 +144,7 @@ export default function NotificationsPage() {
     );
 
     return () => unsub();
-  }, [user?.uid, trainingMode, subscriptionKey]);
+  }, [user?.uid, trainingMode, subscriptionKey, pageSize]);
 
   const visibleNotifications = subscriptionIsCurrent ? notifications : EMPTY_NOTIFICATIONS;
   const { Today, Yesterday, Earlier } = useMemo(() => groupNotifications(visibleNotifications), [visibleNotifications]);
@@ -228,6 +233,13 @@ export default function NotificationsPage() {
               <div className="rounded-xl border border-border bg-background overflow-hidden shadow-sm">
                 {Earlier.map(notif => <NotificationItem key={notif.id} notif={notif} onClick={handleNotifClick} />)}
               </div>
+            </div>
+          )}
+          {visibleNotifications.length >= pageSize && (
+            <div className="flex justify-center pt-1">
+              <Button variant="outline" size="sm" onClick={() => setPageSize((n) => n + 100)}>
+                Show older (+100)
+              </Button>
             </div>
           )}
         </div>

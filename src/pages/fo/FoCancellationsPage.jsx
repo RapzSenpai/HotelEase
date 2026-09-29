@@ -1,12 +1,13 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { formatDate, formatCurrency } from "@/lib/format";
 import {
-  subscribeToAllBookings,
+  BOOKINGS_PAGE_SIZE,
+  subscribeToBookingsPage,
   approveCancellation,
   rejectCancellation,
 } from "@/services/bookingsService";
 import { listRooms } from "@/services/roomsService";
-import { listUsers } from "@/services/userService";
+import { getUserDoc } from "@/services/userService";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -164,16 +165,17 @@ export default function FoCancellationsPage() {
   const [loading, setLoading] = useState(true);
   const [rejecting, setRejecting] = useState(null); // { bookingId, reason }
   const [actionLoading, setActionLoading] = useState(null); // bookingId currently acting on
+  // P2 scalability: bounded status-scoped window (queue is inherently small).
+  const [pageSize, setPageSize] = useState(BOOKINGS_PAGE_SIZE);
+  // Guest-name cache mirror: on-demand getUserDoc per visible guest, "" resolved.
+  const guestsMapRef = useRef({});
 
-  // ── Fetch rooms and guests for name mapping ──
+  // ── Fetch rooms for name mapping (rooms are tens, not thousands) ──
   useEffect(() => {
     let isMounted = true;
     async function loadResources() {
       try {
-        const [rooms, users] = await Promise.all([
-          listRooms({ trainingMode }),
-          listUsers({ trainingMode }),
-        ]);
+        const rooms = await listRooms({ trainingMode });
 
         if (!isMounted) return;
         const rMap = {};
@@ -181,12 +183,6 @@ export default function FoCancellationsPage() {
           rMap[r.id] = r.name || r.roomNumber || r.id;
         });
         setRoomsMap(rMap);
-
-        const gMap = {};
-        users.forEach((u) => {
-          gMap[u.id || u.uid] = u.fullName || u.email || u.id;
-        });
-        setGuestsMap(gMap);
       } catch (err) {
         console.error("[FoCancellationsPage] Failed to load resources:", err);
       }
@@ -195,20 +191,50 @@ export default function FoCancellationsPage() {
     return () => { isMounted = false; };
   }, [trainingMode]);
 
-  // ── Real-time bookings subscription ──
+  // Resolve display names for guests visible in the current window.
+  async function ensureGuestNames(list) {
+    const missing = [...new Set(list.map((b) => b.guestId).filter(Boolean))]
+      .filter((id) => !(id in guestsMapRef.current));
+    if (missing.length === 0) return;
+    const entries = await Promise.all(
+      missing.map(async (id) => {
+        try {
+          const d = await getUserDoc(id, { preferTraining: trainingMode });
+          return [id, d?.fullName || d?.email || ""];
+        } catch {
+          return [id, ""];
+        }
+      }),
+    );
+    entries.forEach(([id, name]) => {
+      guestsMapRef.current[id] = name;
+    });
+    setGuestsMap({ ...guestsMapRef.current });
+  }
+
+  // Guest-name cache clears only on training-mode switch — "Show more" must
+  // reuse already-resolved names instead of refetching them.
+  useEffect(() => {
+    guestsMapRef.current = {};
+    setGuestsMap({});
+  }, [trainingMode]);
+
+  // ── Real-time subscription: cancellation queue only ──
   useEffect(() => {
     setLoading(true);
-    const unsub = subscribeToAllBookings(
+    const unsub = subscribeToBookingsPage(
+      { status: "Cancellation Requested", pageSize, trainingMode },
       (data) => {
         setBookings(data);
         setLoading(false);
+        ensureGuestNames(data);
       },
-      { trainingMode },
     );
     return () => unsub();
-  }, [trainingMode]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trainingMode, pageSize]);
 
-  // ── Filtered list ──
+  // ── Filtered list (server already scoped; client filter is a backstop) ──
   const filtered = bookings.filter((b) => b.status === "Cancellation Requested");
 
   // ── Action handlers ──
@@ -301,6 +327,13 @@ export default function FoCancellationsPage() {
               />
             );
           })}
+          {bookings.length >= pageSize && (
+            <div className="flex justify-center pt-1">
+              <Button variant="outline" size="sm" onClick={() => setPageSize((n) => n + BOOKINGS_PAGE_SIZE)}>
+                Show more (+{BOOKINGS_PAGE_SIZE})
+              </Button>
+            </div>
+          )}
         </div>
       )}
     </div>

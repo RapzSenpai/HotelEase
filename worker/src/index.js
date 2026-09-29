@@ -34,7 +34,8 @@ import { getAllowedOrigin, json } from "./http.js";
 import { rateLimited } from "./rate-limit.js";
 import { resolveAiIdentity } from "./firebase-jwt.js";
 import { getAiDailyCount, incrementAiDailyCount } from "./ai-limits.js";
-import { expireStaleHolds, sweepOrphanMarkers, sweepStaleTrainingGuests } from "./sweeps.js";
+import { expireStaleHolds, sweepOrphanMarkers,
+  sweepStaleTrainingGuests, purgeNotificationInboxes } from "./sweeps.js";
 import { handleDeleteUser } from "./handlers/delete-user.js";
 import { handleChatRequest } from "./handlers/chat.js";
 import { handleInsightsRequest } from "./handlers/insights.js";
@@ -145,33 +146,52 @@ export default {
     return send(await handleChatRequest(request, workerEnv));
   },
 
-  // Cron (see [triggers] in wrangler.toml): hourly stale-hold sweep so
-  // abandoned Awaiting Payment bookings release their nights even when no
-  // staff page has been loaded.
+  // Cron (see [triggers] in wrangler.toml). Hourly invocations run the
+  // booking/marker/guest sweeps; the daily 3am invocation runs ONLY inbox
+  // retention (inboxes grow slowly — hourly would just re-bill the same
+  // reads). No cron string (e.g. `wrangler dev` test trigger) runs the
+  // hourly set, the safe default.
   async scheduled(event, workerEnv) {
-    try {
-      const result = await expireStaleHolds(workerEnv);
-      console.log(`[scheduled] stale-hold sweep → ${JSON.stringify(result)}`);
-    } catch (e) {
-      console.error("[scheduled] stale-hold sweep failed:", String(e?.message || e));
+    const isHourlyRun = event?.cron === "0 * * * *";
+    const isDailyRun = event?.cron === "0 3 * * *";
+
+    if (isHourlyRun) {
+      // Hourly stale-hold sweep so abandoned Awaiting Payment bookings
+      // release their nights even when no staff page has been loaded.
+      try {
+        const result = await expireStaleHolds(workerEnv);
+        console.log(`[scheduled] stale-hold sweep → ${JSON.stringify(result)}`);
+      } catch (e) {
+        console.error("[scheduled] stale-hold sweep failed:", String(e?.message || e));
+      }
+
+      // Backstop: clean up any marker a client cleanup failed to remove, so a
+      // leaked hold can never permanently block a room.
+      try {
+        const swept = await sweepOrphanMarkers(workerEnv);
+        console.log(`[scheduled] orphan-marker sweep → ${JSON.stringify(swept)}`);
+      } catch (e) {
+        console.error("[scheduled] orphan-marker sweep failed:", String(e?.message || e));
+      }
+
+      // Sandbox hygiene: purge anonymous trainee accounts abandoned via kick,
+      // expiry, or tab-close (they never run the logout cleanup).
+      try {
+        const zombies = await sweepStaleTrainingGuests(workerEnv);
+        console.log(`[scheduled] stale-guest sweep → ${JSON.stringify(zombies)}`);
+      } catch (e) {
+        console.error("[scheduled] stale-guest sweep failed:", String(e?.message || e));
+      }
     }
 
-    // Backstop: clean up any marker a client cleanup failed to remove, so a
-    // leaked hold can never permanently block a room.
-    try {
-      const swept = await sweepOrphanMarkers(workerEnv);
-      console.log(`[scheduled] orphan-marker sweep → ${JSON.stringify(swept)}`);
-    } catch (e) {
-      console.error("[scheduled] orphan-marker sweep failed:", String(e?.message || e));
-    }
-
-    // Sandbox hygiene: purge anonymous trainee accounts abandoned via kick,
-    // expiry, or tab-close (they never run the logout cleanup).
-    try {
-      const zombies = await sweepStaleTrainingGuests(workerEnv);
-      console.log(`[scheduled] stale-guest sweep → ${JSON.stringify(zombies)}`);
-    } catch (e) {
-      console.error("[scheduled] stale-guest sweep failed:", String(e?.message || e));
+    // Notification retention (daily 3am cron only).
+    if (isDailyRun) {
+      try {
+        const pruned = await purgeNotificationInboxes(workerEnv);
+        console.log(`[scheduled] inbox retention sweep → ${JSON.stringify(pruned)}`);
+      } catch (e) {
+        console.error("[scheduled] inbox retention sweep failed:", String(e?.message || e));
+      }
     }
   },
 };

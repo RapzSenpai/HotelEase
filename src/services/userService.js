@@ -1,4 +1,5 @@
-import { collection, deleteDoc, doc, getDoc, getDocs, serverTimestamp, setDoc, updateDoc, onSnapshot, query, where } from "firebase/firestore";
+import { collection, deleteDoc, doc, getCountFromServer, getDoc, getDocs, limit, serverTimestamp, setDoc, updateDoc, onSnapshot,
+  query, where } from "firebase/firestore";
 import { db, auth } from "@/firebase/firebase.config";
 import { getCol } from "@/lib/db-utils";
 
@@ -80,6 +81,29 @@ export async function listFoUsers({ trainingMode = false } = {}) {
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
 
+// P1 scalability: role-scoped guest list for announcement fan-out. Same
+// recipient set as listUsers().filter(role === "guest") without reading
+// fo/admin docs; reserved non-person docs stay excluded either way.
+export async function listGuests({ trainingMode = false } = {}) {
+  const col = usersCollection(trainingMode);
+  const q = query(collection(db, col), where("role", "==", "guest"));
+  const snap = await getDocs(q);
+  return snap.docs
+    .map((d) => ({ id: d.id, ...d.data() }))
+    .filter((u) => isPersonDoc(u.id));
+}
+
+// P2 scalability: staff-only list for reassignment pickers. One `in` query
+// instead of the whole users collection; single-field, no composite index.
+export async function listStaffUsers({ trainingMode = false } = {}) {
+  const col = usersCollection(trainingMode);
+  const q = query(collection(db, col), where("role", "in", ["fo", "admin"]));
+  const snap = await getDocs(q);
+  return snap.docs
+    .map((d) => ({ id: d.id, ...d.data() }))
+    .filter((u) => isPersonDoc(u.id));
+}
+
 /**
  * Subscribe to live changes in the users collection.
  * @param {Object} options
@@ -88,10 +112,16 @@ export async function listFoUsers({ trainingMode = false } = {}) {
  * @param {(error: Error) => void} [options.onError] - Optional error callback
  * @returns {() => void} Unsubscribe function
  */
-export function subscribeToUsers({ trainingMode = false, onData, onError }) {
+export const USERS_PAGE_SIZE = 50;
+
+export function subscribeToUsers({ trainingMode = false, onData, onError, limit: maxDocs = null, role = null }) {
   const col = usersCollection(trainingMode);
+  const constraints = [];
+  if (role) constraints.push(where("role", "==", role));
+  if (maxDocs) constraints.push(limit(maxDocs));
+  const target = constraints.length ? query(collection(db, col), ...constraints) : collection(db, col);
   const unsub = onSnapshot(
-    collection(db, col),
+    target,
     (snap) => {
       onData(
         snap.docs
@@ -102,6 +132,17 @@ export function subscribeToUsers({ trainingMode = false, onData, onError }) {
     (error) => onError?.(error)
   );
   return unsub;
+}
+
+// Server-side counts so badges and the last-admin shield stay exact without
+// loading the collection. Role equality needs no composite index.
+export async function countUsers({ trainingMode = false, role = null } = {}) {
+  const col = usersCollection(trainingMode);
+  const target = role
+    ? query(collection(db, col), where("role", "==", role))
+    : collection(db, col);
+  const snap = await getCountFromServer(target);
+  return snap.data().count;
 }
 
 export async function updateUserProfile(uid, patch, { trainingMode = false } = {}) {

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { setUserRole, deleteUser, deleteUserFully, subscribeToUsers } from "@/services/userService";
+import { USERS_PAGE_SIZE, countUsers, setUserRole, deleteUser, deleteUserFully, subscribeToUsers } from "@/services/userService";
 import { forceLogoutUser } from "@/services/sessionService";
 import { isOnlineNow } from "@/services/presenceService";
 import { auditAction, AUDIT_ACTIONS } from "@/services/auditService";
@@ -53,6 +53,11 @@ export default function AdminUserManagementPage() {
   const [savingRoleFor, setSavingRoleFor] = useState(null);
   const [deletingUser, setDeletingUser] = useState(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  // P0 scalability: bounded live window instead of the whole collection.
+  const [pageSize, setPageSize] = useState(USERS_PAGE_SIZE);
+  const [totalCount, setTotalCount] = useState(null);
+  // Exact admin headcount for the last-admin shield (independent of window).
+  const [adminCount, setAdminCount] = useState(null);
 
   function applyUserData(data) {
     setUsers(data);
@@ -65,15 +70,45 @@ export default function AdminUserManagementPage() {
     });
   }
 
+  // Role tabs are server-filtered so fo/admin windows stay exact; "all" and
+  // "training" read the collection head (client sort + search unchanged).
+  const roleFilter = activeTab === "fo" || activeTab === "admin" ? activeTab : null;
+
   useEffect(() => {
     setLoading(true);
     setError(null);
+    let cancelled = false;
+    let countsTimer = null;
+
+    // Counts stay live alongside the window (cheap count() reads), but a
+    // snapshot storm must not fan out count queries 1:1 — snapshot-triggered
+    // refreshes are trailing-edge debounced; the immediate call below covers
+    // mount/tab changes. The flag drops late results from a previous tab.
+    function refreshCounts() {
+      countUsers({ trainingMode: isTrainingSource, role: roleFilter })
+        .then((v) => { if (!cancelled) setTotalCount(v); })
+        .catch(() => { if (!cancelled) setTotalCount(null); });
+      countUsers({ trainingMode: isTrainingSource, role: "admin" })
+        .then((v) => { if (!cancelled) setAdminCount(v); })
+        .catch(() => { if (!cancelled) setAdminCount(null); });
+    }
+    function refreshCountsSoon() {
+      if (countsTimer) return;
+      countsTimer = setTimeout(() => {
+        countsTimer = null;
+        if (!cancelled) refreshCounts();
+      }, 2000);
+    }
+    refreshCounts();
 
     const unsub = subscribeToUsers({
       trainingMode: isTrainingSource,
+      limit: pageSize,
+      role: roleFilter,
       onData: (data) => {
         applyUserData(data);
         setLoading(false);
+        refreshCountsSoon();
       },
       onError: (e) => {
         setError(e?.message || "Failed to load users.");
@@ -82,8 +117,12 @@ export default function AdminUserManagementPage() {
       },
     });
 
-    return () => unsub();
-  }, [isTrainingSource]);
+    return () => {
+      cancelled = true;
+      if (countsTimer) clearTimeout(countsTimer);
+      unsub();
+    };
+  }, [isTrainingSource, roleFilter, pageSize]);
 
   const filteredUsers = useMemo(() => {
     let result = users;
@@ -106,8 +145,16 @@ export default function AdminUserManagementPage() {
 
   // Last-admin shield (prod only): the worker refuses deleting the sole admin
   // and rules need a prod admin for user writes — block demote/delete here too.
+  // Uses the exact server headcount so the bounded window can't misread it.
   function isSoleProdAdmin(uid) {
     if (isTrainingSource) return false;
+    if (adminCount !== null) {
+      if (adminCount > 1) return false;
+      const known = users.find((u) => u.id === uid);
+      // Unknown target + a single prod admin: block — the target may be the
+      // unloaded admin row. (Worker guard is the final backstop.)
+      return known ? known.role === "admin" : true;
+    }
     const admins = users.filter((u) => u.role === "admin");
     return admins.length <= 1 && admins.some((u) => u.id === uid);
   }
@@ -151,7 +198,7 @@ export default function AdminUserManagementPage() {
       return;
     }
     try {
-      await deleteUserFully(uid);
+      const result = await deleteUserFully(uid);
       auditAction(AUDIT_ACTIONS.USER_DELETE, {
         targetId: uid,
         targetType: "user",
@@ -159,14 +206,28 @@ export default function AdminUserManagementPage() {
         description: `Deleted user ${deletingUser.email || deletingUser.fullName || uid}`,
         trainingMode: isTrainingSource,
       });
-      toast.success("User deleted completely (profile + login account)");
+      const holds = Number(result?.cancelledHolds ?? 0);
+      const incomplete =
+        (result?.incomplete?.holds?.length ?? 0) + (result?.incomplete?.markers?.length ?? 0);
+      if (incomplete > 0) {
+        toast.warning(
+          `User deleted, but ${incomplete} hold/marker cleanup(s) failed — re-run expiry or clear them manually.`
+        );
+      } else {
+        toast.success(
+          holds > 0
+            ? `User deleted completely (profile + login account, ${holds} unpaid hold${holds !== 1 ? "s" : ""} released)`
+            : "User deleted completely (profile + login account)"
+        );
+      }
       setUsers((prev) => prev.filter((u) => u.id !== uid));
       setIsDeleteDialogOpen(false);
       setDeletingUser(null);
     } catch (e) {
-      // A worker refusal (e.g. last-admin 409) must NOT fall through to the
-      // profile-only fallback — that would delete the admin anyway.
-      if (/last admin|own admin/i.test(e?.message || "")) {
+      // A worker refusal (e.g. last-admin 409, live-bookings 409) must NOT
+      // fall through to the profile-only fallback — that would delete the
+      // account anyway and orphan (or strand) the bookings.
+      if (/last admin|own admin|live booking/i.test(e?.message || "")) {
         toast.error(e?.message || "Delete refused.");
         return;
       }
@@ -185,7 +246,7 @@ export default function AdminUserManagementPage() {
         setUsers((prev) => prev.filter((u) => u.id !== uid));
         setIsDeleteDialogOpen(false);
         setDeletingUser(null);
-        toast.warning("Profile removed. Login account still exists — fully remove it with the backend script.");
+        toast.warning("Profile removed. Login account still exists — fully remove it with the backend script. Their unpaid holds were NOT released; cancel them manually or retry full delete.");
       } catch (e2) {
         toast.error(e2?.message || "Failed to delete user");
       }
@@ -230,19 +291,25 @@ export default function AdminUserManagementPage() {
             />
           </div>
           <div className="bg-primary/10 text-primary border border-primary/20 px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap">
-            {users.length} Users
+            {totalCount ?? users.length} Users{users.length < (totalCount ?? users.length) ? ` · showing ${users.length}` : ""}
           </div>
         </div>
       </div>
+
+      {searchQuery.trim() !== "" && !loading && (
+        <p className="text-xs text-foreground/50">
+          Searching the {users.length} loaded users — use Show more below to search deeper.
+        </p>
+      )}
 
       <div className="flex flex-wrap gap-2 border-b border-border pb-3">
         {FILTER_TABS.map((tab) => {
           const isActive = activeTab === tab.id;
           return (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setActiveTab(tab.id)}
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => { setActiveTab(tab.id); setPageSize(USERS_PAGE_SIZE); }}
               className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
                 isActive
                   ? "bg-primary text-primary-foreground"
@@ -445,6 +512,13 @@ export default function AdminUserManagementPage() {
               </Table>
               </CardContent>
             </Card>
+          )}
+          {!loading && filteredUsers.length > 0 && users.length >= pageSize && (
+            <div className="flex justify-center pt-1">
+              <Button variant="outline" size="sm" onClick={() => setPageSize((n) => n + USERS_PAGE_SIZE)}>
+                Show more (+{USERS_PAGE_SIZE})
+              </Button>
+            </div>
           )}
         </div>
       )}

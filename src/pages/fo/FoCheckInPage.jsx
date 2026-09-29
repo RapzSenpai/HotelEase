@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { formatDate } from "@/lib/format";
 import { toast } from "sonner";
@@ -10,7 +10,7 @@ import {
   listBookingsByStatuses,
 } from "@/services/bookingsService";
 import { listRooms } from "@/services/roomsService";
-import { listUsers } from "@/services/userService";
+import { getUserDoc } from "@/services/userService";
 import { useAuth } from "@/contexts/AuthContext";
 import { trackEvent, GA_EVENTS } from "@/services/gaService";
 import { generateCheckInSlip } from "@/services/receiptService";
@@ -100,6 +100,33 @@ export default function FoCheckInPage() {
   const [selectedBookingId, setSelectedBookingId] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [showAllApproved, setShowAllApproved] = useState(!!roomIdParam);
+  // P2 scalability: on-demand guest names instead of the whole users list.
+  const guestsMapRef = useRef({});
+  // Generation guard: the load effect bumps this on every cache reset, so a
+  // slow lookup resolving after a mode/filter change can't poison the cache.
+  const guestsGenRef = useRef(0);
+
+  async function ensureGuestNames(list) {
+    const missing = [...new Set(list.map((b) => b.guestId).filter(Boolean))]
+      .filter((id) => !(id in guestsMapRef.current));
+    if (missing.length === 0) return;
+    const gen = guestsGenRef.current;
+    const entries = await Promise.all(
+      missing.map(async (id) => {
+        try {
+          const d = await getUserDoc(id, { preferTraining: trainingMode });
+          return [id, d?.fullName || d?.email || ""];
+        } catch {
+          return [id, ""];
+        }
+      }),
+    );
+    if (gen !== guestsGenRef.current) return;
+    entries.forEach(([id, name]) => {
+      guestsMapRef.current[id] = name;
+    });
+    setGuestsMap({ ...guestsMapRef.current });
+  }
 
   useEffect(() => {
     if (roomIdParam) {
@@ -113,21 +140,18 @@ export default function FoCheckInPage() {
       try {
         setLoading(true);
         setError(null);
+        // Guest-name cache is per-mode: a uid can exist in both collections.
+        guestsGenRef.current += 1;
+        guestsMapRef.current = {};
+        setGuestsMap({});
 
-        const [roomData, bookingData, userData] = await Promise.all([
+        const [roomData, bookingData] = await Promise.all([
           listRooms({ trainingMode }),
           listBookingsByStatuses(["Pending", "Approved"], { trainingMode }),
-          listUsers({ trainingMode }),
         ]);
 
         if (!isMounted) return;
         setRooms(roomData);
-
-        const gMap = {};
-        userData.forEach((u) => {
-          gMap[u.id || u.uid] = u.fullName || u.email || u.id;
-        });
-        setGuestsMap(gMap);
 
         // Filter bookings based on arrival date window
         const now = new Date();
@@ -146,6 +170,7 @@ export default function FoCheckInPage() {
         }
         
         setBookings(filtered);
+        ensureGuestNames(filtered);
 
         // Auto-select first booking when arriving from dashboard via ?roomId=
         if (roomIdParam && filtered.length > 0) {
@@ -162,6 +187,9 @@ export default function FoCheckInPage() {
     return () => {
       isMounted = false;
     };
+    // ensureGuestNames is a stable per-render helper over refs; trainingMode
+    // is already a dep.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomIdParam, trainingMode, showAllApproved]);
 
   const roomById = useMemo(() => {
@@ -190,6 +218,7 @@ export default function FoCheckInPage() {
         ? data.filter((b) => b.roomId === roomIdParam)
         : data;
       setBookings(filtered);
+      ensureGuestNames(filtered);
       // Keep the same booking selected — it is now Approved
     } catch (e) {
       setError(e?.message || "Failed to approve booking.");

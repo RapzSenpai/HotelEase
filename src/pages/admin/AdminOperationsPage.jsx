@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { subscribeToRooms } from "@/services/roomsService";
 import {
+  EXPORT_MAX_ROWS,
   bulkUpdateRoomStatus,
   emergencySetRoomStatus,
   downloadDataCSV,
@@ -210,11 +211,22 @@ export default function AdminOperationsPage() {
     }
   }
 
+  // Exports are capped windows (EXPORT_MAX_ROWS): the toast must say so when
+  // truncated, with the real total — never silently partial.
+  function toastExportResult(kind, mapped, total, truncated) {
+    downloadDataCSV(`${kind}-${new Date().toISOString().split("T")[0]}.csv`, mapped);
+    if (truncated) {
+      toast.warning(`Exported first ${mapped.length} of ${total} ${kind} (limit reached)`);
+    } else {
+      toast.success(`${mapped.length} ${kind} exported`);
+    }
+  }
+
   async function onExport(kind) {
     setExportBusy(kind);
     try {
       if (kind === "rooms") {
-        const rows = await exportRooms({ trainingMode });
+        const { rows, total, truncated } = await exportRooms({ trainingMode });
         const mapped = rows.map((r) => ({
           Room: r.roomNumber ?? "",
           Name: r.name ?? "",
@@ -225,10 +237,9 @@ export default function AdminOperationsPage() {
           Active: r.isActive === false ? "No" : "Yes",
         }));
         if (!mapped.length) throw new Error("No rooms to export");
-        downloadDataCSV(`rooms-${new Date().toISOString().split("T")[0]}.csv`, mapped);
-        toast.success(`${mapped.length} room(s) exported`);
+        toastExportResult(kind, mapped, total, truncated);
       } else if (kind === "users") {
-        const rows = await exportUsers({ trainingMode });
+        const { rows, total, truncated } = await exportUsers({ trainingMode });
         const mapped = rows.map((u) => ({
           Email: u.email ?? "",
           Name: u.fullName ?? "",
@@ -238,8 +249,7 @@ export default function AdminOperationsPage() {
           "Last Seen": u.lastSeenAt?.toDate?.().toISOString() ?? u.lastSeenAt ?? "",
         }));
         if (!mapped.length) throw new Error("No users to export");
-        downloadDataCSV(`users-${new Date().toISOString().split("T")[0]}.csv`, mapped);
-        toast.success(`${mapped.length} user(s) exported`);
+        toastExportResult(kind, mapped, total, truncated);
       }
     } catch (e) {
       toast.error(e?.message || "Export failed");
@@ -398,7 +408,7 @@ export default function AdminOperationsPage() {
                 Data Export
               </CardTitle>
               <CardDescription>
-                Download current room or user records as CSV files.
+                Download current room or user records as CSV files (up to {EXPORT_MAX_ROWS.toLocaleString()} rows per export).
               </CardDescription>
             </CardHeader>
             <CardContent className="grid gap-3 sm:grid-cols-2">

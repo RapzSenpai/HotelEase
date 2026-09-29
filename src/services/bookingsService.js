@@ -17,6 +17,12 @@
  */
 
 export {
+  BOOKINGS_PAGE_SIZE,
+  countBookingsByStatus,
+  countBookingsPage,
+  countCheckInsToday,
+  countCheckOutsDue,
+  countOverdueCheckOuts,
   getAvailableRoomIds,
   getAvailableRooms,
   getBooking,
@@ -24,7 +30,8 @@ export {
   listBookingsByStatuses,
   listBookingsForRoom,
   listBookingsForUser,
-  subscribeToAllBookings,
+  subscribeToBookingsPage,
+  subscribeToHasBookings,
   subscribeToPendingBookingRequests,
   subscribeToUserBookings,
 } from "./booking/queries";

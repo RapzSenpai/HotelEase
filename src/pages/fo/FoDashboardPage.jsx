@@ -16,7 +16,10 @@ import {
 import { subscribeToRooms } from "@/services/roomsService";
 import {
   listBookingsByStatuses,
-  subscribeToAllBookings,
+  subscribeToBookingsPage,
+  countCheckInsToday,
+  countCheckOutsDue,
+  countOverdueCheckOuts,
 } from "@/services/bookingsService";
 import { useAuth } from "@/contexts/AuthContext";
 import { useHotkeys } from "@/hooks/useHotkeys";
@@ -32,7 +35,6 @@ import {
   Search,
   AlertTriangle,
 } from "lucide-react";
-import { getOverdueDays } from "@/services/bookingsService";
 
 const STATUS_FILTERS = [
   { id: "all", label: "All Rooms" },
@@ -95,8 +97,14 @@ export default function FoDashboardPage() {
   const navigate = useNavigate();
   const { trainingMode } = useAuth();
   const [rooms, setRooms] = useState([]);
-  const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
+  // P1 scalability: exact server counts instead of the whole bookings
+  // collection. Null = not loaded yet (renders as …).
+  const [bookingMetrics, setBookingMetrics] = useState({
+    checkInsToday: null,
+    checkOutsDue: null,
+    overdueCheckOuts: null,
+  });
   const [error] = useState(null);
   const [selectedRoomId, setSelectedRoomId] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -147,12 +155,42 @@ export default function FoDashboardPage() {
     };
   }, [trainingMode]);
 
+  // Realtime trigger + periodic refresh for the booking metrics below.
+  // The 1-doc window watches ALL statuses ordered by updatedAt, so every
+  // booking write (check-in, check-out, even back-office edits to old
+  // check-outs that re-enter today's window) bubbles to the top and fires.
+  // Single-field updatedAt ordering needs no composite index.
+  // The 60s interval covers day rollover.
   useEffect(() => {
-    const unsubscribe = subscribeToAllBookings((data) => setBookings(data), {
-      trainingMode,
-    });
+    let cancelled = false;
+    async function refreshMetrics() {
+      try {
+        const [checkInsToday, checkOutsDue, overdueCheckOuts] = await Promise.all([
+          countCheckInsToday({ trainingMode }),
+          countCheckOutsDue({ trainingMode }),
+          countOverdueCheckOuts({ trainingMode }),
+        ]);
+        if (!cancelled) setBookingMetrics({ checkInsToday, checkOutsDue, overdueCheckOuts });
+      } catch (err) {
+        // Missing composite index (see firestore.indexes.json) lands here —
+        // metrics stay "…" instead of crashing. Deploy indexes to fix.
+        console.error("[FoDashboardPage] metrics query failed:", err);
+      }
+    }
+    refreshMetrics();
+    const unsubscribe = subscribeToBookingsPage(
+      { pageSize: 1, orderField: "updatedAt", orderDir: "desc", trainingMode },
+      () => {
+        if (!cancelled) refreshMetrics();
+      },
+    );
+    const interval = setInterval(() => {
+      if (!cancelled) refreshMetrics();
+    }, 60000);
     return () => {
+      cancelled = true;
       if (typeof unsubscribe === "function") unsubscribe();
+      clearInterval(interval);
     };
   }, [trainingMode]);
 
@@ -216,23 +254,8 @@ export default function FoDashboardPage() {
     const total = visibleRooms.length || 1;
     const occupancyRate = Math.round((statCounts.occupied / total) * 100);
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const checkInsToday = bookings.filter((booking) => {
-      if (booking.status !== "Checked In" && booking.status !== "Checked Out")
-        return false;
-      const updated = toJsDate(booking.updatedAt);
-      return updated && updated >= today;
-    }).length;
-
-    const checkOutsDue = bookings.filter((booking) => {
-      if (booking.status !== "Checked In") return false;
-      const checkOutDate = toJsDate(booking.checkOutDate);
-      if (!checkOutDate) return false;
-      checkOutDate.setHours(0, 0, 0, 0);
-      return checkOutDate <= today;
-    }).length;
+    const checkInsToday = bookingMetrics.checkInsToday;
+    const checkOutsDue = bookingMetrics.checkOutsDue;
 
     const activeStatuses = visibleRooms.filter(
       (room) => room.status && room.status !== "Available",
@@ -257,13 +280,10 @@ export default function FoDashboardPage() {
           ? `${avgMinutes}m`
           : "—";
 
-    const overdueCheckOuts = bookings.filter((booking) => {
-      if (booking.status !== "Checked In") return false;
-      return getOverdueDays(booking.checkOutDate) > 0;
-    }).length;
+    const overdueCheckOuts = bookingMetrics.overdueCheckOuts;
 
     return { occupancyRate, checkInsToday, checkOutsDue, overdueCheckOuts, avgStatusLabel };
-  }, [visibleRooms, statCounts.occupied, bookings]);
+  }, [visibleRooms, statCounts.occupied, bookingMetrics]);
 
   const filteredRooms = useMemo(() => {
     const HK_STATUSES = ["Being Cleaned", "Pending Approval", "Dirty / Needs Cleaning"];
@@ -451,12 +471,12 @@ export default function FoDashboardPage() {
             />
             <MetricPill
               label="Check-ins today"
-              value={timeMetrics.checkInsToday}
+              value={timeMetrics.checkInsToday ?? "…"}
               icon={LogIn}
             />
             <MetricPill
               label="Check-outs due"
-              value={timeMetrics.checkOutsDue}
+              value={timeMetrics.checkOutsDue ?? "…"}
               icon={CalendarClock}
             />
             <MetricPill

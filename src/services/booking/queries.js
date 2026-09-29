@@ -1,11 +1,14 @@
 import {
   collection,
   doc,
+  getCountFromServer,
   getDoc,
   getDocs,
+  limit,
   onSnapshot,
   orderBy,
   query,
+  Timestamp,
   where,
 } from "firebase/firestore";
 import { db } from "@/firebase/firebase.config";
@@ -110,20 +113,148 @@ export function getOverdueDays(checkOutDateLike) {
   return Math.max(0, diffDays);
 }
 
-export function subscribeToAllBookings(callback, { trainingMode = null } = {}) {
+// P0 scalability: bounded live window per status tab. Same ordering as the
+// unbounded subscription; callers grow pageSize via "Show more" instead of
+// reading the whole collection. Realtime semantics unchanged.
+//
+// P2 date filter: optional { fromDate, toDate } bounds on checkInDate (Date
+// objects, inclusive). A ranged view orders by checkInDate asc (arrival
+// order); unfiltered keeps createdAt desc. Status + range needs the
+// (status + checkInDate asc) composite in firestore.indexes.json.
+export const BOOKINGS_PAGE_SIZE = 50;
+
+function bookingsPageQuery(col, { status = null, pageSize = BOOKINGS_PAGE_SIZE, fromDate = null, toDate = null, orderField = null, orderDir = null } = {}) {
+  const ranged = fromDate || toDate;
+  // Default ordering preserves each caller's contract: ranged views sort by
+  // arrival; everything else by creation. Callers may override both together
+  // (used by the dashboard change-detector: all statuses by updatedAt).
+  const field = orderField || (ranged ? "checkInDate" : "createdAt");
+  const dir = orderDir || (ranged ? "asc" : "desc");
+  return query(
+    collection(db, col),
+    ...(status ? [where("status", "==", status)] : []),
+    ...(fromDate ? [where("checkInDate", ">=", Timestamp.fromDate(fromDate))] : []),
+    ...(toDate ? [where("checkInDate", "<=", Timestamp.fromDate(toDate))] : []),
+    orderBy(field, dir),
+    limit(pageSize),
+  );
+}
+
+export function subscribeToBookingsPage(
+  { status = null, pageSize = BOOKINGS_PAGE_SIZE, fromDate = null, toDate = null, orderField = null, orderDir = null, trainingMode = null } = {},
+  callback,
+) {
   const col = bookingsCollection(trainingMode);
-  const q = query(collection(db, col), orderBy("createdAt", "desc"));
+  const q = bookingsPageQuery(col, { status, pageSize, fromDate, toDate, orderField, orderDir });
   return onSnapshot(
     q,
     (snap) => {
-      const bookings = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-      callback(bookings);
+      callback(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
     },
     (error) => {
-      console.error("[bookingsService] subscribeToAllBookings error:", error);
+      console.error("[bookingsService] subscribeToBookingsPage error:", error);
       callback([]);
-    }
+    },
   );
+}
+
+// Exact in-range total for the "N in range" caption (count, not docs).
+export async function countBookingsPage(
+  { status = null, fromDate = null, toDate = null, trainingMode = null } = {},
+) {
+  const col = bookingsCollection(trainingMode);
+  const q = query(
+    collection(db, col),
+    ...(status ? [where("status", "==", status)] : []),
+    ...(fromDate ? [where("checkInDate", ">=", Timestamp.fromDate(fromDate))] : []),
+    ...(toDate ? [where("checkInDate", "<=", Timestamp.fromDate(toDate))] : []),
+  );
+  return (await getCountFromServer(q)).data().count;
+}
+
+// P2 indicator existence checks: navbar badges only need to know WHETHER a
+// matching doc exists, so limit(1) keeps the live read to a single doc.
+// The due-checkouts bound mirrors countCheckOutsDue (same composite index).
+export function subscribeToHasBookings(
+  { status = null, checkOutBefore = null, trainingMode = null } = {},
+  callback,
+) {
+  const col = bookingsCollection(trainingMode);
+  const q = query(
+    collection(db, col),
+    ...(status ? [where("status", "==", status)] : []),
+    ...(checkOutBefore ? [where("checkOutDate", "<", Timestamp.fromDate(checkOutBefore))] : []),
+    limit(1),
+  );
+  return onSnapshot(
+    q,
+    (snap) => callback(!snap.empty),
+    (error) => {
+      console.error("[bookingsService] subscribeToHasBookings error:", error);
+      callback(false);
+    },
+  );
+}
+
+// Server-side doc counts for tab badges — cheap (count() bills per 1000
+// index entries, not per doc read) so badges stay exact without loading docs.
+export async function countBookingsByStatus(status, { trainingMode = null } = {}) {
+  const col = bookingsCollection(trainingMode);
+  const q = status
+    ? query(collection(db, col), where("status", "==", status))
+    : query(collection(db, col));
+  const snap = await getCountFromServer(q);
+  return snap.data().count;
+}
+
+// P1 dashboard metrics — exact server counts, no doc reads. Bounds mirror the
+// old client filters exactly:
+// - checkInsToday: status in [Checked In, Checked Out] AND updatedAt >= today
+// - checkOutsDue: Checked In AND checkOutDate < tomorrow (== truncated date <= today)
+// - overdue: Checked In AND checkOutDate < now (== getOverdueDays() > 0)
+// New composite indexes required: (status + updatedAt), (status + checkOutDate)
+// in firestore.indexes.json (prod + training). Until deployed these throw.
+function startOfToday() {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return Timestamp.fromDate(d);
+}
+
+function startOfTomorrow() {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() + 1);
+  return Timestamp.fromDate(d);
+}
+
+export async function countCheckInsToday({ trainingMode = null } = {}) {
+  const col = bookingsCollection(trainingMode);
+  const q = query(
+    collection(db, col),
+    where("status", "in", ["Checked In", "Checked Out"]),
+    where("updatedAt", ">=", startOfToday()),
+  );
+  return (await getCountFromServer(q)).data().count;
+}
+
+export async function countCheckOutsDue({ trainingMode = null } = {}) {
+  const col = bookingsCollection(trainingMode);
+  const q = query(
+    collection(db, col),
+    where("status", "==", "Checked In"),
+    where("checkOutDate", "<", startOfTomorrow()),
+  );
+  return (await getCountFromServer(q)).data().count;
+}
+
+export async function countOverdueCheckOuts({ trainingMode = null } = {}) {
+  const col = bookingsCollection(trainingMode);
+  const q = query(
+    collection(db, col),
+    where("status", "==", "Checked In"),
+    where("checkOutDate", "<", Timestamp.fromDate(new Date())),
+  );
+  return (await getCountFromServer(q)).data().count;
 }
 
 export function subscribeToPendingBookingRequests(
