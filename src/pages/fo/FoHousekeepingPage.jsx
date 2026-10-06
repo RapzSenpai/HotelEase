@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { History } from "lucide-react";
 import { StarRating } from "@/components/common/StarRating";
@@ -27,6 +27,18 @@ function getStaffLabel(user) {
   return user.fullName || user.email || user.id;
 }
 
+function toDateSafe(v) {
+  if (!v) return null;
+  try {
+    const d = v?.toDate?.() || new Date(v);
+    return d instanceof Date && !isNaN(d) ? d : null;
+  } catch {
+    return null;
+  }
+}
+
+const MID_STAY_URGENT_MS = 2 * 60 * 60 * 1000;
+
 export default function FoHousekeepingPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -43,8 +55,12 @@ export default function FoHousekeepingPage() {
 
   const [selectedRoomId, setSelectedRoomId] = useState(null);
   const [logs, setLogs] = useState([]);
+  const [logsLoading, setLogsLoading] = useState(false);
+  const [logsRequestId, setLogsRequestId] = useState(0);
   const [viewMode, setViewMode] = useState("kanban");
   const [logsDialogOpen, setLogsDialogOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState("turnover");
+  const [nowMs, setNowMs] = useState(() => Date.now());
 
   const currentStaffName =
     profile?.fullName || user?.displayName || user?.email || "Staff";
@@ -82,6 +98,11 @@ export default function FoHousekeepingPage() {
   }, [rooms, verificationPhotosByRoom]);
 
   useEffect(() => {
+    const id = setInterval(() => setNowMs(Date.now()), 60000);
+    return () => clearInterval(id);
+  }, []);
+
+  useEffect(() => {
     let isMounted = true;
     async function loadStaff() {
       try {
@@ -111,6 +132,52 @@ export default function FoHousekeepingPage() {
     return data.filter((r) => cleaningStatuses.includes(r.status));
   }, [rooms, roomIdParam]);
 
+  const turnoverRooms = useMemo(
+    () => visibleRooms.filter((r) => !r.isMidStayRequest),
+    [visibleRooms],
+  );
+
+  const midStayRooms = useMemo(
+    () => visibleRooms.filter((r) => r.isMidStayRequest === true),
+    [visibleRooms],
+  );
+
+  const hasMidStayPending = useMemo(
+    () =>
+      rooms.some(
+        (r) =>
+          r.isActive !== false &&
+          r.isMidStayRequest === true &&
+          r.status === "Dirty / Needs Cleaning",
+      ),
+    [rooms],
+  );
+
+  // Display-only urgency: wait > 2h surfaces via the existing midStayNote line.
+  // No schema change, no priority field write.
+  const midStayDisplayRooms = useMemo(() => {
+    return midStayRooms.map((room) => {
+      const requestedAt = toDateSafe(room.midStayRequestedAt);
+      if (!requestedAt) return { ...room, midStayUrgency: "" };
+      const elapsedMs = nowMs - requestedAt.getTime();
+      if (elapsedMs <= MID_STAY_URGENT_MS) return { ...room, midStayUrgency: "" };
+      const hours = Math.floor(elapsedMs / 3600000);
+      return { ...room, midStayUrgency: `URGENT — waiting ${hours}h` };
+    });
+  }, [midStayRooms, nowMs]);
+
+  useEffect(() => {
+    if (!roomIdParam) {
+      appliedRoomIdParamRef.current = null;
+      return;
+    }
+    if (appliedRoomIdParamRef.current === roomIdParam) return;
+    const targetRoom = rooms.find((room) => room.id === roomIdParam && room.isActive !== false);
+    if (!targetRoom) return;
+    appliedRoomIdParamRef.current = roomIdParam;
+    setActiveTab(targetRoom.isMidStayRequest === true ? "midstay" : "turnover");
+  }, [rooms, roomIdParam]);
+
   const filteredRoom = useMemo(
     () =>
       rooms.find((r) => r.id === roomIdParam && r.isActive !== false) || null,
@@ -134,14 +201,29 @@ export default function FoHousekeepingPage() {
   }
 
   useEffect(() => {
-    if (!selectedRoomId) return;
+    if (!selectedRoomId) {
+      setLogs([]);
+      setLogsLoading(false);
+      return;
+    }
+    let active = true;
+    setLogs([]);
+    setLogsLoading(true);
     const unsub = subscribeToHousekeepingLogsForRoom(
       selectedRoomId,
-      (data) => setLogs(data),
+      (data) => {
+        if (!active) return;
+        setLogs(data);
+        setLogsLoading(false);
+      },
       { trainingMode },
     );
-    return () => unsub();
-  }, [selectedRoomId, trainingMode]);
+    return () => {
+      active = false;
+      unsub();
+      setLogsLoading(false);
+    };
+  }, [selectedRoomId, trainingMode, logsRequestId]);
 
   function getAssignmentForRoom(room) {
     if (assignments[room.id]) return assignments[room.id];
@@ -171,6 +253,19 @@ export default function FoHousekeepingPage() {
       else next.add(roomId);
       return next;
     });
+  }
+
+  // Single logs opener for every view (midstay/table/kanban dots). Bumps a
+  // request nonce so the loader effect refires even when the room is already
+  // selected — setSelectedRoomId alone is a no-op for the same id, which used
+  // to strand the dialog on "Loading..." forever.
+  function openLogsFor(room) {
+    const nextRoomId = room?.id ?? room;
+    setSelectedRoomId(nextRoomId);
+    setLogs([]);
+    setLogsLoading(true);
+    setLogsRequestId((n) => n + 1);
+    setLogsDialogOpen(true);
   }
 
   function handleVerificationPhotosChange(roomId, photos) {
@@ -247,7 +342,9 @@ export default function FoHousekeepingPage() {
   }
 
   async function handleBulkApprove() {
-    const roomIds = visibleRooms
+    const sourceRooms =
+      activeTab === "midstay" ? midStayRooms : turnoverRooms;
+    const roomIds = sourceRooms
       .filter(
         (room) =>
           room.status === "Pending Approval" && selectedRoomIds.has(room.id),
@@ -294,24 +391,57 @@ export default function FoHousekeepingPage() {
             Manage room cleaning status, assign staff, and approve completed cleanings.
           </p>
         </div>
-        <div className="flex items-center gap-1 bg-border/30 p-1 rounded-lg border border-border/50 shrink-0 self-start sm:self-auto">
-          <Button
-            variant={viewMode === "kanban" ? "default" : "ghost"}
-            size="sm"
-            onClick={() => setViewMode("kanban")}
-            className="h-8 text-xs font-semibold px-3"
-          >
-            Kanban Board
-          </Button>
-          <Button
-            variant={viewMode === "table" ? "default" : "ghost"}
-            size="sm"
-            onClick={() => setViewMode("table")}
-            className="h-8 text-xs font-semibold px-3"
-          >
-            Table List
-          </Button>
-        </div>
+        {activeTab === "turnover" ? (
+          <div className="flex items-center gap-1 bg-border/30 p-1 rounded-lg border border-border/50 shrink-0 self-start sm:self-auto">
+            <Button
+              variant={viewMode === "kanban" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setViewMode("kanban")}
+              className="h-8 text-xs font-semibold px-3"
+            >
+              Kanban Board
+            </Button>
+            <Button
+              variant={viewMode === "table" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setViewMode("table")}
+              className="h-8 text-xs font-semibold px-3"
+            >
+              Table List
+            </Button>
+          </div>
+        ) : null}
+      </div>
+
+      <div className="flex flex-wrap gap-2 border-b border-border pb-3">
+        <button
+          type="button"
+          onClick={() => setActiveTab("turnover")}
+          className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
+            activeTab === "turnover"
+              ? "bg-primary text-primary-foreground"
+              : "text-foreground/60 hover:bg-surface-hover hover:text-foreground/90"
+          }`}
+        >
+          Turnover
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("midstay")}
+          className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
+            activeTab === "midstay"
+              ? "bg-primary text-primary-foreground"
+              : "text-foreground/60 hover:bg-surface-hover hover:text-foreground/90"
+          }`}
+        >
+          Mid-stay Requests
+          {hasMidStayPending ? (
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+            </span>
+          ) : null}
+        </button>
       </div>
 
       {filteredRoom && (
@@ -344,7 +474,26 @@ export default function FoHousekeepingPage() {
       ) : (
         <div className="space-y-4">
           <div className="space-y-3">
-            {visibleRooms.length === 0 ? (
+            {activeTab === "midstay" ? (
+              midStayDisplayRooms.length === 0 ? (
+                <div className="rounded-xl border border-border bg-background p-4 text-sm text-foreground/70">
+                  No mid-stay requests right now.
+                </div>
+              ) : (
+                <HousekeepingList
+                  mode="midstay"
+                  rooms={midStayDisplayRooms}
+                  getAssignmentForRoom={getAssignmentForRoom}
+                  staffUsers={staffUsers}
+                  onReassign={onReassign}
+                  verificationPhotosByRoom={effectiveVerificationPhotosByRoom}
+                  onVerificationPhotosChange={handleVerificationPhotosChange}
+                  onOpenLogs={openLogsFor}
+                  onMoveRoom={moveRoom}
+                  onApproveRoom={(room) => moveRoom(room, "Available")}
+                />
+              )
+            ) : turnoverRooms.length === 0 ? (
               filteredRoom ? (
                 <div className="rounded-xl border border-border bg-background p-4 text-sm text-foreground/70">
                   {filteredRoom.name || roomIdParam} is not currently in the
@@ -357,13 +506,14 @@ export default function FoHousekeepingPage() {
               )
             ) : viewMode === "kanban" ? (
               <HousekeepingKanban
-                rooms={visibleRooms}
+                rooms={turnoverRooms}
                 getAssignmentForRoom={getAssignmentForRoom}
                 verificationPhotosByRoom={effectiveVerificationPhotosByRoom}
                 onVerificationPhotosChange={handleVerificationPhotosChange}
                 selectedRoomIds={selectedRoomIds}
                 onToggleSelect={toggleSelectRoom}
                 onSelectRoom={setSelectedRoomId}
+                onOpenLogs={openLogsFor}
                 onMoveRoom={moveRoom}
                 onBulkApprove={handleBulkApprove}
                 onApproveRoom={(room) => moveRoom(room, "Available")}
@@ -372,35 +522,18 @@ export default function FoHousekeepingPage() {
               />
             ) : (
               <HousekeepingList
-                rooms={visibleRooms}
+                rooms={turnoverRooms}
                 getAssignmentForRoom={getAssignmentForRoom}
                 staffUsers={staffUsers}
                 onReassign={onReassign}
                 verificationPhotosByRoom={effectiveVerificationPhotosByRoom}
                 onVerificationPhotosChange={handleVerificationPhotosChange}
-                selectedRoomIds={selectedRoomIds}
-                onToggleSelect={toggleSelectRoom}
-                onSelectRoom={setSelectedRoomId}
+                onOpenLogs={openLogsFor}
                 onMoveRoom={moveRoom}
-                onBulkApprove={handleBulkApprove}
                 onApproveRoom={(room) => moveRoom(room, "Available")}
-                selectedRoomId={selectedRoomId}
               />
             )}
           </div>
-
-          {/* View Logs button */}
-          {selectedRoomId && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setLogsDialogOpen(true)}
-              className="gap-2"
-            >
-              <History className="h-4 w-4" />
-              View Housekeeping Logs
-            </Button>
-          )}
         </div>
       )}
 
@@ -411,7 +544,11 @@ export default function FoHousekeepingPage() {
             <DialogTitle>Housekeeping Logs</DialogTitle>
           </DialogHeader>
           {selectedRoomId ? (
-            logs.length === 0 ? (
+            logsLoading ? (
+              <div className="rounded-xl border border-border bg-background p-4 text-sm text-foreground/70">
+                Loading logs for this room...
+              </div>
+            ) : logs.length === 0 ? (
               <div className="rounded-xl border border-border bg-background p-4 text-sm text-foreground/70">
                 No logs yet for this room.
               </div>
