@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- This module is the shared React-PDF compatibility adapter. */
 export const StyleSheet = {
   create(styles) {
     return styles;
@@ -190,11 +191,12 @@ export const Text = ({
   children,
   style,
   className,
-  render: _render,
+  render,
   href,
   src,
   ...rest
 }) => {
+  void render;
   const merged = flatten(style);
   const link = href ?? src;
   if (link) {
@@ -218,7 +220,6 @@ export const Image = ({
 }) => {
   const resolved = typeof src === "string" ? src : src?.uri;
   return (
-    // eslint-disable-next-line eslint(nextjs/no-img-element) -- PDF primitive, not Next.js page
     <img
       src={resolved}
       style={flatten(style)}
@@ -260,19 +261,22 @@ export const Document = ({
 
 export const Page = ({
   children,
-  size: _size,
+  size,
   style
-}) => (
-  <div
-    data-pdf-page
-    style={
-      {
-        display: "flex",
-        flexDirection: "column",
-        ...flatten(style)
+}) => {
+  void size;
+  return (
+    <div
+      data-pdf-page
+      style={
+        {
+          display: "flex",
+          flexDirection: "column",
+          ...flatten(style)
+        }
       }
-    }
-  >
-    {children}
-  </div>
-);
+    >
+      {children}
+    </div>
+  );
+};

@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- PDF serializer exports component and hook adapters from one module. */
 import { isValidElement } from "react";
 
 import { professionalTheme } from "@/lib/pdf-themes/professional";
@@ -22,4 +23,4 @@ export const PdfcnThemeProvider = ({
 
 export const usePdfcnTheme = () => serializedTheme;
 
-export const useSafeMemo = (factory, _deps) => factory();
+export const useSafeMemo = (factory) => factory();

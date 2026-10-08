@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { History } from "lucide-react";
 import { StarRating } from "@/components/common/StarRating";
@@ -61,7 +61,7 @@ export default function FoHousekeepingPage() {
   const [logsDialogOpen, setLogsDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("turnover");
   const [nowMs, setNowMs] = useState(() => Date.now());
-  const appliedRoomIdParamRef = useRef(null);
+  const [tabOverrideRoomId, setTabOverrideRoomId] = useState(null);
 
   const currentStaffName =
     profile?.fullName || user?.displayName || user?.email || "Staff";
@@ -167,23 +167,25 @@ export default function FoHousekeepingPage() {
     });
   }, [midStayRooms, nowMs]);
 
-  useEffect(() => {
-    if (!roomIdParam) {
-      appliedRoomIdParamRef.current = null;
-      return;
-    }
-    if (appliedRoomIdParamRef.current === roomIdParam) return;
-    const targetRoom = rooms.find((room) => room.id === roomIdParam && room.isActive !== false);
-    if (!targetRoom) return;
-    appliedRoomIdParamRef.current = roomIdParam;
-    setActiveTab(targetRoom.isMidStayRequest === true ? "midstay" : "turnover");
-  }, [rooms, roomIdParam]);
-
   const filteredRoom = useMemo(
     () =>
       rooms.find((r) => r.id === roomIdParam && r.isActive !== false) || null,
     [rooms, roomIdParam],
   );
+  const deepLinkTab = filteredRoom
+    ? filteredRoom.isMidStayRequest === true
+      ? "midstay"
+      : "turnover"
+    : null;
+  const visibleActiveTab =
+    deepLinkTab && tabOverrideRoomId !== roomIdParam
+      ? deepLinkTab
+      : activeTab;
+
+  function selectActiveTab(tab) {
+    if (roomIdParam) setTabOverrideRoomId(roomIdParam);
+    setActiveTab(tab);
+  }
 
   // Clear a stale/invalid ?roomId= deep-link once rooms have loaded.
   useEffect(() => {
@@ -192,24 +194,9 @@ export default function FoHousekeepingPage() {
     }
   }, [loading, roomIdParam, filteredRoom, navigate]);
 
-    // Reset logs when the selected room clears (during render, not in the effect).
-  const [prevSelectedRoomId, setPrevSelectedRoomId] = useState(selectedRoomId);
-  if (prevSelectedRoomId !== selectedRoomId) {
-    setPrevSelectedRoomId(selectedRoomId);
-    if (!selectedRoomId) {
-      setLogs([]);
-    }
-  }
-
   useEffect(() => {
-    if (!selectedRoomId) {
-      setLogs([]);
-      setLogsLoading(false);
-      return;
-    }
+    if (!selectedRoomId) return;
     let active = true;
-    setLogs([]);
-    setLogsLoading(true);
     const unsub = subscribeToHousekeepingLogsForRoom(
       selectedRoomId,
       (data) => {
@@ -222,7 +209,6 @@ export default function FoHousekeepingPage() {
     return () => {
       active = false;
       unsub();
-      setLogsLoading(false);
     };
   }, [selectedRoomId, trainingMode, logsRequestId]);
 
@@ -344,7 +330,7 @@ export default function FoHousekeepingPage() {
 
   async function handleBulkApprove() {
     const sourceRooms =
-      activeTab === "midstay" ? midStayRooms : turnoverRooms;
+      visibleActiveTab === "midstay" ? midStayRooms : turnoverRooms;
     const roomIds = sourceRooms
       .filter(
         (room) =>
@@ -392,7 +378,7 @@ export default function FoHousekeepingPage() {
             Manage room cleaning status, assign staff, and approve completed cleanings.
           </p>
         </div>
-        {activeTab === "turnover" ? (
+        {visibleActiveTab === "turnover" ? (
           <div className="flex items-center gap-1 bg-border/30 p-1 rounded-lg border border-border/50 shrink-0 self-start sm:self-auto">
             <Button
               variant={viewMode === "kanban" ? "default" : "ghost"}
@@ -417,9 +403,9 @@ export default function FoHousekeepingPage() {
       <div className="flex flex-wrap gap-2 border-b border-border pb-3">
         <button
           type="button"
-          onClick={() => setActiveTab("turnover")}
+          onClick={() => selectActiveTab("turnover")}
           className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-            activeTab === "turnover"
+            visibleActiveTab === "turnover"
               ? "bg-primary text-primary-foreground"
               : "text-foreground/60 hover:bg-surface-hover hover:text-foreground/90"
           }`}
@@ -428,9 +414,9 @@ export default function FoHousekeepingPage() {
         </button>
         <button
           type="button"
-          onClick={() => setActiveTab("midstay")}
+          onClick={() => selectActiveTab("midstay")}
           className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-            activeTab === "midstay"
+            visibleActiveTab === "midstay"
               ? "bg-primary text-primary-foreground"
               : "text-foreground/60 hover:bg-surface-hover hover:text-foreground/90"
           }`}
@@ -475,7 +461,7 @@ export default function FoHousekeepingPage() {
       ) : (
         <div className="space-y-4">
           <div className="space-y-3">
-            {activeTab === "midstay" ? (
+            {visibleActiveTab === "midstay" ? (
               midStayDisplayRooms.length === 0 ? (
                 <div className="rounded-xl border border-border bg-background p-4 text-sm text-foreground/70">
                   No mid-stay requests right now.

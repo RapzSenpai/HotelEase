@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { NavLink, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { SkeletonList } from "@/components/ui/skeleton";
@@ -101,25 +101,21 @@ export default function MyBookingsPage() {
   const [activeTab, setActiveTab] = useState("All");
   const [dropdownStatus, setDropdownStatus] = useState("All");
   const [showPastBookings, setShowPastBookings] = useState(false);
+  const [dismissedDeepLinkId, setDismissedDeepLinkId] = useState(null);
   // Page-level cancel flow — owns the dialog so the refund step survives the
   // cancelled booking moving Active → Past (which unmounts its card).
   const [cancelTarget, setCancelTarget] = useState(null);
 
-  // Refund notif deep-link: switch to the Past filter + expand the card,
-  // then scroll to it. One-shot — later booking updates must not yank the
-  // user's tab back.
-  const deepLinkAppliedRef = useRef(null);
-  useEffect(() => {
-    if (!deepBookingId || loading) return;
-    if (deepLinkAppliedRef.current === deepBookingId) return;
-    const target = bookings.find((b) => b.id === deepBookingId);
-    if (!target) return;
-    deepLinkAppliedRef.current = deepBookingId;
-    if (!ACTIVE_STATUSES.has(target.status)) {
-      setActiveTab("Past");
-      setShowPastBookings(true);
-    }
-  }, [deepBookingId, loading, bookings]);
+  // Derive the deep-link filter from loaded booking data; user-selected tabs
+  // dismiss its override without effect-driven state updates.
+  const deepLinkTarget = bookings.find((booking) => booking.id === deepBookingId);
+  const deepLinkPast =
+    !loading &&
+    deepLinkTarget &&
+    !ACTIVE_STATUSES.has(deepLinkTarget.status) &&
+    dismissedDeepLinkId !== deepBookingId;
+  const visibleActiveTab = deepLinkPast ? "Past" : activeTab;
+  const visibleShowPastBookings = deepLinkPast || showPastBookings;
 
   useEffect(() => {
     if (!deepBookingId || loading) return;
@@ -130,12 +126,14 @@ export default function MyBookingsPage() {
   }, [deepBookingId, loading, bookings, showPastBookings]);
 
   function handleTabChange(tab) {
+    if (deepBookingId) setDismissedDeepLinkId(deepBookingId);
     setActiveTab(tab);
     setDropdownStatus("All");
     setShowPastBookings(false);
   }
 
   function handleStatusSelect(status) {
+    if (deepBookingId) setDismissedDeepLinkId(deepBookingId);
     setDropdownStatus(status);
     setActiveTab("All");
     setShowPastBookings(false);
@@ -207,20 +205,20 @@ export default function MyBookingsPage() {
   const filtered = useMemo(() => {
     let result = bookings;
 
-    if (activeTab === "Active") {
+    if (visibleActiveTab === "Active") {
       result = bookings.filter((b) => ACTIVE_STATUSES.has(b.status));
-    } else if (activeTab === "Past") {
+    } else if (visibleActiveTab === "Past") {
       result = bookings.filter((b) => !ACTIVE_STATUSES.has(b.status));
-    } else if (activeTab !== "All") {
-      result = bookings.filter((b) => b.status === activeTab);
+    } else if (visibleActiveTab !== "All") {
+      result = bookings.filter((b) => b.status === visibleActiveTab);
     }
 
-    if (activeTab === "All" && dropdownStatus !== "All") {
+    if (visibleActiveTab === "All" && dropdownStatus !== "All") {
       result = result.filter((b) => b.status === dropdownStatus);
     }
 
     return result;
-  }, [bookings, activeTab, dropdownStatus]);
+  }, [bookings, visibleActiveTab, dropdownStatus]);
 
   const activeBookings = useMemo(
     () => filtered.filter((b) => ACTIVE_STATUSES.has(b.status)),
@@ -316,7 +314,7 @@ export default function MyBookingsPage() {
             {/* Quick filter tabs */}
             {QUICK_FILTERS.map((tab) => {
               const count = countForTab(tab);
-              const isActive = activeTab === tab && (tab !== "All" || dropdownStatus === "All");
+              const isActive = visibleActiveTab === tab && (tab !== "All" || dropdownStatus === "All");
               return (
                 <button
                   key={tab}
@@ -348,14 +346,14 @@ export default function MyBookingsPage() {
           {/* Booking list */}
           {filtered.length === 0 ? (
             <div className="rounded-xl border border-border bg-background p-8 text-center text-sm text-foreground/50">
-              No {activeTab.toLowerCase()} bookings found.
+              No {visibleActiveTab.toLowerCase()} bookings found.
             </div>
           ) : (
             <div className="space-y-6">
               {/* Active Bookings */}
               {activeBookings.length > 0 && (
                 <div className="space-y-3">
-                  {activeTab === "All" && (
+                  {visibleActiveTab === "All" && (
                     <h2 className="text-sm font-semibold text-foreground/70 uppercase tracking-wider">
                       Active
                     </h2>
@@ -377,21 +375,21 @@ export default function MyBookingsPage() {
               )}
 
               {/* Past Bookings — collapsed by default when viewing All */}
-              {pastBookings.length > 0 && activeTab === "All" && (
+              {pastBookings.length > 0 && visibleActiveTab === "All" && (
                 <div className="space-y-3">
                   <div className="flex items-center gap-3">
                     <div className="h-px flex-1 bg-border/60" />
                     <button
                       type="button"
-                      onClick={() => setShowPastBookings(!showPastBookings)}
+                      onClick={() => setShowPastBookings(!visibleShowPastBookings)}
                       className="inline-flex items-center gap-1.5 text-xs font-semibold text-foreground/40 uppercase tracking-wider hover:text-foreground/60 transition-colors"
                     >
                       Past Bookings ({pastBookings.length})
-                      <ChevronDown className={`h-3 w-3 transition-transform ${showPastBookings ? "rotate-180" : ""}`} />
+                      <ChevronDown className={`h-3 w-3 transition-transform ${visibleShowPastBookings ? "rotate-180" : ""}`} />
                     </button>
                     <div className="h-px flex-1 bg-border/60" />
                   </div>
-                  {showPastBookings && pastBookings.map((b) => (
+                  {visibleShowPastBookings && pastBookings.map((b) => (
                     <div key={b.id} id={`booking-${b.id}`} className="scroll-mt-24">
                       <PastBookingRow
                         booking={b}
@@ -406,7 +404,7 @@ export default function MyBookingsPage() {
               )}
 
               {/* Past Bookings — shown directly when filtering to Past status */}
-              {pastBookings.length > 0 && activeTab !== "All" && (
+              {pastBookings.length > 0 && visibleActiveTab !== "All" && (
                 <div className="space-y-2">
                   {pastBookings.map((b) => (
                     <div key={b.id} id={`booking-${b.id}`} className="scroll-mt-24">
