@@ -46,7 +46,7 @@ export async function rejectBooking(
       type: "booking_rejected",
       title: "Booking Update",
       message: `Your booking for ${roomName} was not approved. Reason: ${reason || "Not provided"}`,
-      link: "/my-bookings"
+      link: `/my-bookings?bookingId=${bookingId}`
     }, { trainingMode });
   } catch (e) { console.error("Notif error", e); }
   return { ok: true };
@@ -144,16 +144,16 @@ export async function cancelBooking(bookingId, { trainingMode = null } = {}) {
       : "unknown date";
     const foUsers = await listFoUsers({ trainingMode }).then((users) => users);
 
-    await Promise.all(
-      foUsers.map((fo) =>
-        createNotification(fo.id, {
-          type: "booking_cancelled",
-          title: "Booking Cancelled",
-          message: `Booking for ${roomName} on ${checkInStr} has been cancelled.`,
-          link: "/fo/bookings",
-        }, { trainingMode }),
-      ),
-    );
+      await Promise.all(
+        foUsers.map((fo) =>
+          createNotification(fo.id, {
+            type: "booking_cancelled",
+            title: "Booking Cancelled",
+            message: `Booking for ${roomName} on ${checkInStr} has been cancelled.`,
+            link: `/fo/bookings?bookingId=${bookingId}`,
+          }, { trainingMode }),
+        ),
+      );
   } catch (e) {
     console.error("Notif error", e);
   }
@@ -200,8 +200,8 @@ export async function requestCancellation(bookingId, guestId, reason, { training
         type: "cancellation_requested",
         title: "Cancellation Requested",
         message: `A guest has requested to cancel their booking. Reason: ${reason}`,
-        link: "/fo/cancellations"
-      })));
+        link: `/fo/cancellations?tab=requests&bookingId=${bookingId}`
+      }, { trainingMode })));
     } catch (e) { console.error("Notif error", e); }
     return { ok: true };
   });
@@ -266,12 +266,12 @@ export async function approveCancellation(bookingId, { trainingMode = null } = {
   await releaseAvailabilityMarkers(booking, trainingMode);
 
   try {
-    await createNotification(booking.guestId, {
-      type: "cancellation_approved",
-      title: "Cancellation Approved",
-      message: `Your cancellation request for ${roomName} has been approved.`,
-      link: "/my-bookings",
-    });
+      await createNotification(booking.guestId, {
+        type: "cancellation_approved",
+        title: "Cancellation Approved",
+        message: `Your cancellation request for ${roomName} has been approved.`,
+        link: `/my-bookings?bookingId=${bookingId}`,
+      }, { trainingMode });
   } catch (e) {
     console.error("Notif error", e);
   }
@@ -317,12 +317,12 @@ export async function rejectCancellation(bookingId, rejectionReason, { trainingM
   });
 
   try {
-    await createNotification(booking.guestId, {
-      type: "cancellation_rejected",
-      title: "Cancellation Rejected",
-      message: `Your cancellation request for ${roomName} was rejected. Reason: ${rejectionReason}`,
-      link: "/my-bookings",
-    });
+      await createNotification(booking.guestId, {
+        type: "cancellation_rejected",
+        title: "Cancellation Rejected",
+        message: `Your cancellation request for ${roomName} was rejected. Reason: ${rejectionReason}`,
+        link: `/my-bookings?bookingId=${bookingId}`,
+      }, { trainingMode });
   } catch (e) {
     console.error("Notif error", e);
   }

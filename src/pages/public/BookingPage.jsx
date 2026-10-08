@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import RequiredIndicator from "@/components/common/RequiredIndicator";
 import TermsDialog from "@/components/common/TermsDialog";
-import { createBooking, getAvailableRooms, uploadPaymentProof } from "@/services/bookingsService";
+import { createBooking, uploadPaymentProof } from "@/services/bookingsService";
 import { trackEvent, GA_EVENTS } from "@/services/gaService";
 import { mapFirebaseError } from "@/lib/errors";
 import { getRoom, isRoomActive, isRoomBookable } from "@/services/roomsService";
@@ -232,7 +232,10 @@ export default function BookingPage() {
     if (pricing.isExceedingMaxPax) { setStep1Error(`This room accommodates a maximum of ${roomCapacity.maxPax} guests. Please reduce the guest count.`); return; }
     setStep(2);
   }
-  // Step 2 Book Now — includes getAvailableRooms() defensive re-check (P0.1)
+  // Step 2 Book Now. The date-conflict re-check lives in createBooking (it
+  // reads the same availability markers) and the night markers are claimed in
+  // a transaction, so a second getAvailableRooms() here only added a round trip
+  // to the wait before the booking was written.
   const handleBookNow = useCallback(async () => {
     setSubmitError(null);
     if (honeypot) return; // Bot detected
@@ -245,13 +248,6 @@ export default function BookingPage() {
     if (pricing.isExceedingMaxPax) { setSubmitError(`This room accommodates a maximum of ${roomCapacity.maxPax} guests.`); return; }
     try {
       setSubmitting(true);
-      // Defensive re-check: room may have been taken while guest was in the wizard.
-      const available = await getAvailableRooms(checkIn, checkOut, { trainingMode });
-      const isStillAvailable = available.some((r) => r.id === resolvedRoomId);
-      if (!isStillAvailable) {
-        setSubmitError("This room is no longer available for your selected dates. It may have just been booked. Please go back and choose different dates.");
-        return;
-      }
       const payload = {
         guestId: user.uid,
         roomId: resolvedRoomId,

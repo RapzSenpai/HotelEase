@@ -22,8 +22,8 @@ export function getCol(baseName, explicitMode = null) {
   if (mode === "prod") return baseName;
 
   const sandboxed = [
-    "bookings", "guests", "payments", "housekeeping_logs", "rooms", "users", "reviews",
-    "system_alerts", "audit_logs", "notifications", "messages",
+    "bookings", "guests", "payments", "refunds", "housekeeping_logs", "rooms", "users", "reviews",
+    "system_alerts", "audit_logs", "notifications", "messages", "booking_notification_jobs",
   ];
   
   if (!sandboxed.includes(baseName)) return baseName;

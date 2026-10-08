@@ -212,6 +212,13 @@ export function AuthProvider({ children }) {
             setRole("guest");
           }
 
+          // No profile doc yet (register() is still writing it — the auth
+          // callback can win that race). Subscribe anyway so the doc that
+          // lands a moment later brings emailVerified/role with it: without
+          // this, profile stays null, the verification gate never fires, and
+          // the new account is unverified with no way to notice.
+          if (!userDoc) startProfileSubscription(firebaseUser, effectiveTrainingMode);
+
           setLoading(false);
         } catch (e) {
           if (!isMounted) return;
@@ -332,8 +339,9 @@ export function AuthProvider({ children }) {
           trainingMode: effectiveTrainingMode,
         });
 
-        // Sign out so user must log in with their new account
-        await signOut(auth);
+        // Stay signed in: Firebase already signed the new user in, and the
+        // unverified guest can only reach /verify-email, so sending them back
+        // to /login to sign in again bought nothing.
       } catch (e) {
         setAuthError(mapAuthError(e) || "Register failed.");
         setLoading(false);

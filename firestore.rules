@@ -115,7 +115,9 @@ service cloud.firestore {
         'stay_extended',
         'room_dirty', 'announcement', 'support_message',
         'cancellation_requested', 'cancellation_approved', 'cancellation_rejected',
-        'payment_proof_required', 'housekeeping_in_progress', 'housekeeping_done',
+        'refund_requested', 'refund_approved', 'refund_paid', 'refund_rejected',
+        'payment_proof_required', 'payment_proof_uploaded', 'payment_received',
+        'housekeeping_in_progress', 'housekeeping_done',
         'housekeeping_cancelled', 'housekeeping_rated'
       ];
     }
@@ -155,6 +157,39 @@ service cloud.firestore {
       let spanMillis = data.checkOutDate.toMillis() - data.checkInDate.toMillis();
       return spanMillis >= data.nights * 86400000 - 3600000 &&
              spanMillis <= data.nights * 86400000 + 3600000;
+    }
+
+    function validBookingNotificationJob(jobId, bookingPath) {
+      let job = request.resource.data;
+      return job.keys().hasAll([
+               'bookingId', 'guestId', 'roomId', 'roomName', 'checkIn',
+               'checkOut', 'markerDates', 'paymentMethod', 'status', 'attempts',
+               'nextAttemptAt', 'createdAt', 'updatedAt'
+             ]) &&
+             job.keys().hasOnly([
+               'bookingId', 'guestId', 'roomId', 'roomName', 'checkIn',
+               'checkOut', 'markerDates', 'paymentMethod', 'status', 'attempts',
+               'nextAttemptAt', 'createdAt', 'updatedAt'
+             ]) &&
+             job.bookingId == jobId &&
+             job.guestId == request.auth.uid &&
+             job.roomId is string &&
+             job.roomName is string &&
+             job.checkIn is string &&
+             job.checkOut is string &&
+             job.markerDates is list &&
+             job.paymentMethod is string &&
+             job.status == 'waiting_for_markers' &&
+             job.attempts == 0 &&
+             job.nextAttemptAt is timestamp &&
+             job.createdAt is timestamp &&
+             job.updatedAt is timestamp &&
+             existsAfter(bookingPath) &&
+             job.markerDates.size() == getAfter(bookingPath).data.nights &&
+             getAfter(bookingPath).data.guestId == request.auth.uid &&
+             getAfter(bookingPath).data.roomId == job.roomId &&
+             getAfter(bookingPath).data.paymentMethod == job.paymentMethod &&
+             getAfter(bookingPath).data.status in ['Awaiting Payment', 'Pending'];
     }
 
     // --- PRODUCTION COLLECTIONS (Protected) ---
@@ -258,15 +293,18 @@ service cloud.firestore {
                          request.resource.data.paymentProofUrl == null &&
                          request.resource.data.proofUploadedAt == null &&
                          request.resource.data.proofVerifiedAt == null &&
-                         request.resource.data.keys().hasOnly([
-                           'guestId', 'roomId', 'checkInDate', 'checkOutDate', 'nights',
-                           'baseTotal', 'totalCost', 'status', 'bookingType', 'paxCount',
-                           'extraPaxCount', 'extraPaxFee', 'extraPaxTotal', 'specialRequests',
-                           'leadGuestName', 'leadGuestEmail', 'leadGuestPhone', 'arrivalTime',
-                           'payment', 'paymentProofUrl', 'paymentType', 'paymentMethod',
-                           'paymentDeadline', 'proofUploadedAt', 'proofVerifiedAt',
-                           'createdAt', 'updatedAt'
-                         ])));
+                          request.resource.data.keys().hasOnly([
+                            'guestId', 'roomId', 'checkInDate', 'checkOutDate', 'nights',
+                            'baseTotal', 'totalCost', 'status', 'bookingType', 'paxCount',
+                            'extraPaxCount', 'extraPaxFee', 'extraPaxTotal', 'specialRequests',
+                            'leadGuestName', 'leadGuestEmail', 'leadGuestPhone', 'arrivalTime',
+                            'payment', 'paymentProofUrl', 'paymentType', 'paymentMethod',
+                            'paymentDeadline', 'proofUploadedAt', 'proofVerifiedAt',
+                            'rateType', 'cancellationDeadline', 'cancellationFee',
+                            'refundStatus', 'refundAmount', 'refundMethod', 'refundReason',
+                            'refundProcessedAt', 'refundProcessedBy',
+                            'createdAt', 'updatedAt'
+                          ])));
 
       // UPDATE: FO/Admin can update anything.
       // Guests can self-cancel their OWN bookings when status is Pending (not Awaiting Payment — 48hr expiry throttles holds).
@@ -277,8 +315,9 @@ service cloud.firestore {
       // gateway fields instead of proof fields. Must stay in sync with
       // paymentGatewayService.completeSimulatedPayment().
       allow update: if (isProdFOOrAdmin() && !isAnonymous() &&
-                          (request.resource.data.status != "Checked Out" ||
-                           request.resource.data.payment.deposit >= resource.data.totalCost)) ||
+                           (request.resource.data.status != "Checked Out" ||
+                            request.resource.data.payment.deposit >= resource.data.totalCost ||
+                            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['refundStatus', 'refundAmount', 'refundMethod', 'refundReason', 'refundProcessedAt', 'refundProcessedBy', 'updatedAt']))) ||
                        (isAuthenticated() && !isAnonymous() &&
                         isOwner(resource.data.guestId) &&
                         ((resource.data.status == "Pending" && request.resource.data.status == "Cancelled") ||
@@ -295,6 +334,14 @@ service cloud.firestore {
                            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['paymentGateway', 'gatewayRef', 'bankRef', 'paidAt', 'status', 'updatedAt']))));
 
       allow delete: if isProdFOOrAdmin() && !isAnonymous();
+    }
+
+    match /booking_notification_jobs/{jobId} {
+      allow create: if isAuthenticated() && !isAnonymous() &&
+        validBookingNotificationJob(
+          jobId,
+          /databases/$(database)/documents/bookings/$(jobId)
+        );
     }
 
     // PII-free availability markers (PROD). Guests read occupancy here instead of
@@ -351,6 +398,16 @@ service cloud.firestore {
       allow write: if isProdFOOrAdmin() && !isAnonymous();
     }
 
+    match /refunds/{id} {
+      allow read: if (isProdFOOrAdmin() && !isAnonymous()) ||
+                     (isAuthenticated() && !isAnonymous() &&
+                      resource.data.bookingId is string &&
+                      ownsProdBooking(resource.data.bookingId));
+      allow create: if isProdFOOrAdmin() && !isAnonymous();
+      allow update: if isProdFOOrAdmin() && !isAnonymous();
+      allow delete: if isProdAdmin() && !isAnonymous();
+    }
+
     // --- TRAINING COLLECTIONS (training_*) ---
 
     match /training_guests/{uid} {
@@ -393,9 +450,10 @@ service cloud.firestore {
       allow create: if isTrainingParticipant() && 
                        (request.resource.data.guestId == request.auth.uid || isProdFOOrAdmin() || isTrainingFOOrAdmin());
       allow update: if (isTrainingParticipant() &&
-                               (isProdFOOrAdmin() || isTrainingFOOrAdmin()) &&
-                               (request.resource.data.status != "Checked Out" ||
-                                request.resource.data.payment.deposit >= resource.data.totalCost)) ||
+                                (isProdFOOrAdmin() || isTrainingFOOrAdmin()) &&
+                                (request.resource.data.status != "Checked Out" ||
+                                 request.resource.data.payment.deposit >= resource.data.totalCost ||
+                                 request.resource.data.diff(resource.data).affectedKeys().hasOnly(['refundStatus', 'refundAmount', 'refundMethod', 'refundReason', 'refundProcessedAt', 'refundProcessedBy', 'updatedAt']))) ||
                        (isTrainingParticipant() &&
                         isOwner(resource.data.guestId) &&
                         ((resource.data.status == "Pending" && request.resource.data.status == "Cancelled") ||
@@ -413,7 +471,16 @@ service cloud.firestore {
       allow delete: if isTrainingParticipant() &&
                (isOwner(resource.data.guestId) || isProdFOOrAdmin() || isTrainingFOOrAdmin());
     }
-    
+
+    match /training_booking_notification_jobs/{jobId} {
+      allow create: if isTrainingParticipant() &&
+        isOwner(request.resource.data.guestId) &&
+        validBookingNotificationJob(
+          jobId,
+          /databases/$(database)/documents/training_bookings/$(jobId)
+        );
+    }
+
     match /training_payments/{id} {
       allow read: if isTrainingParticipant() &&
                (isTrainingFOOrAdmin() ||
@@ -426,6 +493,15 @@ service cloud.firestore {
          (request.resource.data.bookingId is string &&
           get(/databases/$(database)/documents/training_bookings/$(request.resource.data.bookingId)).data.guestId == request.auth.uid));
       allow update: if isTrainingParticipant() && (isProdFOOrAdmin() || isTrainingFOOrAdmin());
+      allow delete: if isTrainingParticipant() && isTrainingFOOrAdmin();
+    }
+
+    match /training_refunds/{id} {
+      allow read: if isTrainingParticipant() &&
+               (isTrainingFOOrAdmin() ||
+            (resource.data.bookingId is string &&
+             get(/databases/$(database)/documents/training_bookings/$(resource.data.bookingId)).data.guestId == request.auth.uid));
+      allow create, update: if isTrainingParticipant() && (isProdFOOrAdmin() || isTrainingFOOrAdmin());
       allow delete: if isTrainingParticipant() && isTrainingFOOrAdmin();
     }
 
@@ -735,5 +811,3 @@ service cloud.firestore {
     }
   }
 }
-
-

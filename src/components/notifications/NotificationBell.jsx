@@ -1,19 +1,23 @@
-import { useState, useEffect } from "react";
-import { NavLink, useNavigate } from "react-router-dom";
+import { useState, useEffect, useRef } from "react";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { 
-  subscribeToNotifications, 
-  markAsRead, 
-  markAllAsRead 
+import {
+  subscribeToNotifications,
+  markAsRead,
+  markAllAsRead,
+  markNotificationsRead,
 } from "@/services/notificationService";
-import { subscribeToPendingBookingRequests } from "@/services/bookingsService";
+// Global inbox → toast bridge. Mounted here because the bell is the one
+// notification surface every signed-in role renders on every page.
+import { useNotificationToasts } from "@/hooks/useNotificationToasts";
+import { unreadNotificationIdsForVisit } from "@/lib/notification-links";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
-import { Bell, Check, X, CalendarCheck, CalendarX, CheckCircle, Navigation, Info, BellRing, Sparkles, MessageSquareMore } from "lucide-react";
+import { Bell, Check, X, CalendarCheck, CalendarX, CheckCircle, Navigation, Info, BellRing, Sparkles, MessageSquareMore, Receipt, Wallet, Undo2 } from "lucide-react";
 
 function getNotifIcon(type) {
   switch (type) {
@@ -23,7 +27,21 @@ function getNotifIcon(type) {
       return <CheckCircle className="h-4 w-4 text-success" />;
     case "booking_rejected":
     case "booking_cancelled":
+    case "cancellation_rejected":
       return <CalendarX className="h-4 w-4 text-destructive" />;
+    case "cancellation_approved":
+    case "cancellation_requested":
+      return <CalendarX className="h-4 w-4 text-warning" />;
+    case "refund_requested":
+    case "refund_approved":
+    case "refund_paid":
+    case "refund_rejected":
+      return <Undo2 className="h-4 w-4 text-info" />;
+    case "payment_proof_required":
+    case "payment_proof_uploaded":
+      return <Receipt className="h-4 w-4 text-primary" />;
+    case "payment_received":
+      return <Wallet className="h-4 w-4 text-success" />;
     case "room_dirty":
       return <Sparkles className="h-4 w-4 text-info" />;
     case "announcement":
@@ -55,11 +73,15 @@ function timeSince(dateLike) {
 }
 
 export default function NotificationBell() {
-  const { user, role, trainingMode } = useAuth();
+  const { user, trainingMode } = useAuth();
   const navigate = useNavigate();
   const [notifications, setNotifications] = useState([]);
-  const [pendingRequests, setPendingRequests] = useState([]);
   const [isOpen, setIsOpen] = useState(false);
+  const location = useLocation();
+  // Ids we already asked the server to mark read for the page we're on, so a
+  // re-render before the snapshot lands cannot batch the same writes twice.
+  const ackedRef = useRef(new Set());
+  const visitAckRef = useRef({ key: null, ids: [] });
 
   useEffect(() => {
     if (!user?.uid) return;
@@ -69,41 +91,51 @@ export default function NotificationBell() {
     return () => unsub();
   }, [user?.uid, trainingMode]);
 
+  // New notifications pop a toast (see TOASTABLE_TYPES for the noise policy).
+  useNotificationToasts({ userId: user?.uid, trainingMode });
+
   useEffect(() => {
-    if (!user?.uid || role !== "fo") return;
-    const unsub = subscribeToPendingBookingRequests((data) => {
-      setPendingRequests(data);
-    }, { trainingMode });
-    return () => unsub();
-  }, [user?.uid, role, trainingMode]);
+    ackedRef.current = new Set();
+  }, [user?.uid, trainingMode]);
 
-  const foRequestNotifications =
-    role === "fo"
-      ? pendingRequests.map((booking) => ({
-          id: `booking-request-${booking.id}`,
-          type: "booking_request",
-          title: "New Booking Request",
-          message: "A guest submitted a new booking request.",
-          link: "/fo/bookings",
-          isRead: false,
-          createdAt: booking.createdAt,
-          isSystemRequest: true,
-        }))
-      : [];
+  // Visit ack: opening the page a notification points at counts as reading it
+  // — type-agnostic, driven by the link. Links carrying a bookingId only ack
+  // when that same booking is the one open.
+  useEffect(() => {
+    if (!user?.uid) {
+      visitAckRef.current = { key: null, ids: [] };
+      return;
+    }
 
-  const allNotifications = [...foRequestNotifications, ...notifications]
-    .sort((a, b) => {
-      const aTime = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : new Date(a.createdAt || 0).getTime();
-      const bTime = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : new Date(b.createdAt || 0).getTime();
-      return bTime - aTime;
-    })
-    .slice(0, 20);
+    const visitKey = JSON.stringify([
+      user.uid,
+      location.pathname,
+      location.search,
+      trainingMode,
+    ]);
+    if (visitAckRef.current.key !== visitKey) {
+      const bookingId = new URLSearchParams(location.search).get("bookingId");
+      visitAckRef.current = {
+        key: visitKey,
+        ids: unreadNotificationIdsForVisit(notifications, {
+          pathname: location.pathname,
+          bookingId,
+        }),
+      };
+    }
 
-  const unreadCount = allNotifications.filter(n => !n.isRead).length;
-  const unreadStoredCount = notifications.filter((n) => !n.isRead).length;
+    const ids = visitAckRef.current.ids.filter((id) => !ackedRef.current.has(id));
+    if (ids.length === 0) return;
+    for (const id of ids) ackedRef.current.add(id);
+    markNotificationsRead(user.uid, ids, { trainingMode }).catch(() => {
+      for (const id of ids) ackedRef.current.delete(id);
+    });
+  }, [user?.uid, notifications, location.pathname, location.search, trainingMode]);
+
+  const unreadCount = notifications.filter((n) => !n.isRead).length;
 
   const handleNotifClick = async (notif) => {
-    if (!notif.isRead && !notif.isSystemRequest) {
+    if (!notif.isRead) {
       await markAsRead(user.uid, notif.id, { trainingMode });
     }
     setIsOpen(false);
@@ -113,7 +145,7 @@ export default function NotificationBell() {
   };
 
   const handleMarkAllRead = async () => {
-    if (unreadStoredCount === 0) return;
+    if (unreadCount === 0) return;
     await markAllAsRead(user.uid, { trainingMode });
   };
 
@@ -147,7 +179,7 @@ export default function NotificationBell() {
         </div>
         
         <div className="max-h-[300px] overflow-y-auto">
-          {allNotifications.length === 0 ? (
+          {notifications.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-8 text-center">
               <span className="text-3xl mb-2">🎉</span>
               <p className="text-sm font-medium">You're all caught up!</p>
@@ -155,7 +187,7 @@ export default function NotificationBell() {
             </div>
           ) : (
             <div className="flex flex-col">
-              {allNotifications.map((notif) => (
+              {notifications.map((notif) => (
                 <button
                   key={notif.id}
                   onClick={() => handleNotifClick(notif)}
@@ -191,7 +223,7 @@ export default function NotificationBell() {
           <button 
             type="button"
             onClick={handleMarkAllRead}
-            disabled={unreadStoredCount === 0 || notifications.length === 0}
+            disabled={unreadCount === 0}
             className="text-xs font-medium text-foreground/60 hover:text-foreground/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Mark all read

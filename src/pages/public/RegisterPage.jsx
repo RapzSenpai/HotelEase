@@ -78,8 +78,10 @@ export default function RegisterPage() {
       await register({ email, password, fullName, phone: phone.trim() });
       setCooldown(true);
       setTimeout(() => setCooldown(false), 60000);
-      navigate("/login");
-      toast.success("Account created! You can now log in.");
+      // register() keeps the fresh session — go straight to the OTP step
+      // instead of bouncing the guest back through the login form.
+      navigate("/verify-email", { replace: true });
+      toast.success("Account created! Verify your email to continue.");
     } catch (err) {
       setLocalError(mapAuthError(err) || "Registration failed.");
     }

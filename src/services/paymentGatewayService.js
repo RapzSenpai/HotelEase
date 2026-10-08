@@ -115,7 +115,7 @@ export async function completeSimulatedPayment({ bookingId, trainingMode = null,
     await Promise.all(
       foUsers.map((fo) =>
         createNotification(fo.id, {
-          type: "booking_request",
+          type: "payment_received",
           title: "Payment Received (Simulated)",
           message: `Simulated ${booking.paymentMethod} payment completed for a booking request`,
           link: "/fo/bookings",

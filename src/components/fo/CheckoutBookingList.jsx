@@ -1,4 +1,5 @@
 import { AlertTriangle, Clock } from "lucide-react";
+import { roomLabel } from "@/lib/room-label";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
@@ -21,6 +22,7 @@ export default function CheckoutBookingList({
   onSelect,
   guestsMap = {},
   roomById = new Map(),
+  paidTotals = {},
 }) {
   return (
     <div className="lg:col-span-2 space-y-3">
@@ -71,15 +73,18 @@ export default function CheckoutBookingList({
           {bookings.map((b) => {
             const room = roomById.get(b.roomId);
             const total = Number(b.totalCost ?? 0);
-            const paid = Number(b.payment?.deposit ?? 0);
+            const paidTotalLoaded = Object.prototype.hasOwnProperty.call(paidTotals, b.id);
+            const paid = Number(paidTotals[b.id] ?? 0);
             const balance = Math.max(0, total - paid);
             const active = selectedBookingId === b.id;
-            const guestName =
-              guestsMap[b.guestId]?.fullName ||
-              guestsMap[b.guestId]?.email ||
-              b.guestName ||
-              "Guest";
-            const roomName = room?.name || room?.type || b.roomId;
+            const guestPending = b.guestId && !(b.guestId in guestsMap);
+            const guestName = guestPending
+              ? "…"
+              : guestsMap[b.guestId]?.fullName ||
+                guestsMap[b.guestId]?.email ||
+                b.guestName ||
+                "Guest";
+            const roomName = roomLabel(room, "—");
 
             return (
               <div
@@ -108,12 +113,18 @@ export default function CheckoutBookingList({
                   </div>
                   <div
                     className={`text-xs font-semibold shrink-0 text-right ${
-                      balance > 0 ? "text-destructive" : "text-success"
+                      !paidTotalLoaded
+                        ? "text-foreground/50"
+                        : balance > 0
+                          ? "text-destructive"
+                          : "text-success"
                     }`}
                   >
-                    {balance > 0
-                      ? `PHP ${balance.toLocaleString()} due`
-                      : "Paid"}
+                    {!paidTotalLoaded
+                      ? "Checking balance…"
+                      : balance > 0
+                        ? `PHP ${balance.toLocaleString()} due`
+                        : "Paid"}
                   </div>
                 </div>
 

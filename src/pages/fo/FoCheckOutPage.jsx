@@ -18,6 +18,7 @@ import { getUserDoc } from "@/services/userService";
 import { useAuth } from "@/contexts/AuthContext";
 import { trackEvent, GA_EVENTS } from "@/services/gaService";
 import { toast } from "sonner";
+import { roomLabel } from "@/lib/room-label";
 import CheckoutBookingList from "@/components/fo/CheckoutBookingList";
 import CheckoutExtendStayDialog from "@/components/fo/CheckoutExtendStayDialog";
 import CheckoutOverstayFeeDialog from "@/components/fo/CheckoutOverstayFeeDialog";
@@ -85,6 +86,35 @@ export default function FoCheckOutPage() {
   const [paymentsLoading, setPaymentsLoading] = useState(false);
   const [paymentsError, setPaymentsError] = useState(null);
 
+  // Live paid totals per booking id (sum of payment records). Single money
+  // source for every balance shown — never booking.payment.deposit.
+  // ponytail: one query per visible booking, per-list map if this ever pages.
+  const [paidTotals, setPaidTotals] = useState({});
+
+  async function refreshPaidTotals(list, mode) {
+    if (!list.length) {
+      setPaidTotals({});
+      return;
+    }
+    try {
+      const entries = await Promise.all(
+        list.map(async (b) => {
+          try {
+            const recs = await listPaymentsForBooking(b.id, {
+              trainingMode: mode,
+            });
+            return [b.id, recs.reduce((s, p) => s + Number(p.amount ?? 0), 0)];
+          } catch {
+            return [b.id, 0];
+          }
+        }),
+      );
+      setPaidTotals(Object.fromEntries(entries));
+    } catch {
+      setPaidTotals({});
+    }
+  }
+
   // ── Initial load ──────────────────────────────────────────────────────────
   useEffect(() => {
     let isMounted = true;
@@ -107,6 +137,7 @@ export default function FoCheckOutPage() {
           : bookingData;
         setBookings(visible);
         ensureGuestObjects(visible);
+        refreshPaidTotals(visible, trainingMode);
       } catch (e) {
         if (!isMounted) return;
         setError(e?.message || "Failed to load check-out data.");
@@ -127,6 +158,7 @@ export default function FoCheckOutPage() {
   useEffect(() => {
     if (!selectedBookingId) {
       setPayments([]);
+      setPaymentsLoading(false);
       setPaymentsError(null);
       return;
     }
@@ -204,16 +236,18 @@ export default function FoCheckOutPage() {
     [selectedBookingId, enrichedBookings],
   );
 
-  // Single money source: live payments sum once loaded for this booking,
-  // else the folio deposit. Folio Outstanding, gate, prefill and receipt
-  // all derive from here so list/detail/history can't disagree.
+  // Single money source: live payments sum for this booking. Folio
+  // Outstanding, gate, prefill and receipt all derive from here so
+  // list/detail/history can't disagree.
+  const selectedPaid = useMemo(
+    () => payments.reduce((sum, p) => sum + Number(p.amount ?? 0), 0),
+    [payments],
+  );
+
   const selectedBalance = useMemo(() => {
     const total = Number(selectedBooking?.totalCost ?? 0);
-    const paid = paymentsLoading
-      ? Number(selectedBooking?.payment?.deposit ?? 0)
-      : payments.reduce((sum, p) => sum + Number(p.amount ?? 0), 0);
-    return Math.max(0, total - paid);
-  }, [selectedBooking, payments, paymentsLoading]);
+    return Math.max(0, total - selectedPaid);
+  }, [selectedBooking, selectedPaid]);
 
   // Build receipt data from booking and payment records
   function buildReceiptData(booking, paymentRecords) {
@@ -254,10 +288,11 @@ export default function FoCheckOutPage() {
 
   // Pre-fill payment amount with outstanding balance when booking is selected
   useEffect(() => {
+    if (paymentsLoading || paymentsError || selectedBookingId === null) return;
     if (selectedBookingId) {
       setPaymentAmount(String(selectedBalance > 0 ? selectedBalance : ""));
     }
-  }, [selectedBookingId, selectedBalance]);
+  }, [selectedBookingId, selectedBalance, paymentsLoading, paymentsError]);
 
   // ── Refresh bookings list + payment history ───────────────────────────────
   async function refreshAll(bookingId) {
@@ -271,11 +306,14 @@ export default function FoCheckOutPage() {
       : bookingData;
     setBookings(visible);
     ensureGuestObjects(visible);
+    refreshPaidTotals(visible, trainingMode);
 
     // Reload payment history for the same booking.
     // Explicit null skips the reload (used after checkout clears selection).
     const bid = bookingId !== undefined ? bookingId : selectedBookingId;
     if (bid) {
+      setPaymentsLoading(true);
+      setPaymentsError(null);
       try {
         const data = await listPaymentsForBooking(bid, { trainingMode });
         setPayments(data);
@@ -287,6 +325,8 @@ export default function FoCheckOutPage() {
         );
         setPaymentsError(err?.message || "Failed to load payment history.");
         setPayments([]);
+      } finally {
+        setPaymentsLoading(false);
       }
     }
   }
@@ -328,6 +368,14 @@ export default function FoCheckOutPage() {
   // ── Record payment ────────────────────────────────────────────────────────
   async function onRecordPayment() {
     if (!selectedBookingId) return;
+    if (paymentsLoading) {
+      setError("Payment history is still loading.");
+      return;
+    }
+    if (paymentsError) {
+      setError("Payment history could not be loaded. Please retry before recording payment.");
+      return;
+    }
     const amount = Number(paymentAmount);
     if (!Number.isFinite(amount) || amount <= 0) {
       setError("Please enter a valid payment amount.");
@@ -375,18 +423,21 @@ export default function FoCheckOutPage() {
   }
 
   // ── Generate receipt on-demand ─────────────────────────────────────────────
+  // Folio for receipt actions: fresh payment first, else built from records.
+  function getFolioForReceipt() {
+    if (lastReceiptData) return lastReceiptData;
+    if (selectedBooking && payments.length > 0) {
+      return buildReceiptData(selectedBooking, payments);
+    }
+    return null;
+  }
+
   async function onDownloadReceipt() {
     if (!selectedBooking) return;
-    
     try {
       setGeneratingReceipt(true);
-      
-      // Use existing receipt data if available (from recent payment), otherwise build from payment records
-      let receiptData = lastReceiptData;
-      if (!receiptData && payments.length > 0) {
-        receiptData = buildReceiptData(selectedBooking, payments);
-      }
-      
+      const receiptData = getFolioForReceipt();
+
       if (receiptData) {
         generateReceipt(receiptData);
       } else {
@@ -459,7 +510,13 @@ export default function FoCheckOutPage() {
             onFilterChange={setFilterMode}
             bookings={displayedBookings}
             selectedBookingId={selectedBookingId}
+            paidTotals={paidTotals}
             onSelect={(id) => {
+              if (selectedBookingId !== id) {
+                setPayments([]);
+                setPaymentsLoading(true);
+                setPaymentsError(null);
+              }
               setSelectedBookingId(id);
               setError(null);
               setLastReceiptData(null);
@@ -476,6 +533,7 @@ export default function FoCheckOutPage() {
                 <CheckoutFolioPanel
                   booking={selectedBooking}
                   balance={selectedBalance}
+                  paid={selectedPaid}
                   onExtendStay={() => setExtendDialogOpen(true)}
                   onAddFee={() => setFeeDialogOpen(true)}
                 />
@@ -484,6 +542,7 @@ export default function FoCheckOutPage() {
                 <CheckoutPaymentPanel
                   balance={selectedBalance}
                   submitting={submitting}
+                  loading={paymentsLoading || !!paymentsError}
                   hasReceipt={!!lastReceiptData}
                   generatingReceipt={generatingReceipt}
                   values={{ amount: paymentAmount, method: paymentMethod, ref: paymentRef }}
@@ -545,8 +604,8 @@ export default function FoCheckOutPage() {
         open={extendDialogOpen}
         onOpenChange={setExtendDialogOpen}
         booking={selectedBooking}
-        guestName={guestsMap[selectedBooking?.guestId]?.fullName || selectedBooking?.guestName || "Guest"}
-        roomName={roomById.get(selectedBooking?.roomId)?.name || selectedBooking?.roomId}
+        guestName={selectedBooking?.guestId && !(selectedBooking.guestId in guestsMap) ? "…" : (guestsMap[selectedBooking?.guestId]?.fullName || selectedBooking?.guestName || "Guest")}
+        roomName={roomLabel(roomById.get(selectedBooking?.roomId), "—")}
         dailyRate={Number(roomById.get(selectedBooking?.roomId)?.ratePerNight ?? 0)}
         onSubmit={handleExtendStay}
       />
@@ -559,6 +618,7 @@ export default function FoCheckOutPage() {
         roomRate={Number(roomById.get(selectedBooking?.roomId)?.ratePerNight ?? 0)}
         onSubmit={handleAddOverstayFee}
       />
+
     </div>
   );
 }

@@ -1,10 +1,12 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { NavLink } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ChevronDown, Receipt } from "lucide-react";
 import { formatDate } from "@/lib/format";
+import { roomLabel } from "@/lib/room-label";
 import { listPaymentsForBooking } from "@/services/paymentsService";
+import { refundMethodCopy } from "@/services/refundsService";
 import { generateReceipt } from "@/services/receiptService";
 import { isRoomActive } from "@/services/roomsService";
 
@@ -19,29 +21,63 @@ const STATUS_VARIANT = {
  * small text details on expand. No payment or cancel actions —
  * only re-book + receipt download.
  */
-export default function PastBookingRow({ booking, room, trainingMode, userProfile }) {
-  const [expanded, setExpanded] = useState(false);
+export default function PastBookingRow({ booking, room, trainingMode, userProfile, autoExpand = false }) {
+  const [expanded, setExpanded] = useState(!!autoExpand);
   const [payments, setPayments] = useState([]);
   const [paymentsFetched, setPaymentsFetched] = useState(false);
 
   const status = booking.status || "Checked Out";
   const total = Number(booking.totalCost ?? 0);
-  const roomLabel = room?.name || room?.type || (room?.roomNumber ? `Room ${room.roomNumber}` : "Room");
+  const roomTitle = roomLabel(room);
+
+  async function fetchPaymentsOnce() {
+    try {
+      const data = await listPaymentsForBooking(booking.id, { trainingMode });
+      setPayments(data);
+    } catch {
+      setPayments([]);
+    } finally {
+      setPaymentsFetched(true);
+    }
+  }
+
+  // Deep-link auto-expand (refund notif): load payments immediately so the
+  // refund line shows without an extra click.
+  useEffect(() => {
+    if (autoExpand && !paymentsFetched && (status === "Checked Out" || status === "Cancelled")) {
+      fetchPaymentsOnce();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoExpand]);
 
   async function handleToggle() {
     const next = !expanded;
     setExpanded(next);
-    if (next && !paymentsFetched && status === "Checked Out") {
-      try {
-        const data = await listPaymentsForBooking(booking.id, { trainingMode });
-        setPayments(data);
-      } catch {
-        setPayments([]);
-      } finally {
-        setPaymentsFetched(true);
-      }
+    if (next && !paymentsFetched && (status === "Checked Out" || status === "Cancelled")) {
+      await fetchPaymentsOnce();
     }
   }
+
+  // Compact refund status for cancelled rows — same branches as BookingCard,
+  // without the reference lookup (see full booking for details).
+  const pastRefundLine = (() => {
+    if (status !== "Cancelled" || !paymentsFetched) return null;
+    const rs = booking.refundStatus || null;
+    const paid = payments.reduce((s, p) => s + Number(p.amount ?? 0), 0);
+    const amt = Number(booking.refundAmount ?? 0);
+    const amtStr = amt > 0 ? ` of PHP ${amt.toLocaleString()}` : "";
+    if (!rs && paid > 0) {
+      return "Cancellation approved — your refund is being prepared by Front Office.";
+    }
+    if (!rs) {
+      return "No payment was recorded for this booking, so no refund is due.";
+    }
+    if (rs === "Pending") return `Refund${amtStr} requested — waiting for Front Office approval.`;
+    if (rs === "Approved") return `Refund${amtStr} approved — will be sent ${refundMethodCopy(booking.refundMethod)} shortly.`;
+    if (rs === "Paid") return `Refund${amtStr} sent ${refundMethodCopy(booking.refundMethod)}.`;
+    if (rs === "Rejected") return "The refund request wasn't approved — contact the front office if you have questions.";
+    return null;
+  })();
 
   const receiptPayment = useMemo(() => {
     return payments.find((p) => p.receiptNo) || payments[0] || null;
@@ -96,7 +132,7 @@ export default function PastBookingRow({ booking, room, trainingMode, userProfil
             {status}
           </Badge>
           <span className="truncate text-sm font-medium text-foreground">
-            {roomLabel}
+            {roomTitle}
           </span>
         </button>
         <span className="hidden md:block shrink-0 text-xs text-foreground/50 tabular-nums">
@@ -151,6 +187,11 @@ export default function PastBookingRow({ booking, room, trainingMode, userProfil
               <span className="font-medium text-foreground/80">Cancellation reason:</span> {booking.rejectionReason}
             </p>
           )}
+          {pastRefundLine ? (
+            <p className="rounded bg-primary/5 px-2.5 py-1.5 text-xs font-medium text-foreground/80">
+              {pastRefundLine}
+            </p>
+          ) : null}
           <div className="flex flex-col sm:flex-row sm:justify-end items-center gap-2 pt-1">
             {status === "Checked Out" && paymentsFetched && receiptPayment && (
               <Button variant="outline" size="sm" className="w-full sm:w-auto" onClick={handleDownloadReceipt}>

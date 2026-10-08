@@ -2,7 +2,6 @@ import {
   collection,
   deleteDoc,
   doc,
-  getDoc,
   getDocs,
   query,
   runTransaction,
@@ -16,22 +15,20 @@ import { db } from "@/firebase/firebase.config";
 import { toLocalDate as toDate } from "@/lib/time-utils";
 import { getCol } from "@/lib/db-utils";
 import { isRoomActive, isRoomBookable } from "../roomsService";
+import { PROOF_REQUIRED_METHODS } from "@/lib/paymentDetails";
 import {
   claimBookingMarked,
   getBlockedRoomIds,
   MARKER_CONFLICT_MESSAGE,
+  nightKeys,
 } from "../availabilityService";
-import { createNotification } from "../notificationService";
-import { listFoUsers } from "../userService";
-import { PROOF_REQUIRED_METHODS } from "@/lib/paymentDetails";
 import { getRoomCapacity } from "@/lib/roomCapacity";
 import { bookingsCollection, calcNights } from "./core";
 
 /**
  * Guest-facing booking creation: caps concurrent active bookings, checks for
  * date conflicts, prices the stay inside a transaction, then writes the
- * availability marker and notifies the front office. Moved from
- * bookingsService without changes.
+ * availability marker and queues server-side notification delivery.
  */
 
 export async function createBooking(payload) {
@@ -61,17 +58,19 @@ export async function createBooking(payload) {
     where("guestId", "==", guestId),
     where("status", "in", ["Awaiting Payment", "Pending", "Approved"]),
   );
-  const guestBookingsSnap = await getDocs(guestBookingsQuery);
+  // Two independent reads, one round trip: the guest's active bookings and the
+  // night markers (the conflict check must run OUTSIDE the transaction;
+  // PII-free markers in both modes, since rules deny trainee guests any
+  // collection-wide training_bookings read).
+  const [guestBookingsSnap, blockedRoomIds] = await Promise.all([
+    getDocs(guestBookingsQuery),
+    getBlockedRoomIds(checkIn, checkOut, { trainingMode }),
+  ]);
   if (guestBookingsSnap.size >= MAX_ACTIVE_BOOKINGS_PER_GUEST) {
     throw new Error("You have reached the maximum number of active bookings. Cancel or complete an existing booking before making a new one.");
   }
 
-  // ── Conflict check must run OUTSIDE the transaction.
-  // PII-free markers in both modes (guests can't query bookings — rules deny
-  // trainee guests any collection-wide training_bookings read).
-  const hasConflict = (await getBlockedRoomIds(checkIn, checkOut, { trainingMode })).has(roomId);
-
-  if (hasConflict) {
+  if (blockedRoomIds.has(roomId)) {
     throw new Error(
       "Those dates overlap an existing booking. Please choose different dates.",
     );
@@ -110,6 +109,8 @@ export async function createBooking(payload) {
 
     const bookingRef = doc(collection(db, BOOKINGS_COL));
     const paymentDeadline = new Date(Date.now() + 48 * 60 * 60 * 1000); // 48 hours from now
+    const rateType = payload.rateType === "NonRefundable" ? "NonRefundable" : "Standard";
+    const cancellationDeadline = Timestamp.fromDate(new Date(checkIn.getTime() - 24 * 60 * 60 * 1000));
 
     const bookingData = {
       guestId,
@@ -141,28 +142,51 @@ export async function createBooking(payload) {
       paymentDeadline: Timestamp.fromDate(paymentDeadline),
       proofUploadedAt: null,
       proofVerifiedAt: null,
+      rateType,
+      cancellationDeadline,
+      cancellationFee: 0,
+      refundStatus: null,
+      refundAmount: 0,
+      refundMethod: null,
+      refundReason: null,
+      refundProcessedAt: null,
+      refundProcessedBy: null,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     };
 
     transaction.set(bookingRef, bookingData);
+    transaction.set(
+      doc(db, getCol("booking_notification_jobs", trainingMode), bookingRef.id),
+      {
+        bookingId: bookingRef.id,
+        guestId,
+        roomId,
+        roomName: roomData.name || roomData.type || "Room",
+        checkIn: checkIn.toLocaleDateString(),
+        checkOut: checkOut.toLocaleDateString(),
+        markerDates: nightKeys(checkIn, checkOut),
+        paymentMethod,
+        status: "waiting_for_markers",
+        attempts: 0,
+        nextAttemptAt: Timestamp.fromDate(new Date()),
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      },
+    );
 
     return { id: bookingRef.id, roomName: roomData.name || roomData.type || "Room", status: initialStatus };
   }).then(async (result) => {
-    // Claim the PII-free availability markers inside a SECOND transaction.
-    // The booking doc commits first so the marker-create rules (guest must own
-    // a live booking) evaluate against committed state; concurrent claims for
-    // the same room/nights then serialize and the loser aborts here.
+    // The Worker atomically claims availability markers and queues this job.
     try {
       await claimBookingMarked({
-        roomId,
         bookingId: result.id,
-        checkIn,
-        checkOut,
-        status: result.status,
-        trainingMode,
+        trainingMode: trainingMode === true || trainingMode === "training",
       });
     } catch (e) {
+      if (e?.status !== 409 || e?.message !== MARKER_CONFLICT_MESSAGE) {
+        throw e;
+      }
       // Unwind the just-created hold so a booking NEVER exists without its
       // markers (a markerless hold looks free and reopens the double-booking
       // hole). Pending losers cancel directly; Awaiting Payment losers can't
@@ -192,36 +216,6 @@ export async function createBooking(payload) {
       throw e;
     }
 
-    try {
-      // FO Notifications: ONLY notify real 'fo' staff
-      // We look in the appropriate collection based on trainingMode
-      const foUsers = await listFoUsers({ trainingMode }).then(users =>
-        users.filter(u => u.id !== guestId)
-      );
-
-      const guestDoc = await getDoc(doc(db, getCol("users", trainingMode), guestId));
-      const guestName = guestDoc.exists() ? guestDoc.data().fullName || guestDoc.data().email || "Guest" : "Guest";
-
-      const checkInStr = checkIn.toLocaleDateString();
-      const checkOutStr = checkOut.toLocaleDateString();
-
-      await Promise.all(foUsers.map(fo => createNotification(fo.id, {
-        type: "booking_request",
-        title: "New Booking Request",
-        message: `${guestName} requested ${result.roomName} from ${checkInStr} to ${checkOutStr}`,
-        link: "/fo/bookings"
-      }, { trainingMode })));
-
-      // Guest notification: payment proof required — only for methods that need proof upload
-      if (PROOF_REQUIRED_METHODS.includes(payload.paymentMethod)) {
-        await createNotification(guestId, {
-          type: "payment_proof_required",
-          title: "Payment Proof Required",
-          message: `Upload payment proof to complete your booking for ${result.roomName}`,
-          link: "/my-bookings"
-        }, { trainingMode });
-      }
-    } catch (e) { console.error("Notif error", e); }
     return result;
   });
 }

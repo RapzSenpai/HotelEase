@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { formatDate, formatDateTime } from "@/lib/format";
+import { formatDateTime } from "@/lib/format";
+import { roomLabel as roomNameFor } from "@/lib/room-label";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -12,7 +13,8 @@ import {
   recordPayment,
 } from "@/services/paymentsService";
 import { listRooms } from "@/services/roomsService";
-import RoomStatusBadge from "@/components/rooms/RoomStatusBadge";
+import { getUserDoc } from "@/services/userService";
+import { Search } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { trackEvent, GA_EVENTS } from "@/services/gaService";
 
@@ -35,6 +37,13 @@ function paymentNote(p) {
   );
 }
 
+// Short "Oct 6" form — the list column is narrow and full dates crop the total.
+function formatShortDate(v) {
+  const d = v?.toDate?.() || (v ? new Date(v) : null);
+  if (!(d instanceof Date) || isNaN(d)) return "—";
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
 const METHOD_OPTIONS = ["Cash", "GCash", "Check", "Credit Card"];
 
 // ── Main component ─────────────────────────────────────────────────────────────
@@ -50,6 +59,35 @@ export default function FoPaymentsPage() {
 
   // ── Selection ─────────────────────────────────────────────────────────────
   const [selectedBookingId, setSelectedBookingId] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+
+  // Guest-name cache mirror (same pattern as FoBookingsPage): on-demand
+  // getUserDoc per visible guest so the list shows people, not rooms.
+  const [guestsMap, setGuestsMap] = useState({});
+  const guestsMapRef = useRef({});
+  const guestsGenerationRef = useRef(0);
+
+  async function ensureGuestNames(list) {
+    const generation = guestsGenerationRef.current;
+    const missing = [...new Set(list.map((b) => b.guestId).filter(Boolean))]
+      .filter((id) => !(id in guestsMapRef.current));
+    if (missing.length === 0) return;
+    const entries = await Promise.all(
+      missing.map(async (id) => {
+        try {
+          const d = await getUserDoc(id, { preferTraining: trainingMode });
+          return [id, d?.fullName || d?.email || ""];
+        } catch {
+          return [id, ""];
+        }
+      }),
+    );
+    if (generation !== guestsGenerationRef.current) return;
+    entries.forEach(([id, name]) => {
+      guestsMapRef.current[id] = name;
+    });
+    setGuestsMap({ ...guestsMapRef.current });
+  }
 
   const selectedBooking = useMemo(
     () => bookings.find((b) => b.id === selectedBookingId) ?? null,
@@ -60,6 +98,12 @@ export default function FoPaymentsPage() {
   const [payments, setPayments] = useState([]);
   const [paymentsLoading, setPaymentsLoading] = useState(false);
   const [paymentsError, setPaymentsError] = useState(null);
+  const paymentsRequestRef = useRef(0);
+
+  // Live paid totals per booking id (sum of payment records). Single money
+  // source for every balance shown — never booking.payment.deposit.
+  // ponytail: one query per visible booking, per-list map if this ever pages.
+  const [paidTotals, setPaidTotals] = useState({});
 
   // ── Payment form ──────────────────────────────────────────────────────────
   const [amount, setAmount] = useState("");
@@ -69,10 +113,13 @@ export default function FoPaymentsPage() {
   // One key per form intent: double-clicks share it and collapse to one doc.
   const idempotencyKeyRef = useRef(crypto.randomUUID());
 
-  // ── Derived folio values ──────────────────────────────────────────────────
-  const depositFromBooking = Number(selectedBooking?.payment?.deposit ?? 0);
+  // ── Derived folio values (live payment records are the source of truth) ──
   const total = Number(selectedBooking?.totalCost ?? 0);
-  const balance = Math.max(0, total - depositFromBooking);
+  const totalPaidFromRecords = useMemo(
+    () => payments.reduce((sum, p) => sum + Number(p.amount ?? 0), 0),
+    [payments],
+  );
+  const balance = Math.max(0, total - totalPaidFromRecords);
 
   // ── Load bookings + rooms ─────────────────────────────────────────────────
   async function refreshBookings() {
@@ -85,6 +132,24 @@ export default function FoPaymentsPage() {
       ]);
       setRooms(roomData);
       setBookings(bookingData);
+      ensureGuestNames(bookingData);
+      try {
+        const entries = await Promise.all(
+          bookingData.map(async (b) => {
+            try {
+              const recs = await listPaymentsForBooking(b.id, {
+                trainingMode,
+              });
+              return [b.id, recs.reduce((s, p) => s + Number(p.amount ?? 0), 0)];
+            } catch {
+              return [b.id, 0];
+            }
+          }),
+        );
+        setPaidTotals(Object.fromEntries(entries));
+      } catch {
+        setPaidTotals({});
+      }
 
       // Auto-select the first booking only on initial load
       if (!selectedBookingId && bookingData.length > 0) {
@@ -98,6 +163,9 @@ export default function FoPaymentsPage() {
   }
 
   useEffect(() => {
+    guestsGenerationRef.current += 1;
+    guestsMapRef.current = {};
+    setGuestsMap({});
     refreshBookings();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trainingMode]);
@@ -106,23 +174,27 @@ export default function FoPaymentsPage() {
   // Extracted into a named function so it can be called both from the
   // useEffect (on booking selection change) AND manually after recording.
   async function reloadPayments(bookingId) {
+    const requestId = ++paymentsRequestRef.current;
     const bid = bookingId ?? selectedBookingId;
     if (!bid) {
       setPayments([]);
       setPaymentsError(null);
+      setPaymentsLoading(false);
       return;
     }
     setPaymentsLoading(true);
     setPaymentsError(null);
     try {
       const data = await listPaymentsForBooking(bid, { trainingMode });
+      if (requestId !== paymentsRequestRef.current) return;
       setPayments(data);
     } catch (err) {
+      if (requestId !== paymentsRequestRef.current) return;
       console.error("[FoPaymentsPage] reloadPayments failed:", err);
       setPaymentsError(err?.message || "Failed to load payment history.");
       setPayments([]);
     } finally {
-      setPaymentsLoading(false);
+      if (requestId === paymentsRequestRef.current) setPaymentsLoading(false);
     }
   }
 
@@ -131,12 +203,64 @@ export default function FoPaymentsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedBookingId, trainingMode]);
 
+  // Pre-fill the amount with the outstanding balance once records load —
+  // FO usually collects the full remainder. Never overwrites typed input.
+  useEffect(() => {
+    if (paymentsLoading || !selectedBooking || amount !== "") return;
+    const owed = Math.round((total - totalPaidFromRecords) * 100) / 100;
+    if (owed > 0) setAmount(String(owed));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paymentsLoading, payments, selectedBookingId]);
+
   // ── Room lookup map ───────────────────────────────────────────────────────
   const roomById = useMemo(() => {
     const map = new Map();
     for (const r of rooms) map.set(r.id, r);
     return map;
   }, [rooms]);
+
+  function mapBalance(b) {
+    return Math.max(
+      0,
+      Number(b.totalCost ?? 0) - Number(paidTotals[b.id] ?? 0),
+    );
+  }
+
+  // ── Sorted + filtered list ────────────────────────────────────────────────
+  // Outstanding balances stay on top, Paid in Full below. The balance key
+  // comes from the paidTotals map for EVERY row (never the detail records),
+  // so ordering never jumps when selecting a booking or recording a payment
+  // — refreshBookings() refreshes the map after each payment.
+  const visibleBookings = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    const toMs = (v) => {
+      const d = v?.toDate?.() || (v ? new Date(v) : null);
+      const ms = d instanceof Date && !isNaN(d) ? d.getTime() : 0;
+      return ms;
+    };
+    return bookings
+      .filter((b) => {
+        if (!q) return true;
+        const guest = guestsMap[b.guestId] || b.guestName || "";
+        const room = roomById.get(b.roomId);
+        const roomLabel = roomNameFor(room, "");
+        return (
+          String(guest).toLowerCase().includes(q) ||
+          String(b.guestId || "").toLowerCase().includes(q) ||
+          String(roomLabel).toLowerCase().includes(q) ||
+          String(b.id || "").toLowerCase().includes(q)
+        );
+      })
+      .sort((a, b) => {
+        const aOwes = mapBalance(a) > 0.005 ? 0 : 1;
+        const bOwes = mapBalance(b) > 0.005 ? 0 : 1;
+        if (aOwes !== bOwes) return aOwes - bOwes;
+        const dt = toMs(a.checkInDate) - toMs(b.checkInDate);
+        if (dt !== 0) return dt;
+        return String(a.id).localeCompare(String(b.id));
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bookings, paidTotals, guestsMap, rooms, searchQuery]);
 
   // ── Record payment ────────────────────────────────────────────────────────
   async function onAddPayment() {
@@ -199,12 +323,6 @@ export default function FoPaymentsPage() {
     }
   }
 
-  // ── Total paid derived from payment records (source of truth) ────────────
-  const totalPaidFromRecords = useMemo(
-    () => payments.reduce((sum, p) => sum + Number(p.amount ?? 0), 0),
-    [payments],
-  );
-
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="space-y-5">
@@ -231,64 +349,98 @@ export default function FoPaymentsPage() {
         <div className="grid gap-6 lg:grid-cols-5">
           {/* ── Left: booking list ── */}
           <div className="lg:col-span-2 space-y-3">
-            <div className="rounded-xl border border-border bg-background p-4">
-              <div className="font-semibold">Active Bookings</div>
-              <div className="text-sm text-foreground/70 mt-1">
-                Select a booking to record payment.
-              </div>
+            <div className="font-semibold">
+              Active Bookings{bookings.length > 0 ? ` (${bookings.length})` : ""}
+            </div>
+            <div className="relative group">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-foreground/40 pointer-events-none group-focus-within:text-primary transition-colors" />
+              <Input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search guest or room…"
+                className="pl-9 border-border bg-background text-sm"
+                aria-label="Search bookings"
+              />
             </div>
 
-            {bookings.length === 0 ? (
+            {visibleBookings.length === 0 ? (
               <div className="rounded-xl border border-border bg-background p-4 text-sm text-foreground/70">
-                No active bookings found.
+                {bookings.length === 0
+                  ? "No active bookings found."
+                  : "No bookings match your search."}
               </div>
             ) : (
               <div className="space-y-2">
-                {bookings.map((b) => {
+                {visibleBookings.map((b) => {
                   const isActive = b.id === selectedBookingId;
                   const room = roomById.get(b.roomId);
-                  const roomStatus = room?.status || "Available";
                   const bTotal = Number(b.totalCost ?? 0);
-                  const bPaid = Number(b.payment?.deposit ?? 0);
+                  const bPaid =
+                    b.id === selectedBookingId && !paymentsLoading
+                      ? totalPaidFromRecords
+                      : Number(paidTotals[b.id] ?? 0);
                   const bBalance = Math.max(0, bTotal - bPaid);
+                  const guestName =
+                    guestsMap[b.guestId] || b.guestName || b.guestId || "—";
+                  const payState =
+                    bBalance <= 0.005
+                      ? "paid"
+                      : bPaid <= 0.005
+                        ? "unpaid"
+                        : "partial";
 
                   return (
                     <button
                       key={b.id}
                       type="button"
                       onClick={() => {
+                        if (b.id === selectedBookingId) return;
                         setSelectedBookingId(b.id);
+                        setPayments([]);
+                        setAmount("");
                         setError(null);
                       }}
-                      className={`w-full text-left rounded-xl border border-border bg-background p-4 space-y-1.5 transition-shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${
+                      className={`w-full text-left rounded-xl border border-border bg-background p-4 space-y-1 transition-shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${
                         isActive ? "ring-2 ring-primary/40 shadow-sm" : ""
                       }`}
                     >
-                      {/* Room name + status */}
-                      <div className="flex items-start justify-between gap-3">
+                      {/* Guest name + payment status */}
+                      <div className="flex items-center justify-between gap-3">
                         <div className="font-semibold truncate">
-                          {room?.name || room?.type || b.roomId}
+                          {guestName}
                         </div>
-                        <RoomStatusBadge status={roomStatus} />
+                        <Badge
+                          variant={
+                            payState === "paid"
+                              ? "success"
+                              : payState === "partial"
+                                ? "warning"
+                                : "danger"
+                          }
+                          className="shrink-0"
+                        >
+                          {payState === "paid"
+                            ? "Paid in full"
+                            : payState === "partial"
+                              ? "Partial"
+                              : "Unpaid"}
+                        </Badge>
                       </div>
 
-                      {/* Dates */}
-                      <div className="text-sm text-foreground/70">
-                        {formatDate(b.checkInDate)} →{" "}
-                        {formatDate(b.checkOutDate)}
+                      {/* Room + dates + total */}
+                      <div className="text-[13px] text-foreground/70 truncate tabular-nums">
+                        {roomNameFor(room)} ·{" "}
+                        {formatShortDate(b.checkInDate)} →{" "}
+                        {formatShortDate(b.checkOutDate)} · PHP {bTotal.toLocaleString()}
                       </div>
 
-
-                      {/* Balance */}
-                      <div
-                        className={`text-sm font-semibold ${
-                          bBalance > 0 ? "text-destructive" : "text-success"
-                        }`}
-                      >
-                        {bBalance > 0
-                          ? `PHP ${bBalance.toLocaleString()} outstanding`
-                          : "Paid in full"}
-                      </div>
+                      {/* Outstanding amount (only when owed) */}
+                      {bBalance > 0.005 ? (
+                        <div className="text-sm font-semibold text-destructive tabular-nums">
+                          PHP {bBalance.toLocaleString()} outstanding
+                        </div>
+                      ) : null}
                     </button>
                   );
                 })}
@@ -307,40 +459,38 @@ export default function FoPaymentsPage() {
                   </CardHeader>
                   <CardContent className="p-0 space-y-3">
                     <div className="grid grid-cols-3 gap-3 text-center">
-                      <Card className="rounded-lg bg-background/50 p-3">
-                        <CardContent className="p-0">
-                          <div className="text-xs text-foreground/50 mb-1">
-                            Total
-                          </div>
-                          <div className="text-sm font-semibold">
-                            PHP {total.toLocaleString()}
-                          </div>
-                        </CardContent>
-                      </Card>
-                      <Card className="rounded-lg bg-background/50 p-3">
-                        <CardContent className="p-0">
-                          <div className="text-xs text-foreground/50 mb-1">
-                            Paid
-                          </div>
-                          <div className="text-sm font-semibold text-success">
-                            PHP {depositFromBooking.toLocaleString()}
-                          </div>
-                        </CardContent>
-                      </Card>
-                      <Card className="rounded-lg bg-background/50 p-3">
-                        <CardContent className="p-0">
-                          <div className="text-xs text-foreground/50 mb-1">
-                            Outstanding
-                          </div>
-                          <div
-                            className={`text-sm font-semibold ${
-                              balance > 0 ? "text-destructive" : "text-success"
-                            }`}
-                          >
-                            PHP {balance.toLocaleString()}
-                          </div>
-                        </CardContent>
-                      </Card>
+                      <div className="rounded-lg border border-border bg-background/50 p-3">
+                        <div className="text-xs text-foreground/50 mb-1">
+                          Total
+                        </div>
+                        <div className="text-sm font-semibold tabular-nums">
+                          PHP {total.toLocaleString()}
+                        </div>
+                      </div>
+                      <div className="rounded-lg border border-border bg-background/50 p-3">
+                        <div className="text-xs text-foreground/50 mb-1">
+                          Paid
+                        </div>
+                        <div className="text-sm font-semibold text-success tabular-nums">
+                          {paymentsLoading ? "…" : `PHP ${totalPaidFromRecords.toLocaleString()}`}
+                        </div>
+                      </div>
+                      <div className="rounded-lg border border-border bg-background/50 p-3">
+                        <div className="text-xs text-foreground/50 mb-1">
+                          Outstanding
+                        </div>
+                        <div
+                          className={`text-sm font-semibold tabular-nums ${
+                            paymentsLoading
+                              ? "text-foreground/40"
+                              : balance > 0
+                                ? "text-destructive"
+                                : "text-success"
+                          }`}
+                        >
+                          {paymentsLoading ? "…" : `PHP ${balance.toLocaleString()}`}
+                        </div>
+                      </div>
                     </div>
 
                     {selectedBooking.nights ? (
@@ -374,7 +524,7 @@ export default function FoPaymentsPage() {
                             setAmount(e.target.value);
                             if (error) setError(null);
                           }}
-                          disabled={submitting || balance <= 0}
+                          disabled={submitting || paymentsLoading || balance <= 0}
                         />
                       </div>
 
@@ -384,7 +534,7 @@ export default function FoPaymentsPage() {
                         <Select.Root
                           value={method}
                           onValueChange={(value) => setMethod(value)}
-                          disabled={submitting || balance <= 0}
+                          disabled={submitting || paymentsLoading || balance <= 0}
                         >
                           <Select.Trigger
                             id="payMethod"
@@ -435,20 +585,22 @@ export default function FoPaymentsPage() {
                                 ? "e.g. 4242"
                                 : "Optional note or reference"
                         }
-                        disabled={submitting || balance <= 0}
+                        disabled={submitting || paymentsLoading || balance <= 0}
                       />
                     </div>
 
                     <Button
                       className="w-full"
                       onClick={onAddPayment}
-                      disabled={submitting || balance <= 0}
+                      disabled={submitting || paymentsLoading || balance <= 0}
                     >
                       {submitting
                         ? "Recording…"
-                        : balance <= 0
-                          ? "Balance Fully Settled"
-                          : "Add Payment"}
+                        : paymentsLoading
+                          ? "Loading folio…"
+                          : balance <= 0
+                            ? "Balance Fully Settled"
+                            : "Add Payment"}
                     </Button>
 
                     {balance <= 0 ? (

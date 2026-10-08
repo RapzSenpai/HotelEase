@@ -14,7 +14,7 @@ import { getCol } from "@/lib/db-utils";
 import { markAsRead, markAllAsRead } from "@/services/notificationService";
 import { Button } from "@/components/ui/button";
 import { SkeletonList } from "@/components/ui/skeleton";
-import { Bell, CalendarCheck, CalendarX, CheckCircle, Info, BellRing, Sparkles, Check, Trash2, MessageSquareMore } from "lucide-react";
+import { Bell, CalendarCheck, CalendarX, CheckCircle, Info, BellRing, Sparkles, Check, Trash2, MessageSquareMore, Receipt, Wallet, Undo2 } from "lucide-react";
 
 function getNotifIcon(type) {
   switch (type) {
@@ -24,7 +24,21 @@ function getNotifIcon(type) {
       return <CheckCircle className="h-5 w-5 text-success" />;
     case "booking_rejected":
     case "booking_cancelled":
+    case "cancellation_rejected":
       return <CalendarX className="h-5 w-5 text-destructive" />;
+    case "cancellation_approved":
+    case "cancellation_requested":
+      return <CalendarX className="h-5 w-5 text-warning" />;
+    case "refund_requested":
+    case "refund_approved":
+    case "refund_paid":
+    case "refund_rejected":
+      return <Undo2 className="h-5 w-5 text-info" />;
+    case "payment_proof_required":
+    case "payment_proof_uploaded":
+      return <Receipt className="h-5 w-5 text-primary" />;
+    case "payment_received":
+      return <Wallet className="h-5 w-5 text-success" />;
     case "room_dirty":
       return <Sparkles className="h-5 w-5 text-info" />;
     case "announcement":

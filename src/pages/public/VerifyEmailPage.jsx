@@ -5,6 +5,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/contexts/AuthContext";
 import { getHomePathForRole } from "@/lib/routing";
+import {
+  OTP_LENGTH,
+  applyOtpInput,
+  emptyOtpCells,
+  otpBackspaceTarget,
+  otpFromCells,
+} from "@/lib/otp";
 import { MailCheck, AlertTriangle, RefreshCw, ShieldCheck, LogOut } from "lucide-react";
 
 export default function VerifyEmailPage() {
@@ -12,7 +19,8 @@ export default function VerifyEmailPage() {
   const { user, profile, sendVerificationCode, verifyEmailWithCode, logout } =
     useAuth();
 
-  const [code, setCode] = useState("");
+  const [otpCells, setOtpCells] = useState(emptyOtpCells);
+  const code = otpFromCells(otpCells);
   const [status, setStatus] = useState(null); // { type: 'error' | 'success', message }
   const [sending, setSending] = useState(true); // auto-send the code on mount
   const [verifying, setVerifying] = useState(false);
@@ -20,6 +28,7 @@ export default function VerifyEmailPage() {
   // When EmailJS isn't configured / sending fails, the code is returned to us
   // so the guest can still verify and log in instead of being locked out.
   const [fallback, setFallback] = useState(null); // { code, reason }
+  const otpRefs = useRef([]);
   // React StrictMode mounts effects twice in dev — without this guard the
   // "auto-send on mount" effect would email the OTP twice.
   const autoSendRef = useRef(false);
@@ -40,7 +49,7 @@ export default function VerifyEmailPage() {
           setStatus({ type: "error", message: result.reason });
         } else if (result.fallbackCode) {
           setFallback({ code: result.fallbackCode, reason: result.fallbackReason });
-          setCode(result.fallbackCode);
+          setOtpCells(applyOtpInput(emptyOtpCells(), 0, result.fallbackCode).cells);
         } else {
           setCooldown(60);
         }
@@ -72,7 +81,7 @@ export default function VerifyEmailPage() {
         setStatus({ type: "error", message: result.reason });
       } else if (result.fallbackCode) {
         setFallback({ code: result.fallbackCode, reason: result.fallbackReason });
-        setCode(result.fallbackCode);
+        setOtpCells(applyOtpInput(emptyOtpCells(), 0, result.fallbackCode).cells);
         setStatus({
           type: "success",
           message: "A new code was generated.",
@@ -89,6 +98,46 @@ export default function VerifyEmailPage() {
     } finally {
       setSending(false);
     }
+  }
+
+  function focusCell(index) {
+    const el = otpRefs.current[Math.max(0, Math.min(OTP_LENGTH - 1, index))];
+    if (!el) return;
+    el.focus();
+    el.select?.();
+  }
+
+  function onCellChange(index, value) {
+    const { cells, focus } = applyOtpInput(otpCells, index, value);
+    setOtpCells(cells);
+    // Only chase the caret when something landed — clearing a box keeps it put.
+    if (value) focusCell(focus);
+  }
+
+  function onCellKeyDown(index, e) {
+    if (e.key === "Backspace") {
+      e.preventDefault();
+      const { cells, focus } = otpBackspaceTarget(otpCells, index);
+      setOtpCells(cells);
+      focusCell(focus);
+    } else if (e.key === "ArrowLeft") {
+      e.preventDefault();
+      focusCell(index - 1);
+    } else if (e.key === "ArrowRight") {
+      e.preventDefault();
+      focusCell(index + 1);
+    }
+  }
+
+  function onCellPaste(index, e) {
+    e.preventDefault();
+    const { cells, focus } = applyOtpInput(
+      otpCells,
+      index,
+      e.clipboardData?.getData("text") ?? "",
+    );
+    setOtpCells(cells);
+    focusCell(focus);
   }
 
   async function onVerify(e) {
@@ -189,20 +238,33 @@ export default function VerifyEmailPage() {
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="otp">Verification Code</Label>
-          <Input
-            id="otp"
-            type="text"
-            inputMode="numeric"
-            maxLength={6}
-            autoComplete="one-time-code"
-            placeholder="6-digit code"
-            value={code}
-            onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
-            className="h-12 text-center text-2xl tracking-[0.3em]"
-            autoFocus
-            disabled={verifying}
-          />
+          <Label id="otp-label">Verification Code</Label>
+          <div
+            role="group"
+            aria-labelledby="otp-label"
+            className="flex justify-between gap-1.5"
+          >
+            {otpCells.map((digit, index) => (
+              <Input
+                key={index}
+                ref={(el) => {
+                  otpRefs.current[index] = el;
+                }}
+                inputMode="numeric"
+                maxLength={OTP_LENGTH}
+                autoComplete={index === 0 ? "one-time-code" : "off"}
+                aria-label={`Digit ${index + 1} of ${OTP_LENGTH}`}
+                value={digit}
+                onChange={(e) => onCellChange(index, e.target.value)}
+                onKeyDown={(e) => onCellKeyDown(index, e)}
+                onPaste={(e) => onCellPaste(index, e)}
+                onFocus={(e) => e.target.select()}
+                autoFocus={index === 0}
+                disabled={verifying}
+                className="h-12 w-full px-0 py-0 text-center text-xl font-semibold tabular-nums"
+              />
+            ))}
+          </div>
         </div>
 
         {status ? (

@@ -5,6 +5,9 @@
  *   POST /delete-user   → deletes a user's Firebase Auth account + Firestore docs
  *                         (FIREBASE_SERVICE_ACCOUNT secret; verified admin
  *                         Firebase ID token required)
+ *   POST /claim-booking-markers → claims a booking's availability markers and
+ *                         queues its notification job in one transaction
+ *                         (verified Firebase ID token + service account)
  *   scheduled (cron)    → hourly stale-hold sweep: cancels Awaiting Payment
  *                         bookings past their deadline and frees their
  *                         room_availability markers, then purges any orphan
@@ -32,7 +35,8 @@
  */
 import { getAllowedOrigin, json } from "./http.js";
 import { rateLimited } from "./rate-limit.js";
-import { resolveAiIdentity } from "./firebase-jwt.js";
+import { resolveAiIdentity, resolveBookingClaimIdentity } from "./firebase-jwt.js";
+import { getGoogleAccessToken } from "./google-auth.js";
 import { getAiDailyCount, incrementAiDailyCount } from "./ai-limits.js";
 import { expireStaleHolds, sweepOrphanMarkers,
   sweepStaleTrainingGuests, purgeNotificationInboxes } from "./sweeps.js";
@@ -41,6 +45,13 @@ import { handleChatRequest } from "./handlers/chat.js";
 import { handleInsightsRequest } from "./handlers/insights.js";
 import { handleBriefingRequest } from "./handlers/briefing.js";
 import { handleAdminChatRequest } from "./handlers/admin-chat.js";
+import {
+  claimBookingNotificationJob,
+  processBookingNotificationOutbox,
+} from "./booking-notifications.js";
+
+const MARKER_CONFLICT_MESSAGE =
+  "Those dates were just taken by another guest. Please choose different dates.";
 
 // djb2, hex. Not security — just a compact per-device bucket key so one IP
 // shared by many phones doesn't collapse into a single rate-limit bucket.
@@ -86,6 +97,65 @@ export default {
 
     if (path === "/delete-user") {
       return send(await handleDeleteUser(request, workerEnv));
+    }
+
+    if (path === "/claim-booking-markers") {
+      let body;
+      try {
+        body = await request.json();
+      } catch {
+        return send(json({ error: "Invalid request body." }, 400));
+      }
+      if (
+        !body ||
+        typeof body !== "object" ||
+        Array.isArray(body) ||
+        Object.keys(body).some((key) => !["bookingId", "trainingMode"].includes(key)) ||
+        typeof body.bookingId !== "string" ||
+        !body.bookingId ||
+        body.bookingId.length > 256 ||
+        typeof body.trainingMode !== "boolean"
+      ) {
+        return send(json({ error: "Invalid booking marker claim request." }, 400));
+      }
+
+      let projectId;
+      try {
+        projectId = JSON.parse(workerEnv.FIREBASE_SERVICE_ACCOUNT || "").project_id;
+      } catch {
+        return send(json({ error: "Booking service is not configured." }, 503));
+      }
+      if (!projectId) return send(json({ error: "Booking service is not configured." }, 503));
+
+      const identity = await resolveBookingClaimIdentity(request, workerEnv);
+      if (!identity) return send(json({ error: "Sign in required." }, 401));
+      if (identity.isAnonymous && !body.trainingMode) {
+        return send(json({ error: "Anonymous accounts may only claim training bookings." }, 403));
+      }
+
+      try {
+        const accessToken = await getGoogleAccessToken(workerEnv.FIREBASE_SERVICE_ACCOUNT);
+        const result = await claimBookingNotificationJob({
+          accessToken,
+          projectId,
+          bookingId: body.bookingId,
+          trainingMode: body.trainingMode,
+          requesterUid: identity.uid,
+        });
+        if (result.status === "queued") {
+          return send(json({ ok: true, claimed: result.claimedMarkers }));
+        }
+        if (result.status === "conflict") {
+          return send(json({ error: MARKER_CONFLICT_MESSAGE }, 409));
+        }
+        if (result.status === "cancelled") {
+          return send(json({ error: "Booking is not available for marker claiming." }, 403));
+        }
+        throw new Error("Booking marker claim returned an invalid status.");
+      } catch (error) {
+        console.error("[booking-marker-claim] failed:", String(error?.message || error));
+        return send(json({ error: "Booking availability could not be confirmed." }, 500));
+      }
     }
 
     // ---- AI endpoints: identity + tiered limits ---------------------------
@@ -152,6 +222,13 @@ export default {
   // reads). No cron string (e.g. `wrangler dev` test trigger) runs the
   // hourly set, the safe default.
   async scheduled(event, workerEnv) {
+    try {
+      const result = await processBookingNotificationOutbox(workerEnv);
+      console.log(`[scheduled] booking notification outbox → ${JSON.stringify(result)}`);
+    } catch (e) {
+      console.error("[scheduled] booking notification outbox failed:", String(e?.message || e));
+    }
+
     const isHourlyRun = event?.cron === "0 * * * *";
     const isDailyRun = event?.cron === "0 3 * * *";
 

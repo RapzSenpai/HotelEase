@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { subscribeToPendingBookingRequests, subscribeToHasBookings } from "@/services/bookingsService";
+import { subscribeToBookingsPage, subscribeToPendingBookingRequests, subscribeToHasBookings } from "@/services/bookingsService";
+import { listPaymentsForBooking } from "@/services/paymentsService";
 import { subscribeToMessages } from "@/services/messageService";
 import { subscribeToRooms } from "@/services/roomsService";
 import { subscribeToAllTestimonials } from "@/services/testimonialsService";
@@ -13,6 +14,7 @@ export function useFOIndicators({ trainingMode = null, role = null } = {}) {
   const [dirtyRoomsCount, setDirtyRoomsCount] = useState(0);
   const [pendingTestimonialsCount, setPendingTestimonialsCount] = useState(0);
   const [hasPendingCancellations, setHasPendingCancellations] = useState(false);
+  const [hasPaymentsNeedingAttention, setHasPaymentsNeedingAttention] = useState(false);
   // Day key: the `tomorrow` cutoff below goes stale across midnight in a long
   // session. A 60s checker bumps the key at rollover, resubscribing the effect.
   const [dayKey, setDayKey] = useState(() => {
@@ -88,7 +90,54 @@ export function useFOIndicators({ trainingMode = null, role = null } = {}) {
     }, { trainingMode });
     unsubscribers.push(unsubDirtyRooms);
 
-    // 6. Pending testimonials — testimonials are admin-read-only for non-approved
+    // 6. Payments needing attention — any Approved / Checked In booking whose
+    //    live paid sum (sum of payment records) is below totalCost. Attention
+    //    indicator only: never blocks check-in, checkout balance gate unchanged.
+    //    ponytail: bounded to one page per status; N small payments reads per change.
+    let cancelled = false;
+    let approvedBookings = [];
+    let checkedInBookings = [];
+    let recomputeSeq = 0;
+    async function recomputePaymentsAttention() {
+      const mySeq = ++recomputeSeq;
+      const all = [...approvedBookings, ...checkedInBookings];
+      if (all.length === 0) {
+        if (!cancelled) setHasPaymentsNeedingAttention(false);
+        return;
+      }
+      try {
+        const flags = await Promise.all(
+          all.map(async (b) => {
+            const total = Number(b.totalCost ?? 0);
+            if (!(total > 0)) return false;
+            try {
+              const recs = await listPaymentsForBooking(b.id, { trainingMode });
+              const paid = recs.reduce((s, p) => s + Number(p.amount ?? 0), 0);
+              return paid < total;
+            } catch {
+              return total > 0;
+            }
+          }),
+        );
+        if (!cancelled && mySeq === recomputeSeq)
+          setHasPaymentsNeedingAttention(flags.some(Boolean));
+      } catch {
+        if (!cancelled && mySeq === recomputeSeq)
+          setHasPaymentsNeedingAttention(false);
+      }
+    }
+    unsubscribers.push(
+      subscribeToBookingsPage({ status: "Approved", trainingMode }, (list) => {
+        approvedBookings = list;
+        recomputePaymentsAttention();
+      }),
+      subscribeToBookingsPage({ status: "Checked In", trainingMode }, (list) => {
+        checkedInBookings = list;
+        recomputePaymentsAttention();
+      }),
+    );
+
+    // 7. Pending testimonials — testimonials are admin-read-only for non-approved
     //    per rules, so only subscribe for the admin role.
     if (role === "admin") {
       const unsubTestimonials = subscribeToAllTestimonials((testimonials) => {
@@ -99,6 +148,7 @@ export function useFOIndicators({ trainingMode = null, role = null } = {}) {
     }
 
     return () => {
+      cancelled = true;
       unsubscribers.forEach((unsub) => unsub());
     };
   }, [trainingMode, role, dayKey]);
@@ -112,5 +162,6 @@ export function useFOIndicators({ trainingMode = null, role = null } = {}) {
     dirtyRoomsCount,
     pendingTestimonialsCount,
     hasPendingCancellations,
+    hasPaymentsNeedingAttention,
   };
 }

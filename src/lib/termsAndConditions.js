@@ -34,9 +34,10 @@ export const TERMS_SECTIONS = [
   {
     heading: "Cancellation & No-Show Policy",
     body: [
-      "Cancellations must be made at least twenty-four (24) hours before the scheduled check-in time to avoid charges.",
-      "No-show or late-cancellation bookings may be forfeited and subject to a one-night charge.",
-      "Partial cancellations handling, if permitted, is at the discretion of Front Office.",
+      "Free cancellation until 24 hours before check-in: cancel on or before the deadline for a full refund of the amount paid.",
+      "Late cancellation (under 24 hours) or no-show: a one-night charge applies. Refund = amount paid minus one night, floored at zero.",
+      "Non-refundable rate: no refund unless Front Office records a manager override reason. Any override refund is capped at the amount paid.",
+      "Unpaid bookings get no refund. Cancelling never auto-refunds — refunds are a separate two-step: Front Office approves, then marks it paid. Refunds are sent manually through the channel you paid with (GCash, bank transfer) or handed over at the front desk for cash/over-the-counter payments, and each refund is logged with its reference or record.",
     ],
   },
   {

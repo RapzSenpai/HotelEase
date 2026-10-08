@@ -119,6 +119,101 @@ export async function getFirestoreDoc(accessToken, projectId, collectionId, docI
   return { exists: true, fields: data.fields || {} };
 }
 
+/** Begin a read-write Firestore transaction. */
+export async function beginFirestoreTransaction(accessToken, projectId) {
+  const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:beginTransaction`;
+  const resp = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({ options: { readWrite: {} } }),
+  });
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => "");
+    throw new Error(`Failed to begin Firestore transaction (${resp.status}): ${text.slice(0, 300)}`);
+  }
+  const data = await resp.json().catch(() => ({}));
+  if (!data.transaction) throw new Error("Firestore did not return a transaction token.");
+  return data.transaction;
+}
+
+/** Read a Firestore document within an existing transaction. */
+export async function getFirestoreDocInTransaction(accessToken, projectId, path, transaction) {
+  const encodedPath = path.split("/").map(encodeURIComponent).join("/");
+  const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/${encodedPath}?transaction=${encodeURIComponent(transaction)}`;
+  const resp = await fetch(url, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (resp.status === 404) return { exists: false, fields: {}, updateTime: null };
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => "");
+    throw new Error(`Failed to GET ${path} in transaction (${resp.status}): ${text.slice(0, 300)}`);
+  }
+  const data = await resp.json().catch(() => ({}));
+  return { exists: true, fields: data.fields || {}, updateTime: data.updateTime || null };
+}
+
+/** Commit writes using the read set of a Firestore transaction. */
+export async function commitFirestoreTransaction(accessToken, projectId, transaction, writes) {
+  const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:commit`;
+  const resp = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({ transaction, writes }),
+  });
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => "");
+    const error = new Error(
+      `Failed to commit Firestore transaction (${resp.status}): ${text.slice(0, 300)}`,
+    );
+    error.status = resp.status;
+    throw error;
+  }
+  return resp.json().catch(() => ({}));
+}
+
+/** Roll back an uncommitted Firestore transaction. */
+export async function rollbackFirestoreTransaction(accessToken, projectId, transaction) {
+  const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:rollback`;
+  const resp = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({ transaction }),
+  });
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => "");
+    throw new Error(`Failed to roll back Firestore transaction (${resp.status}): ${text.slice(0, 300)}`);
+  }
+}
+
+/** Create a Firestore document at a stable ID without replacing an existing doc. */
+export async function createFirestoreDoc(accessToken, projectId, collectionPath, documentId, fields) {
+  const encodedPath = collectionPath.split("/").map(encodeURIComponent).join("/");
+  const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/${encodedPath}?documentId=${encodeURIComponent(documentId)}`;
+  const resp = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({ fields }),
+  });
+  if (resp.status === 409) return false;
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => "");
+    throw new Error(`Firestore CREATE ${collectionPath}/${documentId} failed (${resp.status}): ${text.slice(0, 300)}`);
+  }
+  return true;
+}
+
 /**
  * Retrieve a user's role from Firestore to verify admin privilege.
  */

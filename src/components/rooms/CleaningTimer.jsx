@@ -8,7 +8,7 @@ function urgencyClass(minutes) {
   return "text-foreground/70 border-border/60 bg-muted/20";
 }
 
-export default function CleaningTimer({ startedAt, label = "Cleaning for" }) {
+export default function CleaningTimer({ startedAt, label = "Cleaning for", plain = false }) {
   const [elapsed, setElapsed] = useState(null);
 
   // Reset elapsed when the startedAt changes to an invalid value (state
@@ -34,6 +34,21 @@ export default function CleaningTimer({ startedAt, label = "Cleaning for" }) {
   if (!elapsed) return null;
 
   const minutes = getElapsedMinutes(startedAt);
+
+  if (plain) {
+    const plainColor =
+      minutes >= 60
+        ? "text-destructive"
+        : minutes >= 30
+          ? "text-warning"
+          : "text-foreground/70";
+    return (
+      <span className={`inline-flex items-center gap-1 whitespace-nowrap tabular-nums text-xs ${plainColor}`}>
+        <Clock className="h-3 w-3 shrink-0" />
+        {elapsed}
+      </span>
+    );
+  }
 
   return (
     <div

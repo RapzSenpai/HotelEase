@@ -61,6 +61,7 @@ export default function FoHousekeepingPage() {
   const [logsDialogOpen, setLogsDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("turnover");
   const [nowMs, setNowMs] = useState(() => Date.now());
+  const appliedRoomIdParamRef = useRef(null);
 
   const currentStaffName =
     profile?.fullName || user?.displayName || user?.email || "Staff";

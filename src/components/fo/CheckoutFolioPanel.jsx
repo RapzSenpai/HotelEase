@@ -13,9 +13,11 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 export default function CheckoutFolioPanel({
   booking,
   balance,
+  paid,
   onExtendStay,
   onAddFee,
 }) {
+  const paidAmount = paid ?? (booking.totalCost ?? 0) - balance;
   return (
     <>
       {/* Overdue Warning Callout */}
@@ -107,7 +109,7 @@ export default function CheckoutFolioPanel({
                 <div className="font-semibold text-sm text-success">
                   PHP{" "}
                   {Number(
-                    (booking.totalCost ?? 0) - balance,
+                    paidAmount,
                   ).toLocaleString()}
                 </div>
               </CardContent>

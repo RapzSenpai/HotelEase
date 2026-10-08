@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { NavLink } from "react-router-dom";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { NavLink, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { useAuth } from "@/contexts/AuthContext";
@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import BookingCard from "@/components/bookings/BookingCard";
 import PastBookingRow from "@/components/bookings/PastBookingRow";
+import CancelBookingDialog from "@/components/bookings/CancelBookingDialog";
 import { ChevronDown, BedDouble, SlidersHorizontal } from "lucide-react";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -90,6 +91,8 @@ const FILTER_STATUSES = [
 
 export default function MyBookingsPage() {
   const { user, profile, trainingMode } = useAuth();
+  const [searchParams] = useSearchParams();
+  const deepBookingId = searchParams.get("bookingId");
 
   const [bookings, setBookings] = useState([]);
   const [roomsMap, setRoomsMap] = useState({});
@@ -98,6 +101,33 @@ export default function MyBookingsPage() {
   const [activeTab, setActiveTab] = useState("All");
   const [dropdownStatus, setDropdownStatus] = useState("All");
   const [showPastBookings, setShowPastBookings] = useState(false);
+  // Page-level cancel flow — owns the dialog so the refund step survives the
+  // cancelled booking moving Active → Past (which unmounts its card).
+  const [cancelTarget, setCancelTarget] = useState(null);
+
+  // Refund notif deep-link: switch to the Past filter + expand the card,
+  // then scroll to it. One-shot — later booking updates must not yank the
+  // user's tab back.
+  const deepLinkAppliedRef = useRef(null);
+  useEffect(() => {
+    if (!deepBookingId || loading) return;
+    if (deepLinkAppliedRef.current === deepBookingId) return;
+    const target = bookings.find((b) => b.id === deepBookingId);
+    if (!target) return;
+    deepLinkAppliedRef.current = deepBookingId;
+    if (!ACTIVE_STATUSES.has(target.status)) {
+      setActiveTab("Past");
+      setShowPastBookings(true);
+    }
+  }, [deepBookingId, loading, bookings]);
+
+  useEffect(() => {
+    if (!deepBookingId || loading) return;
+    const t = setTimeout(() => {
+      document.getElementById(`booking-${deepBookingId}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 150);
+    return () => clearTimeout(t);
+  }, [deepBookingId, loading, bookings, showPastBookings]);
 
   function handleTabChange(tab) {
     setActiveTab(tab);
@@ -331,14 +361,17 @@ export default function MyBookingsPage() {
                     </h2>
                   )}
                   {activeBookings.map((b) => (
-                    <BookingCard
-                      key={b.id}
-                      booking={b}
-                      room={roomsMap[b.roomId] || { id: b.roomId, isActive: false }}
-                      trainingMode={trainingMode}
-                      userProfile={profile}
-                      onCancelled={refreshBookings}
-                    />
+                    <div key={b.id} id={`booking-${b.id}`} className="scroll-mt-24">
+                      <BookingCard
+                        booking={b}
+                        room={roomsMap[b.roomId] || { id: b.roomId, isActive: false }}
+                        trainingMode={trainingMode}
+                        userProfile={profile}
+                        onCancelled={refreshBookings}
+                        onRequestCancel={setCancelTarget}
+                        autoExpand={b.id === deepBookingId}
+                      />
+                    </div>
                   ))}
                 </div>
               )}
@@ -359,13 +392,15 @@ export default function MyBookingsPage() {
                     <div className="h-px flex-1 bg-border/60" />
                   </div>
                   {showPastBookings && pastBookings.map((b) => (
-                    <PastBookingRow
-                      key={b.id}
-                      booking={b}
-                      room={roomsMap[b.roomId] || { id: b.roomId, isActive: false }}
-                      trainingMode={trainingMode}
-                      userProfile={profile}
-                    />
+                    <div key={b.id} id={`booking-${b.id}`} className="scroll-mt-24">
+                      <PastBookingRow
+                        booking={b}
+                        room={roomsMap[b.roomId] || { id: b.roomId, isActive: false }}
+                        trainingMode={trainingMode}
+                        userProfile={profile}
+                        autoExpand={b.id === deepBookingId}
+                      />
+                    </div>
                   ))}
                 </div>
               )}
@@ -374,13 +409,15 @@ export default function MyBookingsPage() {
               {pastBookings.length > 0 && activeTab !== "All" && (
                 <div className="space-y-2">
                   {pastBookings.map((b) => (
-                    <PastBookingRow
-                      key={b.id}
-                      booking={b}
-                      room={roomsMap[b.roomId] || { id: b.roomId, isActive: false }}
-                      trainingMode={trainingMode}
-                      userProfile={profile}
-                    />
+                    <div key={b.id} id={`booking-${b.id}`} className="scroll-mt-24">
+                      <PastBookingRow
+                        booking={b}
+                        room={roomsMap[b.roomId] || { id: b.roomId, isActive: false }}
+                        trainingMode={trainingMode}
+                        userProfile={profile}
+                        autoExpand={b.id === deepBookingId}
+                      />
+                    </div>
                   ))}
                 </div>
               )}
@@ -395,6 +432,20 @@ export default function MyBookingsPage() {
           </div>
         </>
       )}
+
+      {/* Cancel flow: reason → refund notice, both steps in this one dialog. */}
+      <CancelBookingDialog
+        open={!!cancelTarget}
+        onOpenChange={(next) => {
+          if (!next) setCancelTarget(null);
+        }}
+        booking={cancelTarget}
+        room={cancelTarget ? roomsMap[cancelTarget.roomId] : null}
+        status={cancelTarget?.status}
+        userProfile={profile}
+        trainingMode={trainingMode}
+        onCancelled={refreshBookings}
+      />
     </div>
   );
 }

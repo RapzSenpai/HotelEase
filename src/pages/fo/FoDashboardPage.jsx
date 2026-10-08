@@ -2,17 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
-import RoomStatusBadge from "@/components/rooms/RoomStatusBadge";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Card } from "@/components/ui/card";
+import RoomScheduleTape from "@/components/dashboard/RoomScheduleTape";
 import { subscribeToRooms } from "@/services/roomsService";
 import {
   listBookingsByStatuses,
@@ -23,7 +14,7 @@ import {
 } from "@/services/bookingsService";
 import { useAuth } from "@/contexts/AuthContext";
 import { useHotkeys } from "@/hooks/useHotkeys";
-import { getStatusTimestamp, timeSince, toJsDate } from "@/lib/time-utils";
+import { getStatusTimestamp, toJsDate } from "@/lib/time-utils";
 import {
   BedDouble,
   Users,
@@ -106,7 +97,9 @@ export default function FoDashboardPage() {
     overdueCheckOuts: null,
   });
   const [error] = useState(null);
-  const [selectedRoomId, setSelectedRoomId] = useState(null);
+  // Table row selection is gone with the table; hotkeys fall back to the
+  // first matching room when nothing is selected.
+  const [selectedRoomId] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeStatusFilter, setActiveStatusFilter] = useState("all");
   const [trainingBookingsByRoomId, setTrainingBookingsByRoomId] = useState(
@@ -534,123 +527,8 @@ export default function FoDashboardPage() {
             })}
           </div>
 
-          {/* Room table */}
-          {filteredRooms.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 rounded-xl border-2 border-dashed border-border text-center space-y-2">
-              <BedDouble className="h-10 w-10 text-foreground/20" />
-              <p className="text-sm text-foreground/50">No rooms match your filters.</p>
-            </div>
-          ) : (
-            <Card>
-              <CardContent className="pt-6">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Room</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Rate / Night</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Action</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredRooms.map((room) => {
-                    const status = room.status || "Available";
-                    const roomTraining = trainingBookingsByRoomId.get(room.id);
-                    const action = trainingMode
-                      ? roomTraining?.hasPendingOrApproved
-                        ? { label: "Check-In", path: "/fo/check-in" }
-                        : roomTraining?.hasCheckedIn
-                          ? { label: "Check-Out", path: "/fo/check-out" }
-                          : roomTraining?.hasCheckedOut
-                            ? { label: "Housekeeping", path: "/fo/housekeeping" }
-                            : null
-                      : actionForStatus(status);
-                    const isSelected = selectedRoomId === room.id;
-                    const statusTime = timeSince(getStatusTimestamp(room));
-
-                    return (
-                      <TableRow
-                        key={room.id}
-                        role="button"
-                        tabIndex={0}
-                        onClick={() => setSelectedRoomId(room.id)}
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter" || event.key === " ") {
-                            event.preventDefault();
-                            setSelectedRoomId(room.id);
-                          }
-                        }}
-                        className={`cursor-pointer transition-colors ${
-                          isSelected
-                            ? "bg-primary/5 ring-1 ring-inset ring-primary/20"
-                            : ""
-                        }`}
-                      >
-                        {/* Room name + floor */}
-                        <TableCell>
-                          <div className="font-semibold text-sm">
-                            {room.name || room.type || "Room"}
-                            {room.roomNumber ? ` · #${room.roomNumber}` : ""}
-                          </div>
-                          <div className="text-xs text-foreground/45 mt-0.5">
-                            Floor {room.floor || "—"}
-                          </div>
-                        </TableCell>
-
-                        {/* Type */}
-                        <TableCell>
-                          <span className="text-sm text-foreground/70">
-                            {room.type || "—"}
-                          </span>
-                        </TableCell>
-
-                        {/* Rate */}
-                        <TableCell>
-                          <Badge variant="warning" className="text-xs font-semibold">
-                            PHP {Number(room.ratePerNight ?? 0).toLocaleString()}
-                          </Badge>
-                        </TableCell>
-
-                        {/* Status */}
-                        <TableCell>
-                          <div className="space-y-1">
-                            <RoomStatusBadge status={status} />
-                            {status !== "Available" && (
-                              <div className="text-[10px] text-foreground/40">
-                                Active {statusTime}
-                              </div>
-                            )}
-                          </div>
-                        </TableCell>
-
-                        {/* Action */}
-                        <TableCell className="text-right">
-                          {action ? (
-                            <Button
-                              size="sm"
-                              variant="default"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                navigate(`${action.path}?roomId=${room.id}`);
-                              }}
-                            >
-                              {action.label}
-                            </Button>
-                          ) : (
-                            <Button size="sm" variant="outline" disabled>
-                              No Action
-                            </Button>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-              </CardContent>
-            </Card>
-          )}
+          {/* Room schedule */}
+          <RoomScheduleTape rooms={filteredRooms} trainingMode={trainingMode} />
         </div>
       )}
     </div>

@@ -24,6 +24,7 @@ import {
 } from "@/services/housekeepingService";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { roomLabel } from "@/lib/room-label";
 import {
   Sparkles,
   Clock,
@@ -281,7 +282,7 @@ export default function GuestHousekeepingCard({ booking, room, trainingMode, use
     }
   }
 
-  const roomLabel = room?.name || room?.type || `Room ${room?.roomNumber || ""}`;
+  const roomTitle = roomLabel(room);
 
   return (
     <Card>
@@ -382,13 +383,13 @@ export default function GuestHousekeepingCard({ booking, room, trainingMode, use
             {pastRequests.map((request) => (
               <div
                 key={request.id}
-                className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-border bg-muted/30 px-3 py-2.5"
+                className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-border bg-background px-3 py-2.5 shadow-sm"
               >
                 <span
                   className={cn(
                     "flex h-7 w-7 shrink-0 items-center justify-center rounded-full",
                     request.isCancelled
-                      ? "bg-foreground/10 text-foreground/50"
+                      ? "bg-destructive/10 text-destructive"
                       : "bg-success/10 text-success",
                   )}
                 >
@@ -532,7 +533,7 @@ export default function GuestHousekeepingCard({ booking, room, trainingMode, use
           <DialogHeader>
             <DialogTitle>Cleaning Photos</DialogTitle>
             <DialogDescription>
-              Proof of housekeeping for {roomLabel}
+              Proof of housekeeping for {roomTitle}
               {photosTarget ? ` — ${formatWhen(photosTarget.requestedAt)}` : ""}.
             </DialogDescription>
           </DialogHeader>
@@ -571,7 +572,7 @@ export default function GuestHousekeepingCard({ booking, room, trainingMode, use
             <DialogTitle>Rate Room Cleanliness</DialogTitle>
             <DialogDescription>
               How satisfied are you with the housekeeping on{" "}
-              {reviewTarget ? formatWhen(reviewTarget.requestedAt) : "your stay"} for {roomLabel}?
+              {reviewTarget ? formatWhen(reviewTarget.requestedAt) : "your stay"} for {roomTitle}?
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">

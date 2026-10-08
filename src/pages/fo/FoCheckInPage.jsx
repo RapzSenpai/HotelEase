@@ -1,14 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { formatDate } from "@/lib/format";
+import { roomLabel } from "@/lib/room-label";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   checkInBooking,
-  approveBooking,
   listBookingsByStatuses,
 } from "@/services/bookingsService";
+import { listPaymentsForBooking } from "@/services/paymentsService";
 import { listRooms } from "@/services/roomsService";
 import { getUserDoc } from "@/services/userService";
 import { useAuth } from "@/contexts/AuthContext";
@@ -99,6 +100,10 @@ export default function FoCheckInPage() {
   const [guestsMap, setGuestsMap] = useState({});
   const [selectedBookingId, setSelectedBookingId] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [payments, setPayments] = useState([]);
+  const [paymentsLoading, setPaymentsLoading] = useState(false);
+  const [paymentsError, setPaymentsError] = useState(null);
+  const [paymentsLoadedFor, setPaymentsLoadedFor] = useState(null);
   const [showAllApproved, setShowAllApproved] = useState(!!roomIdParam);
   // P2 scalability: on-demand guest names instead of the whole users list.
   const guestsMapRef = useRef({});
@@ -147,7 +152,7 @@ export default function FoCheckInPage() {
 
         const [roomData, bookingData] = await Promise.all([
           listRooms({ trainingMode }),
-          listBookingsByStatuses(["Pending", "Approved"], { trainingMode }),
+          listBookingsByStatuses(["Approved"], { trainingMode }),
         ]);
 
         if (!isMounted) return;
@@ -206,29 +211,79 @@ export default function FoCheckInPage() {
     [selectedBookingId, bookings],
   );
 
-  async function onApprove(bookingId) {
-    try {
-      setSubmitting(true);
-      setError(null);
-      await approveBooking(bookingId, { trainingMode });
-      const data = await listBookingsByStatuses(["Pending", "Approved"], {
-        trainingMode,
-      });
-      const filtered = roomIdParam
-        ? data.filter((b) => b.roomId === roomIdParam)
-        : data;
-      setBookings(filtered);
-      ensureGuestNames(filtered);
-      // Keep the same booking selected — it is now Approved
-    } catch (e) {
-      setError(e?.message || "Failed to approve booking.");
-    } finally {
-      setSubmitting(false);
+  // Live payment records for the selected booking — single money source,
+  // mirrors FoCheckOutPage. Never booking.payment.deposit.
+  useEffect(() => {
+    if (!selectedBookingId) {
+      setPayments([]);
+      setPaymentsLoading(false);
+      setPaymentsError(null);
+      setPaymentsLoadedFor(null);
+      return;
     }
-  }
+    let isMounted = true;
+    async function loadPayments() {
+      setPaymentsLoading(true);
+      setPaymentsError(null);
+      setPaymentsLoadedFor(null);
+      try {
+        const data = await listPaymentsForBooking(selectedBookingId, {
+          trainingMode,
+        });
+        if (!isMounted) return;
+        setPayments(data);
+        setPaymentsLoadedFor(`${trainingMode ?? ""}:${selectedBookingId}`);
+      } catch (err) {
+        if (!isMounted) return;
+        console.error("[FoCheckInPage] loadPayments failed:", err);
+        setPaymentsError(err?.message || "Failed to load payment history.");
+        setPayments([]);
+        setPaymentsLoadedFor(null);
+      } finally {
+        if (isMounted) setPaymentsLoading(false);
+      }
+    }
+    loadPayments();
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedBookingId, trainingMode]);
+
+  const paymentLookupKey = selectedBookingId
+    ? `${trainingMode ?? ""}:${selectedBookingId}`
+    : null;
+
+  const selectedPaid = useMemo(
+    () => payments.reduce((sum, p) => sum + Number(p.amount ?? 0), 0),
+    [payments],
+  );
+
+  const selectedBalance = useMemo(() => {
+    if (
+      !selectedBooking ||
+      paymentsLoading ||
+      paymentsError ||
+      paymentsLoadedFor !== paymentLookupKey
+    ) return null;
+    return Math.max(0, Number(selectedBooking.totalCost ?? 0) - selectedPaid);
+  }, [selectedBooking, selectedPaid, paymentsLoading, paymentsError, paymentsLoadedFor, paymentLookupKey]);
+
+  const selectedFullyPaid = selectedBalance !== null && selectedBalance <= 0.005;
 
   async function onCheckIn(bookingId) {
     try {
+      if (paymentsLoading || paymentsLoadedFor !== paymentLookupKey) {
+        setError("Payment history is still loading. Please try again before check-in.");
+        return;
+      }
+      if (paymentsError) {
+        setError("Unable to verify payment. Please try again before check-in.");
+        return;
+      }
+      if (selectedBalance > 0.005) {
+        setError("Please settle the payment before check-in.");
+        return;
+      }
       setSubmitting(true);
       setError(null);
       await checkInBooking(bookingId, { trainingMode });
@@ -246,7 +301,7 @@ export default function FoCheckInPage() {
             guestsMap[b.guestId] || b.guestName || "Guest",
           guestEmail: b.leadGuestEmail || "",
           guestPhone: b.leadGuestPhone || "",
-          roomName: room?.name || room?.type || b.roomId,
+          roomName: roomLabel(room, ""),
           roomType: room?.type || "",
           roomNumber: room?.roomNumber || "",
           checkIn: b.checkInDate?.toDate?.() || b.checkInDate,
@@ -265,9 +320,36 @@ export default function FoCheckInPage() {
         console.error("Failed to generate check-in slip:", slipErr);
         toast.error("Failed to generate Check-In Slip.");
       }
-      navigate(`/fo/check-out?roomId=${roomIdParam || ""}`);
+      toast.success("Guest checked in.");
+      const data = await listBookingsByStatuses(["Approved"], {
+        trainingMode,
+      });
+      const now = new Date();
+      const windowEnd = new Date(
+        now.getTime() + CHECK_IN_WINDOW_HOURS * 60 * 60 * 1000,
+      );
+      let filtered = data;
+      if (!showAllApproved) {
+        filtered = data.filter((item) => {
+          const checkIn = item.checkInDate?.toDate
+            ? item.checkInDate.toDate()
+            : new Date(item.checkInDate);
+          return checkIn <= windowEnd;
+        });
+      }
+      if (roomIdParam) {
+        filtered = filtered.filter((item) => item.roomId === roomIdParam);
+      }
+      setBookings(filtered);
+      ensureGuestNames(filtered);
+      setSelectedBookingId((prev) =>
+        filtered.some((item) => item.id === prev)
+          ? prev
+          : (filtered[0]?.id ?? null),
+      );
     } catch (e) {
       setError(e?.message || "Check-in failed.");
+    } finally {
       setSubmitting(false);
     }
   }
@@ -279,7 +361,7 @@ export default function FoCheckInPage() {
       <div className="space-y-1">
         <h1 className="font-playfair text-3xl font-semibold">Check-In</h1>
         <p className="text-foreground/80">
-          Approve pending reservations and check in arriving guests.
+          Check in arriving guests.
         </p>
       </div>
 
@@ -329,7 +411,7 @@ export default function FoCheckInPage() {
                   const isActive = selectedBookingId === b.id;
                   const guestName =
                     guestsMap[b.guestId] || b.guestName || "Guest";
-                  const roomName = room?.name || room?.type || b.roomId;
+                  const roomName = roomLabel(room, "—");
                   const isLate = Boolean(
                     b.arrivalTime &&
                       (b.arrivalTime.toLowerCase().includes("midnight") ||
@@ -416,7 +498,7 @@ export default function FoCheckInPage() {
                         <BedDouble className="h-4 w-4 text-foreground/40 mt-0.5 shrink-0" />
                         <div className="min-w-0 space-y-0.5">
                           <div className="font-semibold text-sm">
-                            {room?.name || room?.type || selectedBooking.roomId}
+                            {roomLabel(room)}
                             {room?.roomNumber ? ` · #${room.roomNumber}` : ""}
                           </div>
                           <div className="text-xs text-foreground/50">
@@ -552,7 +634,13 @@ export default function FoCheckInPage() {
                               </Badge>
                             </div>
                             <div className="text-xs text-foreground/50 mt-0.5">
-                              PHP {Number(selectedBooking.payment?.deposit ?? 0).toLocaleString()} paid · PHP {Math.max(0, Number(selectedBooking.totalCost ?? 0) - Number(selectedBooking.payment?.deposit ?? 0)).toLocaleString()} remaining
+                              {paymentsLoading
+                                ? "Checking payment…"
+                                : paymentsError
+                                  ? "Payment lookup failed. Balance unavailable."
+                                  : paymentsLoadedFor !== paymentLookupKey
+                                    ? "Checking payment…"
+                                    : `PHP ${Number(selectedPaid ?? 0).toLocaleString()} paid · PHP ${Number(selectedBalance ?? 0).toLocaleString()} remaining`}
                             </div>
                           </div>
                           {selectedBooking.paymentProofUrl && (
@@ -584,19 +672,32 @@ export default function FoCheckInPage() {
                       {selectedBooking.status === "Pending" ? (
                         <Button
                           className="w-full"
-                          onClick={() => onApprove(selectedBooking.id)}
+                          onClick={() => navigate("/fo/bookings")}
                           disabled={submitting}
                         >
-                          {submitting ? "Approving..." : "Approve Reservation"}
+                          Approve in Bookings
                         </Button>
                       ) : selectedBooking.status === "Approved" ? (
-                        <Button
-                          className="w-full"
-                          onClick={() => onCheckIn(selectedBooking.id)}
-                          disabled={submitting}
-                        >
-                          {submitting ? "Checking in..." : "Check In Guest"}
-                        </Button>
+                        <>
+                          {!paymentsLoading && !paymentsError && paymentsLoadedFor === paymentLookupKey && !selectedFullyPaid ? (
+                            <p className="text-xs text-foreground/60">
+                              Please settle the payment before check-in.
+                            </p>
+                          ) : null}
+                          {paymentsError && (
+                            <p className="text-xs text-destructive">
+                              Payment lookup failed. Check-in is unavailable until payment can be verified.
+                            </p>
+                          )}
+                          <Button
+                            className="w-full"
+                            onClick={() => onCheckIn(selectedBooking.id)}
+                            disabled={submitting || paymentsLoading || !!paymentsError || paymentsLoadedFor !== paymentLookupKey || !selectedFullyPaid}
+                          >
+                            {submitting ? "Checking in..." : "Check In Guest"}
+                          </Button>
+                        </>
+
                       ) : (
                         <Button variant="outline" disabled className="w-full">
                           {selectedBooking.status}

@@ -452,6 +452,12 @@ export async function addOverstayFee(bookingId, { feeAmount, feeReason = "Late c
   const bCol = bookingsCollection(trainingMode);
   const bookingRef = doc(db, bCol, bookingId);
 
+  const preSnap = await getDoc(bookingRef);
+  if (!preSnap.exists()) throw new Error("Booking not found.");
+  if (preSnap.data().status !== "Checked In") {
+    throw new Error("Only Checked-In bookings can incur overstay fees.");
+  }
+
   // increment() transforms commute: concurrent fees (or a fee racing an
   // extension, which also increments) add up instead of last-write-wins.
   // The read only validates the booking exists — it feeds no write.
@@ -460,6 +466,9 @@ export async function addOverstayFee(bookingId, { feeAmount, feeReason = "Late c
     if (!bookingSnap.exists()) throw new Error("Booking not found.");
 
     const booking = bookingSnap.data();
+    if (booking.status !== "Checked In") {
+      throw new Error("Only Checked-In bookings can incur overstay fees.");
+    }
     transaction.update(bookingRef, {
       overstayFee: increment(fee),
       overstayReason: feeReason,

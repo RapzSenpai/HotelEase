@@ -12,7 +12,6 @@ import {
   Sparkles,
   CreditCard,
   Megaphone,
-  DollarSign,
   CalendarDays,
   BarChart3,
   Users,
@@ -35,6 +34,24 @@ const FO_LINKS = [
     items: [
       { to: "/fo", label: "Dashboard", icon: LayoutDashboard, end: true },
       {
+        to: "/fo/housekeeping",
+        label: "Housekeeping",
+        icon: Sparkles,
+        notification: { type: "dot", key: "hasDirtyRooms" },
+      },
+    ],
+  },
+  {
+    group: "Guest Stay",
+    expandable: true,
+    items: [
+      {
+        to: "/fo/bookings",
+        label: "Bookings",
+        icon: CalendarDays,
+        notification: { type: "count", key: "pendingBookingsCount" },
+      },
+      {
         to: "/fo/check-in",
         label: "Check-In",
         icon: LogIn,
@@ -47,28 +64,16 @@ const FO_LINKS = [
         notification: { type: "dot", key: "hasDueCheckOuts" },
       },
       {
-        to: "/fo/housekeeping",
-        label: "Housekeeping",
-        icon: Sparkles,
-        notification: { type: "dot", key: "hasDirtyRooms" },
+        to: "/fo/payments",
+        label: "Payments",
+        icon: CreditCard,
+        notification: { type: "dot", key: "hasPaymentsNeedingAttention" },
       },
       {
         to: "/fo/cancellations",
-        label: "Cancellations",
+        label: "Cancellations & Refunds",
         icon: XCircle,
         notification: { type: "dot", key: "hasPendingCancellations" },
-      },
-    ],
-  },
-  {
-    group: "Revenue Management",
-    items: [
-      { to: "/fo/payments", label: "Payments", icon: CreditCard },
-      {
-        to: "/fo/bookings",
-        label: "Bookings",
-        icon: CalendarDays,
-        notification: { type: "count", key: "pendingBookingsCount" },
       },
     ],
   },
@@ -104,7 +109,6 @@ const ADMIN_LINKS = [
         icon: Building2,
         notification: { type: "dot", key: "hasDirtyRooms" },
       },
-      { to: "/admin/room-rates", label: "Room Rates", icon: DollarSign },
     ],
   },
   {
@@ -203,6 +207,7 @@ export default function Sidebar({ open, onClose }) {
     dirtyRoomsCount,
     pendingTestimonialsCount,
     hasPendingCancellations,
+    hasPaymentsNeedingAttention,
   } = useFOIndicators({ trainingMode, role });
 
   useEffect(() => {
@@ -220,6 +225,7 @@ export default function Sidebar({ open, onClose }) {
       hasDirtyRooms,
       pendingTestimonialsCount,
       hasPendingCancellations,
+      hasPaymentsNeedingAttention,
       unresolvedAlertsCount,
     }),
     [
@@ -230,6 +236,7 @@ export default function Sidebar({ open, onClose }) {
       hasDirtyRooms,
       pendingTestimonialsCount,
       hasPendingCancellations,
+      hasPaymentsNeedingAttention,
       unresolvedAlertsCount,
     ],
   );

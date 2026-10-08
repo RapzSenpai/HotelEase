@@ -83,6 +83,22 @@ export async function markAsRead(userId, notifId, { trainingMode = null } = {}) 
 }
 
 /**
+ * Marks a batch of notifications as read in one commit. Used by the visit-ack
+ * rule (opening the page a notification links to) and by toast View clicks.
+ * Returns how many were queued so callers can stay silent on a no-op.
+ */
+export async function markNotificationsRead(userId, notifIds, { trainingMode = null } = {}) {
+  const ids = [...new Set((notifIds || []).filter(Boolean))];
+  if (!userId || ids.length === 0) return 0;
+  const batch = writeBatch(db);
+  ids.forEach((id) => {
+    batch.update(doc(db, getCol("notifications", trainingMode), userId, "items", id), { isRead: true });
+  });
+  await batch.commit();
+  return ids.length;
+}
+
+/**
  * Marks all unread notifications as read.
  */
 export async function markAllAsRead(userId, { trainingMode = null } = {}) {

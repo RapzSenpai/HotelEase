@@ -181,3 +181,25 @@ export async function resolveAiIdentity(request, workerEnv) {
   if (claims.firebase?.sign_in_provider === "anonymous") return { uid: null };
   return { uid: claims.sub };
 }
+
+/** Resolve a verified Firebase identity for a booking marker claim. */
+export async function resolveBookingClaimIdentity(request, workerEnv) {
+  const header = request.headers.get("X-HE-AUTH") || "";
+  const match = /^Bearer\s+(.+)$/i.exec(header.trim());
+  if (!match || !workerEnv.FIREBASE_SERVICE_ACCOUNT) return null;
+
+  let projectId;
+  try {
+    projectId = JSON.parse(workerEnv.FIREBASE_SERVICE_ACCOUNT).project_id;
+  } catch {
+    return null;
+  }
+  if (!projectId) return null;
+
+  const claims = await verifyFirebaseIdToken(match[1], projectId);
+  if (!claims) return null;
+  return {
+    uid: claims.sub,
+    isAnonymous: claims.firebase?.sign_in_provider === "anonymous",
+  };
+}

@@ -9,7 +9,7 @@ import {
   setDoc,
   where,
 } from "firebase/firestore";
-import { db } from "@/firebase/firebase.config";
+import { auth, db } from "@/firebase/firebase.config";
 // Shared with bookingsService — see lib/time-utils.js for the local-midnight rule.
 import { toLocalDate as toDate } from "@/lib/time-utils";
 
@@ -143,23 +143,42 @@ export async function claimBookingMarkedInTx(transaction, {
 }
 
 /**
- * Atomically claim a booking's nights. Runs AFTER the booking doc commits, so
- * the marker-create rules (guest must own a live booking) evaluate against
- * committed state. Concurrent claims for the same room/night conflict on the
- * marker reads: the loser retries, sees the winner's live markers, and throws
- * MARKER_CONFLICT_MESSAGE. Stale terminal markers are overwritten, never block.
+ * Ask the trusted Worker to atomically claim a booking's nights and queue its
+ * notification job. Marker data is loaded and validated by the Worker.
  */
-export async function claimBookingMarked({ roomId, bookingId, checkIn, checkOut, status, trainingMode = null }) {
-  return runTransaction(db, async (transaction) => {
-    return claimBookingMarkedInTx(transaction, {
-      roomId,
+export async function claimBookingMarked({ bookingId, trainingMode = null }) {
+  const user = auth.currentUser;
+  if (!user) throw new Error("Please sign in before claiming booking availability.");
+
+  const workerUrl = import.meta.env.VITE_GROQ_PROXY_URL?.replace(/\/+$/, "");
+  if (!workerUrl) throw new Error("Booking Worker service is not configured.");
+
+  const token = await user.getIdToken();
+  const response = await fetch(`${workerUrl}/claim-booking-markers`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-HE-AUTH": `Bearer ${token}`,
+    },
+    body: JSON.stringify({
       bookingId,
-      checkIn,
-      checkOut,
-      status,
-      trainingMode,
-    });
+      trainingMode: trainingMode === true || trainingMode === "training",
+    }),
   });
+
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const error = new Error(
+      result?.error ||
+      (response.status === 409 ? MARKER_CONFLICT_MESSAGE : `Booking availability claim failed (${response.status}).`),
+    );
+    error.status = response.status;
+    throw error;
+  }
+  if (result?.ok !== true || !Number.isInteger(result.claimed) || result.claimed < 0) {
+    throw new Error("Booking availability service returned an invalid response.");
+  }
+  return { claimed: result.claimed };
 }
 
 /**

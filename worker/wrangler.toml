@@ -24,7 +24,7 @@ id = "bcd303296228470a8c99654377e3611e"
 # Daily 3am inbox retention: purges notification items past 200-count / 90-day
 # bounds (see purgeNotificationInboxes in src/sweeps.js).
 [triggers]
-crons = ["0 * * * *", "0 3 * * *"]
+crons = ["* * * * *", "0 * * * *", "0 3 * * *"]
 
 # Set secrets securely (never in code / git):
 #   npx wrangler secret put GROQ_API_KEY

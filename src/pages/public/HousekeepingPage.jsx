@@ -7,6 +7,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { listBookingsForUser } from "@/services/bookingsService";
 import { listRooms } from "@/services/roomsService";
 import { mapFirebaseError } from "@/lib/errors";
+import { roomLabel } from "@/lib/room-label";
 import GuestHousekeepingCard from "@/components/housekeeping/GuestHousekeepingCard";
 import { SkeletonCard } from "@/components/ui/skeleton";
 import { BedDouble, CalendarDays, SprayCan } from "lucide-react";
@@ -146,7 +147,7 @@ export default function HousekeepingPage() {
                   <span className="flex items-center gap-2">
                     <BedDouble className="h-4 w-4 text-primary" />
                     <span className="font-medium text-foreground">
-                      {room.name || room.type || `Room ${room.roomNumber || ""}`}
+                      {roomLabel(room)}
                     </span>
                   </span>
                   <span className="hidden h-4 w-px bg-border sm:block" />

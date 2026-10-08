@@ -56,3 +56,11 @@ export {
 } from "./booking/cancellations";
 
 export { uploadPaymentProof } from "./booking/paymentProof";
+
+export {
+  approveRefund,
+  computeRefund,
+  markRefundPaid,
+  rejectRefund,
+  requestRefund,
+} from "./refundsService";

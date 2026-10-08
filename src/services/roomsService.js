@@ -147,21 +147,6 @@ export async function activateRoom(roomId, { trainingMode = null } = {}) {
   return { ok: true };
 }
 
-export async function updateRoomRate(
-  roomId,
-  ratePerNight,
-  { trainingMode = null } = {},
-) {
-  if (!roomId || typeof roomId !== "string") throw new Error("Invalid roomId");
-  const col = getCol(ROOMS_COL, trainingMode);
-  const ref = doc(db, col, roomId);
-  await updateDoc(ref, {
-    ratePerNight: Number(ratePerNight),
-    updatedAt: serverTimestamp(),
-  });
-  return { ok: true };
-}
-
 export function subscribeToRooms(callback, { trainingMode = null } = {}) {
   const col = getCol(ROOMS_COL, trainingMode);
   const q = query(collection(db, col));

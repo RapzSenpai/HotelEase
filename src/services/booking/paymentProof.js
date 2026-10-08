@@ -79,7 +79,7 @@ export async function uploadPaymentProof(bookingId, file, paymentType, paymentMe
     );
 
     await Promise.all(foUsers.map(fo => createNotification(fo.id, {
-      type: "booking_request",
+      type: "payment_proof_uploaded",
       title: "Payment Proof Uploaded",
       message: `Payment proof has been uploaded for a booking request`,
       link: "/fo/bookings"

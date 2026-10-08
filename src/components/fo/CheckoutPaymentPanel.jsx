@@ -19,6 +19,7 @@ const METHOD_OPTIONS = ["Cash", "GCash", "Check", "Credit Card"];
 export default function CheckoutPaymentPanel({
   balance,
   submitting,
+  loading = false,
   hasReceipt = false,
   generatingReceipt,
   values,
@@ -27,7 +28,7 @@ export default function CheckoutPaymentPanel({
   onDownloadReceipt,
   onDismissReceipt,
 }) {
-  const disabled = submitting || balance <= 0;
+  const disabled = submitting || loading || balance <= 0;
 
   // Success card only for a fresh payment (hasReceipt). Settled bookings
   // with no new receipt get a quiet settled card — Done used to clear the

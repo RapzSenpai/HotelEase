@@ -1,9 +1,18 @@
 import { jsPDF } from 'jspdf';
-import autoTable from 'jspdf-autotable';
 import hotelLogo from '@/assets/Hotellogo.png?inline';
 
+// Restyle: whitespace + single accent #F5C518, flat rows, no filled pills.
+// helvetica = built-in sans (no font embed, no package change).
+
+const ACCENT = [245, 197, 24]; // #F5C518 — sole accent
+const DARK = [27, 27, 27];
+const MUTED = [115, 115, 115];
+const LINE = [232, 232, 232];
+const GREEN = [22, 163, 74];
+const MARGIN = 18;
+
 /**
- * Draws the hotel logo in the header bar. Best-effort: if the image
+ * Draws the hotel logo in the header. Best-effort: if the image
  * fails, the text header still stands on its own.
  */
 function addHeaderLogo(doc, x, y, size) {
@@ -18,6 +27,136 @@ function pluralizeNight(n) {
   return `${n} night${Number(n) === 1 ? '' : 's'}`;
 }
 
+function formatAmount(num) {
+  return `PHP ${Number(num).toLocaleString('en-PH', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+}
+
+function formatDate(value) {
+  const d = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(d.getTime()) ? '-' : d.toLocaleDateString();
+}
+
+// Document stamp: small-caps status text in gold with a thin gold
+// left-border line. No fill, no rounded pill.
+function drawHeader(doc, stampText) {
+  const pageWidth = doc.internal.pageSize.width;
+  const logoSize = 12;
+  addHeaderLogo(doc, MARGIN, 12, logoSize);
+
+  doc.setTextColor(...DARK);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(15);
+  doc.text('HotelEase', MARGIN + logoSize + 4, 17.5);
+
+  doc.setTextColor(...MUTED);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+  doc.text('BSHM Property Management System', MARGIN + logoSize + 4, 22);
+
+  // Stamp, right-aligned.
+  const label = String(stampText).toUpperCase();
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  const stampW = doc.getTextWidth(label);
+  const stampX = pageWidth - MARGIN - stampW;
+  const stampY = 17.5;
+  doc.setDrawColor(...ACCENT);
+  doc.setLineWidth(0.6);
+  doc.line(stampX - 6, stampY - 5, stampX - 6, stampY + 3);
+  doc.setTextColor(...ACCENT);
+  doc.text(label, stampX, stampY);
+}
+
+function drawRule(doc, y) {
+  const pageWidth = doc.internal.pageSize.width;
+  doc.setDrawColor(...LINE);
+  doc.setLineWidth(0.2);
+  doc.line(MARGIN, y, pageWidth - MARGIN, y);
+}
+
+function ensureSpace(doc, y, needed = 20) {
+  if (y + needed > 282) {
+    doc.addPage();
+    return MARGIN;
+  }
+  return y;
+}
+
+// Plain label-value rows with hairline dividers. No table header.
+function drawKeyValues(doc, rows, startY) {
+  const pageWidth = doc.internal.pageSize.width;
+  const valueX = pageWidth - MARGIN;
+  let y = startY;
+  rows.forEach(([label, value]) => {
+    y = ensureSpace(doc, y, 14);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(...MUTED);
+    doc.text(String(label), MARGIN, y);
+    doc.setTextColor(...DARK);
+    const lines = doc.splitTextToSize(String(value), 110);
+    doc.text(lines, valueX, y, { align: 'right' });
+    y += 5.5 * lines.length + 2;
+    drawRule(doc, y);
+    y += 5;
+  });
+  return y;
+}
+
+// Flat charge rows: right-aligned amounts, bold totals, green zero
+// balance, single divider above the Total row. No table header.
+function drawFlatRows(doc, rows, startY) {
+  const pageWidth = doc.internal.pageSize.width;
+  const valueX = pageWidth - MARGIN;
+  let y = startY;
+  rows.forEach(({ label, value, bold = false, green = false, dividerAbove = false }) => {
+    y = ensureSpace(doc, y, 14);
+    if (dividerAbove) {
+      drawRule(doc, y);
+      y += 6;
+    }
+    doc.setFont('helvetica', bold ? 'bold' : 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(...(green ? GREEN : DARK));
+    const labelLines = doc.splitTextToSize(String(label), 110);
+    doc.text(labelLines, MARGIN, y);
+    const valueLines = doc.splitTextToSize(String(value), 80);
+    doc.text(valueLines, valueX, y, { align: 'right' });
+    y += 5.5 * Math.max(labelLines.length, valueLines.length) + 2.5;
+  });
+  return y;
+}
+
+function drawSectionTitle(doc, title, y) {
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.setTextColor(...DARK);
+  doc.text(title, MARGIN, y);
+  return y + 6;
+}
+
+// Payment reference as plain text. No totals repeated here.
+function drawPaymentReference(doc, refParts, simulated, startY) {
+  let y = ensureSpace(doc, startY, 16);
+  const ref = refParts.length > 0 ? refParts.join('  ·  ') : null;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(...MUTED);
+  if (ref) {
+    const lines = doc.splitTextToSize(`Ref ${ref}`, doc.internal.pageSize.width - MARGIN * 2);
+    doc.text(lines, MARGIN, y);
+    y += 4.5 * lines.length + 1;
+  }
+  if (simulated) {
+    doc.text('Demo payment. No real money moved.', MARGIN, y);
+    y += 5;
+  }
+  return y;
+}
+
 /**
  * Generates a professional PDF receipt for HotelEase
  * @param {Object} data - Receipt data
@@ -29,142 +168,90 @@ export const generateReceipt = (data) => {
   const paymentDate = data.paymentDate instanceof Date ? data.paymentDate : new Date(data.paymentDate || Date.now());
   const dateStr = paymentDate.toLocaleDateString();
   const pageWidth = doc.internal.pageSize.width; // 210
-  const margin = 15;
 
-  const formatAmount = (num) =>
-    `PHP ${Number(num).toLocaleString('en-PH', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    })}`
-
-  // Colors
-  const primaryColor = [245, 197, 24]; // #F5C518
-  const darkTextColor = [33, 33, 33];
-  const lightTextColor = [100, 100, 100];
-  const separatorColor = [200, 200, 200];
-
-  // --- HEADER ---
-  // Background bar
-  doc.setFillColor(...primaryColor);
-  doc.rect(0, 0, pageWidth, 26, 'F');
-
-  // Logo right, "HotelEase" name left — keeps the header airy
-  const logoSize = 14;
-  addHeaderLogo(doc, pageWidth - margin - logoSize, 6, logoSize);
-  const textX = margin;
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(18);
-  doc.setTextColor(...darkTextColor);
-  doc.text("HotelEase", textX, 15);
-
-  // Subtitle
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(8);
-  doc.text("BSHM Property Management System", textX, 21);
-
-  // --- OFFICIAL RECEIPT TITLE ---
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(14);
-  const title = "OFFICIAL RECEIPT";
-  const titleWidth = doc.getTextWidth(title);
-  doc.text(title, (pageWidth - titleWidth) / 2, 36);
-
-  // Receipt No and Date (Right Aligned)
-  doc.setFontSize(8.5);
-  doc.setFont("helvetica", "normal");
-  doc.setTextColor(...lightTextColor);
-  doc.text(`Receipt No: ${receiptNo}`, pageWidth - margin, 42, { align: 'right' });
-  doc.text(`Date: ${dateStr}`, pageWidth - margin, 47, { align: 'right' });
-
-  // Separator Line
-  doc.setDrawColor(...separatorColor);
-  doc.setLineWidth(0.2);
-  doc.line(margin, 51, pageWidth - margin, 51);
-
-  // --- GUEST INFO ---
-  doc.setTextColor(...darkTextColor);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(10);
-  doc.text("Guest:", margin, 58);
-
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(9);
-  doc.text(`Name: ${data.guestName}`, margin, 63);
-  doc.text(`Email: ${data.guestEmail}`, margin, 68);
-  doc.text(`Assisted by: ${data.processedBy}`, margin, 73);
-
-  const baseTotal = data.baseTotal ?? ((data.total ?? data.subtotal) - (data.extraPaxTotal || 0) - (data.overstayFee || 0));
-  const hasExtraPax = data.extraPaxTotal > 0;
+  const total = Number(data.total ?? data.subtotal ?? 0);
+  const paid = Number(data.amountPaid ?? 0);
+  const baseTotal = data.baseTotal ?? (total - (data.extraPaxTotal || 0) - (data.overstayFee || 0));
+  const balance = Number(data.balance ?? Math.max(0, total - paid));
+  const nights = Number(data.numberOfNights) || 0;
+  const rate = Number(data.ratePerNight) || (nights > 0 ? baseTotal / nights : baseTotal);
+  const method = data.paymentMethod || 'N/A';
   const roomLabel = data.roomType ? `${data.roomName} (${data.roomType})` : `${data.roomName}`;
-  // Each reference keeps its source label so a system ref can never read
-  // as belonging to the guest's payment method row or vice versa.
   const refParts = [
     data.gatewayRef ? `System ref ${data.gatewayRef}` : null,
     data.bankRef ? `Bank ref ${data.bankRef}` : null,
-    data.reference || null,
+    data.reference || data.paymentRef || null,
   ].filter(Boolean);
 
-  // --- STAY DETAILS TABLE ---
-  autoTable(doc, {
-    startY: 78,
-    margin: { left: margin, right: margin },
-    head: [['Description', 'Details']],
-    body: [
-      ['Room', roomLabel],
-      ['Check-in', `${new Date(data.checkIn).toLocaleDateString()} at 2:00 PM`],
-      ['Check-out', `${new Date(data.checkOut).toLocaleDateString()} at 12:00 NN`],
-      ['Duration', pluralizeNight(data.numberOfNights)],
-      ['Rate per night', formatAmount(data.ratePerNight)],
-      ...(hasExtraPax ? [[`Extra guests (${data.extraPaxCount} x ${formatAmount(data.extraPaxFee)}/night)`, formatAmount(data.extraPaxTotal)]] : []),
-    ],
-    theme: 'grid',
-    headStyles: { fillColor: primaryColor, textColor: darkTextColor, fontStyle: 'bold' },
-    styles: { fontSize: 8.5, cellPadding: 3 },
-    columnStyles: {
-      0: { fontStyle: 'bold', cellWidth: 50 },
-      1: { cellWidth: 130 }
-    }
-  });
+  // --- HEADER (whitespace + gold stamp, no fill) ---
+  drawHeader(doc, 'Checked out');
 
-  // --- PAYMENT SUMMARY TABLE ---
-  autoTable(doc, {
-    startY: doc.lastAutoTable.finalY + 6,
-    margin: { left: margin, right: margin },
-    head: [['Charge', 'Amount']],
-    body: [
-      ['Room charges', formatAmount(baseTotal)],
-      ...(hasExtraPax ? [['Extra guests', formatAmount(data.extraPaxTotal)]] : []),
-      ...(data.overstayFee > 0 ? [[data.overstayReason || 'Late checkout fee', formatAmount(data.overstayFee)]] : []),
-      ['Total', formatAmount(data.total ?? data.subtotal)],
-      ['Paid', formatAmount(data.amountPaid)],
-      ['Balance', formatAmount(data.balance)],
-      ['Payment method', `${data.paymentMethod || 'N/A'}${data.simulated ? ' (demo)' : ''}`],
-      ...(refParts.length > 0 ? [['Reference', refParts.join(' / ')]] : []),
-    ],
-    theme: 'grid',
-    headStyles: { fillColor: primaryColor, textColor: darkTextColor, fontStyle: 'bold' },
-    styles: { fontSize: 8.5, cellPadding: 3 },
-    columnStyles: { 
-      0: { fontStyle: 'bold', cellWidth: 130 }, 
-      1: { cellWidth: 50, halign: 'right' } 
-    }
-  });
+  // --- TITLE ---
+  let y = 36;
+  doc.setTextColor(...DARK);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(13);
+  const greeting = doc.splitTextToSize(`Thank you for staying with us, ${data.guestName}!`, pageWidth - MARGIN * 2);
+  doc.text(greeting, MARGIN, y);
+  y += 6 * greeting.length + 2;
+
+  // Receipt No appears once here. No "Processed by" on the guest line.
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(...MUTED);
+  const meta = doc.splitTextToSize(`Receipt No ${receiptNo} · ${dateStr}`, pageWidth - MARGIN * 2);
+  doc.text(meta, MARGIN, y);
+  y += 5 * meta.length + 5;
+
+  drawRule(doc, y);
+  y += 8;
+
+  // --- STAY (plain rows, hairline dividers) ---
+  y = drawSectionTitle(doc, 'Stay', y);
+  y = drawKeyValues(doc, [
+    ['Room', roomLabel],
+    ['Check-in', `${formatDate(data.checkIn)} · 2:00 PM`],
+    ['Check-out', `${formatDate(data.checkOut)} · 12:00 NN`],
+    ['Duration', pluralizeNight(nights)],
+  ], y);
+  y += 3;
+
+  // --- CHARGES (flat rows, no header, extras only when > 0) ---
+  y = drawSectionTitle(doc, 'Charges', y);
+  const extraLabel = data.extraPaxCount > 0 && Number(data.extraPaxFee) > 0
+    ? `Extra guests (${data.extraPaxCount} × ${formatAmount(data.extraPaxFee)} / night)`
+    : 'Extra guests';
+  y = drawFlatRows(doc, [
+    { label: `Room charges (${nights} × ${formatAmount(rate)})`, value: formatAmount(baseTotal) },
+    ...(Number(data.extraPaxTotal) > 0 ? [{ label: extraLabel, value: formatAmount(data.extraPaxTotal) }] : []),
+    ...(Number(data.overstayFee) > 0 ? [{ label: data.overstayReason || 'Late checkout fee', value: formatAmount(data.overstayFee) }] : []),
+    { label: 'Total', value: formatAmount(total), bold: true, dividerAbove: true },
+    { label: `Paid (${method})`, value: formatAmount(data.amountPaid ?? 0) },
+    { label: 'Balance', value: formatAmount(balance), bold: true, green: balance === 0 },
+  ], y);
+  y += 6;
+
+  // --- PAYMENT REFERENCE (plain text) ---
+  if (refParts.length > 0 || data.simulated) {
+    y = drawSectionTitle(doc, 'Payment reference', y);
+    y = drawPaymentReference(doc, refParts, data.simulated, y);
+    y += 2;
+  }
 
   // --- FOOTER ---
-  const finalY = doc.lastAutoTable.finalY;
-  const footerY = finalY + 12;
-  
-  doc.setDrawColor(...separatorColor);
-  doc.line(margin, footerY, pageWidth - margin, footerY);
-  
+  y = ensureSpace(doc, y, 24);
+  drawRule(doc, y);
+  doc.setFont('helvetica', 'normal');
   doc.setFontSize(8.5);
-  doc.setTextColor(...lightTextColor);
-  doc.text("Thanks for staying with us.", pageWidth / 2, footerY + 6, { align: "center" });
-  doc.setFontSize(7.5);
-  doc.text("This receipt was generated by the system.", pageWidth / 2, footerY + 10, { align: "center" });
-  if (data.simulated) {
-    doc.text("Demo payment. No real money moved.", pageWidth / 2, footerY + 14, { align: "center" });
-  }
+  doc.setTextColor(...DARK);
+  doc.text('We hope to see you again. · Your feedback matters.', pageWidth / 2, y + 6, { align: 'center' });
+  doc.setFontSize(7);
+  doc.setTextColor(...MUTED);
+  const generated = new Date().toLocaleDateString();
+  const footerMeta = data.processedBy
+    ? `Receipt ${receiptNo} · Generated ${generated} · ${data.processedBy}`
+    : `Receipt ${receiptNo} · Generated ${generated}`;
+  doc.text(footerMeta, pageWidth / 2, y + 11, { align: 'center' });
 
   // Save/Download
   doc.save(`HotelEase-Receipt-${receiptNo}.pdf`);
@@ -189,124 +276,90 @@ export const generateCheckInSlip = (data) => {
   const issuedDate = data.issuedDate instanceof Date ? data.issuedDate : new Date(data.issuedDate || Date.now());
   const dateStr = issuedDate.toLocaleDateString();
   const pageWidth = doc.internal.pageSize.width; // 210
-  const margin = 15;
 
-  const formatAmount = (num) =>
-    `PHP ${Number(num).toLocaleString('en-PH', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    })}`
-
-  // Colors
-  const primaryColor = [245, 197, 24]; // #F5C518
-  const darkTextColor = [33, 33, 33];
-  const lightTextColor = [100, 100, 100];
-  const separatorColor = [200, 200, 200];
+  const total = Number(data.total ?? 0);
+  const paid = Number(data.amountPaid ?? 0);
+  const balance = Number(data.balance ?? Math.max(0, total - paid));
+  const nights = Number(data.numberOfNights) || 0;
+  const rate = Number(data.ratePerNight) || 0;
+  const method = data.paymentMethod || 'N/A';
+  const roomLabel = data.roomType ? `${data.roomName} (${data.roomType})` : `${data.roomName}`;
+  const refParts = [
+    data.gatewayRef ? `System ref ${data.gatewayRef}` : null,
+    data.bankRef ? `Bank ref ${data.bankRef}` : null,
+    data.reference || data.paymentRef || null,
+  ].filter(Boolean);
 
   // --- HEADER ---
-  doc.setFillColor(...primaryColor);
-  doc.rect(0, 0, pageWidth, 26, 'F');
+  drawHeader(doc, 'Checked in');
 
-  const slipLogoSize = 14;
-  addHeaderLogo(doc, pageWidth - margin - slipLogoSize, 6, slipLogoSize);
-  const slipTextX = margin;
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(18);
-  doc.setTextColor(...darkTextColor);
-  doc.text("HotelEase", slipTextX, 15);
+  // --- TITLE ---
+  let y = 36;
+  doc.setTextColor(...DARK);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(13);
+  const greeting = doc.splitTextToSize(`Welcome, ${data.guestName}!`, pageWidth - MARGIN * 2);
+  doc.text(greeting, MARGIN, y);
+  y += 6 * greeting.length + 2;
 
-  doc.setFont("helvetica", "normal");
+  doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
-  doc.text("BSHM Property Management System", slipTextX, 21);
+  doc.setTextColor(...MUTED);
+  const meta = doc.splitTextToSize(`Slip No ${slipNo} · ${dateStr}`, pageWidth - MARGIN * 2);
+  doc.text(meta, MARGIN, y);
+  y += 5 * meta.length + 5;
 
-  // --- CHECK-IN SLIP TITLE ---
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(14);
-  const title = "CHECK-IN SLIP";
-  const titleWidth = doc.getTextWidth(title);
-  doc.text(title, (pageWidth - titleWidth) / 2, 36);
+  drawRule(doc, y);
+  y += 8;
 
-  // Slip No and Date (Right Aligned)
-  doc.setFontSize(8.5);
-  doc.setFont("helvetica", "normal");
-  doc.setTextColor(...lightTextColor);
-  doc.text(`Slip No: ${slipNo}`, pageWidth - margin, 42, { align: 'right' });
-  doc.text(`Date: ${dateStr}`, pageWidth - margin, 47, { align: 'right' });
+  // --- STAY (plain rows, hairline dividers) ---
+  y = drawSectionTitle(doc, 'Stay', y);
+  y = drawKeyValues(doc, [
+    ['Room', roomLabel],
+    ...(data.roomNumber ? [['Room no.', `${data.roomNumber}`]] : []),
+    ['Check-in', `${formatDate(data.checkIn)} · 2:00 PM`],
+    ['Check-out', `${formatDate(data.checkOut)} · 12:00 NN`],
+    ['Duration', pluralizeNight(nights)],
+    ['Guest', `${data.guestEmail || '-'}${data.guestPhone ? `  ·  ${data.guestPhone}` : ''}`],
+  ], y);
+  y += 3;
 
-  // Separator Line
-  doc.setDrawColor(...separatorColor);
-  doc.setLineWidth(0.2);
-  doc.line(margin, 51, pageWidth - margin, 51);
+  // --- CHARGES (flat rows, no header) ---
+  y = drawSectionTitle(doc, 'Charges', y);
+  const rows = [];
+  if (nights > 0 && rate > 0) {
+    rows.push({ label: `Room charges (${nights} × ${formatAmount(rate)})`, value: formatAmount(nights * rate) });
+  }
+  if (Number(data.extraPaxTotal) > 0) {
+    rows.push({ label: 'Extra guests', value: formatAmount(data.extraPaxTotal) });
+  }
+  rows.push({ label: 'Total', value: formatAmount(total), bold: true, dividerAbove: rows.length > 0 });
+  rows.push({ label: `Paid (${method})`, value: formatAmount(paid) });
+  rows.push({ label: 'Balance', value: formatAmount(balance), bold: true, green: balance === 0 });
+  y = drawFlatRows(doc, rows, y);
+  y += 6;
 
-  // --- GUEST INFO ---
-  doc.setTextColor(...darkTextColor);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(10);
-  doc.text("Guest:", margin, 58);
-
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(9);
-  doc.text(`Name: ${data.guestName}`, margin, 63);
-  doc.text(`Email: ${data.guestEmail}`, margin, 68);
-  doc.text(`Phone: ${data.guestPhone || "-"}`, margin, 73);
-  doc.text(`Front desk: ${data.processedBy}`, margin, 78);
-
-  // --- STAY DETAILS TABLE ---
-  let startY = data.guestPhone ? 86 : 83;
-  autoTable(doc, {
-    startY,
-    margin: { left: margin, right: margin },
-    head: [['Description', 'Details']],
-    body: [
-      ['Room', data.roomType ? `${data.roomName} (${data.roomType})` : `${data.roomName}`],
-      ['Room no.', `${data.roomNumber || "-"}`],
-      ['Check-in', `${new Date(data.checkIn).toLocaleDateString()} at 2:00 PM`],
-      ['Check-out', `${new Date(data.checkOut).toLocaleDateString()} at 12:00 NN`],
-      ['Duration', pluralizeNight(data.numberOfNights)],
-      ['Rate per night', formatAmount(data.ratePerNight)],
-      ...(data.extraPaxTotal > 0 ? [['Extra guests', formatAmount(data.extraPaxTotal)]] : []),
-    ],
-    theme: 'grid',
-    headStyles: { fillColor: primaryColor, textColor: darkTextColor, fontStyle: 'bold' },
-    styles: { fontSize: 8.5, cellPadding: 3 },
-    columnStyles: {
-      0: { fontStyle: 'bold', cellWidth: 50 },
-      1: { cellWidth: 130 }
-    }
-  });
-
-  // --- PAYMENT POSITION TABLE ---
-  autoTable(doc, {
-    startY: doc.lastAutoTable.finalY + 6,
-    margin: { left: margin, right: margin },
-    head: [['Payment', 'Amount']],
-    body: [
-      ['Total', formatAmount(data.total)],
-      ['Paid', formatAmount(data.amountPaid)],
-      ['Balance', formatAmount(data.balance)],
-      ['Payment method', `${data.paymentMethod || 'N/A'}${data.simulated ? ' (demo)' : ''}`],
-    ],
-    theme: 'grid',
-    headStyles: { fillColor: primaryColor, textColor: darkTextColor, fontStyle: 'bold' },
-    styles: { fontSize: 8.5, cellPadding: 3 },
-    columnStyles: {
-      0: { fontStyle: 'bold', cellWidth: 130 },
-      1: { cellWidth: 50, halign: 'right' }
-    }
-  });
+  // --- PAYMENT REFERENCE (plain text) ---
+  if (refParts.length > 0 || data.simulated) {
+    y = drawSectionTitle(doc, 'Payment reference', y);
+    y = drawPaymentReference(doc, refParts, data.simulated, y);
+    y += 2;
+  }
 
   // --- FOOTER ---
-  const finalY = doc.lastAutoTable.finalY;
-  const footerY = finalY + 12;
-
-  doc.setDrawColor(...separatorColor);
-  doc.line(margin, footerY, pageWidth - margin, footerY);
-
+  y = ensureSpace(doc, y, 24);
+  drawRule(doc, y);
+  doc.setFont('helvetica', 'normal');
   doc.setFontSize(8.5);
-  doc.setTextColor(...lightTextColor);
-  doc.text("Please show this slip at checkout.", pageWidth / 2, footerY + 6, { align: "center" });
-  doc.setFontSize(7.5);
-  doc.text("Check-in slip only, not an official receipt.", pageWidth / 2, footerY + 10, { align: "center" });
+  doc.setTextColor(...DARK);
+  doc.text('Please show this slip at checkout.', pageWidth / 2, y + 6, { align: 'center' });
+  doc.setFontSize(7);
+  doc.setTextColor(...MUTED);
+  const generated = new Date().toLocaleDateString();
+  const footerMeta = data.processedBy
+    ? `Slip ${slipNo} · Generated ${generated} · ${data.processedBy}`
+    : `Slip ${slipNo} · Generated ${generated} · Check-in slip only, not an official receipt.`;
+  doc.text(footerMeta, pageWidth / 2, y + 11, { align: 'center' });
 
   // Save/Download
   doc.save(`HotelEase-CheckInSlip-${slipNo}.pdf`);
@@ -316,4 +369,3 @@ export const generateCheckInSlip = (data) => {
     issuedAt: new Date()
   };
 };
-

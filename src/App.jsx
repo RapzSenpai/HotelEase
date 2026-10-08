@@ -44,7 +44,6 @@ const AdminAnalyticsPage = lazy(() => import("@/pages/admin/AdminAnalyticsPage")
 const AdminOperationsPage = lazy(() => import("@/pages/admin/AdminOperationsPage"));
 const AdminUserManagementPage = lazy(() => import("@/pages/admin/AdminUserManagementPage"));
 const AdminRoomManagementPage = lazy(() => import("@/pages/admin/AdminRoomManagementPage"));
-const AdminRoomRatesPage = lazy(() => import("@/pages/admin/AdminRoomRatesPage"));
 const AdminSystemSettingsPage = lazy(() => import("@/pages/admin/AdminSystemSettingsPage"));
 const AdminSystemHealthPage = lazy(() => import("@/pages/admin/AdminSystemHealthPage"));
 const AdminAvailabilityPage = lazy(() => import("@/pages/admin/AdminAvailabilityPage"));
@@ -329,14 +328,6 @@ export default function App() {
           element={
             <PrivateRoute allowedRoles={["admin"]}>
               <SuspenseWrapper><AdminRoomManagementPage /></SuspenseWrapper>
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="/admin/room-rates"
-          element={
-            <PrivateRoute allowedRoles={["admin"]}>
-              <SuspenseWrapper><AdminRoomRatesPage /></SuspenseWrapper>
             </PrivateRoute>
           }
         />
