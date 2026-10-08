@@ -71,13 +71,14 @@ titles, message templates, and links:
 - Guest, only for proof-required payment methods: `payment_proof_required`,
   “Payment Proof Required”, `/my-bookings`.
 
-Use deterministic per-job/per-recipient notification document IDs. Write
-notifications before marking the job delivered. If a partial write, job-state update, or Worker invocation fails, leave the job
-eligible for retry and log the failure. Repeated attempts overwrite the same
-notification documents rather than creating duplicates. Persist attempt/error
-metadata for diagnosis; set `nextAttemptAt` with exponential backoff capped at
-one hour; do not silently mark failed jobs delivered or permanently stop
-retrying them.
+Use deterministic per-job/per-recipient notification document IDs and
+create-only writes. Treat an existing document as already delivered without
+modifying it, so retries cannot reset `isRead`. Write notifications before
+marking the job delivered. If a partial write, job-state update, or Worker
+invocation fails, leave the job eligible for retry and log the failure. Persist
+attempt/error metadata for diagnosis; set `nextAttemptAt` with exponential
+backoff capped at one hour; do not silently mark failed jobs delivered or
+permanently stop retrying them.
 
 ## UI and test changes
 
