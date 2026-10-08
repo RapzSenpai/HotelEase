@@ -37,43 +37,47 @@ execution, so it will deliver a Firestore outbox.
    plus an outbox document keyed by the booking ID, with state
    `waiting_for_markers`. Include only data needed to reproduce current notice
    text (booking/guest/room identifiers, room label, formatted stay dates, and
-   payment method). The document ID must equal the booking ID; owner-created
-   fields are restricted to this state and required payload.
-2. Extend the availability-marker transaction with an optional outbox reference.
-   In the same transaction that claims all stay markers, transition that job to
-   `queued`. Existing callers that do not pass an outbox reference retain their
-   current behavior.
+   payment method).
+2. Extend the availability-marker transaction with an optional outbox
+   reference. In the same transaction that claims all stay markers, transition
+   that job to `queued`. Existing callers without an outbox reference retain
+   current behavior. The Firestore rule permits the booking owner only this
+   `waiting_for_markers` → `queued` transition, without changing payload fields.
 3. If marker claiming fails, the existing booking compensation remains in
-   effect. The job must not become deliverable; mark it cancelled when
-   compensation succeeds in the same compensation write. The Worker ignores
-   waiting/cancelled jobs.
-4. Remove the detached browser notification fan-out. The booking submission
+   effect and the job never becomes deliverable. Worker cleanup marks a
+   waiting job cancelled if its booking is missing or terminal.
+4. The service-account Worker uses Admin access for all delivery and retry
+   state changes. Guests cannot read or delete jobs.
+5. Remove the detached browser notification fan-out. The booking submission
    returns after the existing marker claim, without waiting for staff fan-out.
 
 Use the existing collection-mode mapping for production and training data. Add
 the new outbox collection to the sandbox mapping. Firestore rules permit only
 the booking owner to create the matching job for their own booking, using the
-post-write booking state; guests cannot read or update jobs. The service-account
-Worker processes jobs with Admin access.
+post-write booking state and an exact allowed-field list, and to make only the
+single state transition above. The service-account Worker processes jobs and
+changes their state with Admin access.
 
 ### Delivery and retry
 
-Add a bounded scheduled Worker pass every minute. It reads eligible queued
-jobs from production and training outbox collections, resolves the same
-Front Office recipients and guest name as the existing fan-out, and writes the
-same notification types, titles, message templates, and links:
+Add a bounded scheduled Worker pass every minute. It reads queued jobs and
+stale `waiting_for_markers` jobs from production and training outbox
+collections. It cancels stale waiting jobs only when their booking is missing
+or terminal. For queued jobs, it resolves the same Front Office recipients and
+guest name as the existing fan-out, and writes the same notification types,
+titles, message templates, and links:
 
 - Front Office: `booking_request`, “New Booking Request”, `/fo/bookings`.
 - Guest, only for proof-required payment methods: `payment_proof_required`,
   “Payment Proof Required”, `/my-bookings`.
 
 Use deterministic per-job/per-recipient notification document IDs. Write
-notifications before marking the job delivered. If a partial write, job-state
-update, or Worker invocation fails, leave the job eligible for retry and log
-the failure. Repeated attempts overwrite the same notification documents
-rather than creating duplicates. Persist attempt/error metadata for diagnosis;
-set `nextAttemptAt` with exponential backoff capped at one hour; do not silently
-mark failed jobs delivered or permanently stop retrying them.
+notifications before marking the job delivered. If a partial write, job-state update, or Worker invocation fails, leave the job
+eligible for retry and log the failure. Repeated attempts overwrite the same
+notification documents rather than creating duplicates. Persist attempt/error
+metadata for diagnosis; set `nextAttemptAt` with exponential backoff capped at
+one hour; do not silently mark failed jobs delivered or permanently stop
+retrying them.
 
 ## UI and test changes
 
@@ -149,7 +153,8 @@ acknowledgement behavior is not changed.
 5. OTP `"1__456"`-style gaps remain in place and fail the six-digit submission
    check; fallback codes fill cells through the shared input helper.
 6. A committed booking and successful marker claim leave a durable queued job;
-   browser closure cannot cancel delivery. Retry does not duplicate inbox
-   items, and user-visible payload details match the existing notices.
+   browser closure cannot cancel delivery. Later cancellation or checkout does
+   not erase the queued notice. Retry does not duplicate inbox items, and
+   user-visible payload details match the existing notices.
 7. Booking submit test proves it waits for marker claim and returns the fixed
    usable booking ID.
