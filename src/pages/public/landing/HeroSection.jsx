@@ -14,7 +14,7 @@ import {
   DraggableCardBody,
 } from "@/components/ui/draggable-card";
 
-export default function HeroSection({ user, isStaff, staffDashboardPath }) {
+export default function HeroSection({ user, isStaff, staffDashboardPath, onTryDemo }) {
   const { word: changingWord } = useTypewriter(
     ["Redefined", "Elevated", "Refined", "Timeless"],
     80,
@@ -76,6 +76,9 @@ export default function HeroSection({ user, isStaff, staffDashboardPath }) {
                     </NavLink>
                   </Button>
                 ) : null}
+                <Button size="lg" variant="outline" className="bg-white/50 backdrop-blur-sm border-white/40 active:scale-[0.98]" onClick={onTryDemo}>
+                  Try Demo
+                </Button>
               </div>
             </div>
           </div>

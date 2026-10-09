@@ -10,6 +10,7 @@ import { getHomePathForRole, isStaffRole } from "@/lib/routing";
 import ChatbotWidget from "@/components/chatbot/ChatbotWidget";
 import { SectionDivider } from "./landing/components";
 import HeroSection from "./landing/HeroSection";
+import DemoRoleDialog from "@/demo/DemoRoleDialog";
 import PartnershipSection from "./landing/PartnershipSection";
 import RoomShowcaseSection from "./landing/RoomShowcaseSection";
 import FeaturesSection from "./landing/FeaturesSection";
@@ -56,6 +57,7 @@ export default function LandingPage() {
   const isStaff = isStaffRole(role);
   const canBookRooms = !user || isGuest;
   const staffDashboardPath = getHomePathForRole(role);
+  const [demoOpen, setDemoOpen] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -105,7 +107,8 @@ export default function LandingPage() {
 
   return (
     <div className="overflow-x-hidden">
-      <HeroSection user={user} isStaff={isStaff} staffDashboardPath={staffDashboardPath} />
+      <HeroSection user={user} isStaff={isStaff} staffDashboardPath={staffDashboardPath} onTryDemo={() => setDemoOpen(true)} />
+      <DemoRoleDialog open={demoOpen} onOpenChange={setDemoOpen} onPick={(role) => navigate(role.to)} />
       <SectionDivider />
       <PartnershipSection />
       <SectionDivider />

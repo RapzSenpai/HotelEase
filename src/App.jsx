@@ -2,6 +2,8 @@ import { lazy, Suspense, useEffect } from "react";
 import { Navigate, Routes, Route, useLocation } from "react-router-dom";
 
 import AppShell from "@/layouts/AppShell";
+import { DemoProvider } from "@/demo/DemoContext";
+import { DemoIndex } from "@/demo/DemoRoleDialog";
 import PrivateRoute from "@/components/routing/PrivateRoute";
 import GuestAuthRoute from "@/components/routing/GuestAuthRoute";
 import MaintenanceRoute from "@/components/routing/MaintenanceRoute";
@@ -52,6 +54,12 @@ const AdminAuditLogsPage = lazy(() => import("@/pages/admin/AdminAuditLogsPage")
 const AdminAlertsPage = lazy(() => import("@/pages/admin/AdminAlertsPage"));
 const AdminTrainingModePage = lazy(() => import("@/pages/admin/AdminTrainingModePage"));
 
+// Demo pages (frontend-only Try Demo — no auth, no backend)
+const DemoShell = lazy(() => import("@/demo/DemoShell"));
+const DemoGuestPage = lazy(() => import("@/demo/guest/DemoGuestPage"));
+const DemoFoPage = lazy(() => import("@/demo/fo/DemoFoPage"));
+const DemoAdminPage = lazy(() => import("@/demo/admin/DemoAdminPage"));
+
 // Common pages
 const UnauthorizedPage = lazy(() => import("@/pages/common/UnauthorizedPage"));
 const NotFoundPage = lazy(() => import("@/pages/common/NotFoundPage"));
@@ -67,6 +75,8 @@ function SuspenseWrapper({ children }) {
 function GoogleAnalyticsPageTracker() {
   const location = useLocation();
   useEffect(() => {
+    // Demo traffic must not pollute product analytics.
+    if (location.pathname.startsWith("/demo")) return;
     trackPageView(location.pathname + location.search);
   }, [location.pathname, location.search]);
   return null;
@@ -403,6 +413,23 @@ export default function App() {
             </PrivateRoute>
           }
         />
+
+        {/* Try Demo (frontend-only, no auth, no backend) */}
+        <Route
+          path="/demo"
+          element={
+            <MaintenanceRoute>
+              <DemoProvider>
+                <SuspenseWrapper><DemoShell /></SuspenseWrapper>
+              </DemoProvider>
+            </MaintenanceRoute>
+          }
+        >
+          <Route index element={<SuspenseWrapper><DemoIndex /></SuspenseWrapper>} />
+          <Route path="guest" element={<SuspenseWrapper><DemoGuestPage /></SuspenseWrapper>} />
+          <Route path="fo" element={<SuspenseWrapper><DemoFoPage /></SuspenseWrapper>} />
+          <Route path="admin" element={<SuspenseWrapper><DemoAdminPage /></SuspenseWrapper>} />
+        </Route>
 
         {/* Catch-all */}
         <Route path="*" element={<MaintenanceRoute><SuspenseWrapper><NotFoundPage /></SuspenseWrapper></MaintenanceRoute>} />
