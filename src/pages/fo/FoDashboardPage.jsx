@@ -120,7 +120,10 @@ export default function FoDashboardPage() {
             if (
               previousStatus &&
               previousStatus !== room.status &&
-              room.isActive !== false
+              room.isActive !== false &&
+              // Mid-stay requests carry their own View toast — the generic
+              // status toast would only double-notify the same event.
+              !room.isMidStayRequest
             ) {
               toast.info(
                 `${getRoomLabel(room)} is now ${room.status || "Unknown"}`,
