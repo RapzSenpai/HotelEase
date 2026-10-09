@@ -121,17 +121,14 @@ async function claimBookingNotificationJobOnce({
   accessToken,
   projectId,
   bookingId,
-  trainingMode = false,
   requesterUid = null,
 }) {
-  if (typeof bookingId !== "string" || !bookingId || typeof trainingMode !== "boolean") {
+  if (typeof bookingId !== "string" || !bookingId) {
     throw new Error("Invalid booking marker claim request.");
   }
-  const bookingCollection = trainingMode ? "training_bookings" : "bookings";
-  const jobCollection = trainingMode
-    ? "training_booking_notification_jobs"
-    : "booking_notification_jobs";
-  const markerCollection = trainingMode ? "training_availability" : "room_availability";
+  const bookingCollection = "bookings";
+  const jobCollection = "booking_notification_jobs";
+  const markerCollection = "room_availability";
   const transaction = await beginFirestoreTransaction(accessToken, projectId);
   let transactionOpen = true;
   const rollback = async () => {
@@ -385,7 +382,6 @@ async function compensateMarkerConflict(
   collectionId,
   job,
   bookingCollection,
-  trainingMode,
   now,
 ) {
   const transaction = await beginFirestoreTransaction(accessToken, projectId);
@@ -418,23 +414,17 @@ async function compensateMarkerConflict(
       updateMask: { fieldPaths: ["status", "updatedAt"] },
     }];
     if (booking.exists && ACTIVE_BOOKING_STATUSES.includes(fsValue(booking.fields, "status"))) {
-      if (trainingMode) {
-        writes.push({
-          delete: firestoreDocumentPath(projectId, `${bookingCollection}/${job.bookingId}`),
-        });
-      } else {
-        writes.push({
-          update: {
-            name: firestoreDocumentPath(projectId, `${bookingCollection}/${job.bookingId}`),
-            fields: {
-              status: firestoreString("Cancelled"),
-              rejectionReason: firestoreString("Dates taken by an earlier booking."),
-              updatedAt: { timestampValue: now.toISOString() },
-            },
+      writes.push({
+        update: {
+          name: firestoreDocumentPath(projectId, `${bookingCollection}/${job.bookingId}`),
+          fields: {
+            status: firestoreString("Cancelled"),
+            rejectionReason: firestoreString("Dates taken by an earlier booking."),
+            updatedAt: { timestampValue: now.toISOString() },
           },
-          updateMask: { fieldPaths: ["status", "rejectionReason", "updatedAt"] },
-        });
-      }
+        },
+        updateMask: { fieldPaths: ["status", "rejectionReason", "updatedAt"] },
+      });
     }
     await commitFirestoreTransaction(accessToken, projectId, transaction, writes);
     transactionOpen = false;
@@ -470,13 +460,12 @@ async function deliverJob(accessToken, projectId, collectionId, job, userCollect
     });
   }
 
-  const prefix = collectionId.startsWith("training_") ? "training_" : "";
   for (const notification of notifications) {
     const documentId = `booking_${job.bookingId}_${notification.recipientId}_${notification.type}`;
     await createFirestoreDoc(
       accessToken,
       projectId,
-      `${prefix}notifications/${notification.recipientId}/items`,
+      `notifications/${notification.recipientId}/items`,
       documentId,
       {
         id: firestoreString(documentId),
@@ -522,10 +511,9 @@ async function recordJobFailure(summary, accessToken, projectId, collectionId, j
  * queued and the scheduled sweep retries it. Notification document IDs are
  * deterministic, so a concurrent cron delivery cannot duplicate toasts.
  */
-export async function deliverQueuedJob({ accessToken, projectId, bookingId, trainingMode = false }) {
-  const prefix = trainingMode ? "training_" : "";
-  const collectionId = `${prefix}booking_notification_jobs`;
-  const userCollection = trainingMode ? "training_guests" : "users";
+export async function deliverQueuedJob({ accessToken, projectId, bookingId }) {
+  const collectionId = "booking_notification_jobs";
+  const userCollection = "users";
   const job = await getFirestoreDoc(accessToken, projectId, collectionId, bookingId);
   if (!job.exists || fsValue(job.fields, "status") !== "queued") {
     return { delivered: false };
@@ -554,7 +542,6 @@ export async function processBookingNotificationOutbox(workerEnv) {
 
   for (const [collectionId, bookingCollection, userCollection] of [
     ["booking_notification_jobs", "bookings", "users"],
-    ["training_booking_notification_jobs", "training_bookings", "training_guests"],
   ]) {
     let waitingJobs = [];
     let staleWaitingJobs = [];
@@ -596,7 +583,6 @@ export async function processBookingNotificationOutbox(workerEnv) {
           accessToken,
           projectId,
           bookingId: job.bookingId,
-          trainingMode: collectionId.startsWith("training_"),
         });
         if (result.status === "conflict") {
           if (await compensateMarkerConflict(
@@ -605,7 +591,6 @@ export async function processBookingNotificationOutbox(workerEnv) {
             collectionId,
             job,
             bookingCollection,
-            collectionId.startsWith("training_"),
             now,
           )) {
             summary.cancelled += 1;

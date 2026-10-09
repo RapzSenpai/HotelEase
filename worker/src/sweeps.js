@@ -1,13 +1,11 @@
 // Moved verbatim from src/index.js — hourly sweeps, no logic changes.
-import { EXPIRY_SWEEP_MAX_PER_COLLECTION, ORPHAN_SWEEP_MAX_DELETES, STALE_TRAINING_GUEST_MAX, STALE_TRAINING_GUEST_MS } from "./config.js";
+import { EXPIRY_SWEEP_MAX_PER_COLLECTION, ORPHAN_SWEEP_MAX_DELETES } from "./config.js";
 import { getGoogleAccessToken } from "./google-auth.js";
 import {
-  deleteAuthAccount,
   deleteFirestoreDoc,
   fsValue,
   getFirestoreDoc,
   listSubcollectionDocs,
-  listSubcollectionIds,
   patchFirestoreDoc,
   runFirestoreQuery,
 } from "./firestore.js";
@@ -27,7 +25,7 @@ import {
 
 /**
  * Cancel Awaiting Payment bookings whose payment deadline has passed and free
- * their room_availability markers. Sweeps prod `bookings` + `training_bookings`.
+ * their room_availability markers.
  */
 export async function expireStaleHolds(workerEnv) {
   const sa = workerEnv.FIREBASE_SERVICE_ACCOUNT;
@@ -46,10 +44,9 @@ export async function expireStaleHolds(workerEnv) {
 
   const summary = { expiredBookings: 0, releasedMarkers: 0, errors: 0 };
 
-  // PROD holds live in `bookings` and block nights via `room_availability`
-  // markers; training holds live in `training_bookings` and block nights via
-  // `training_availability` markers (same claim protocol, sandbox collection).
-  for (const [col, markerCol] of [["bookings", "room_availability"], ["training_bookings", "training_availability"]]) {
+  // Holds live in `bookings` and block nights via `room_availability`
+  // markers (same claim protocol as before, production collection only).
+  for (const [col, markerCol] of [["bookings", "room_availability"]]) {
     try {
       const expired = await runFirestoreQuery(accessToken, projectId, col, {
         from: [{ collectionId: col }],
@@ -141,9 +138,8 @@ export async function expireStaleHolds(workerEnv) {
 
 /**
  * Purge availability markers whose linked booking is terminal
- * (Cancelled / Checked Out) or missing entirely. Runs over both the prod
- * (`bookings` / `room_availability`) and training (`training_bookings` /
- * `training_availability`) pairs.
+ * (Cancelled / Checked Out) or missing entirely. Runs over the prod
+ * (`bookings` / `room_availability`) pair.
  *
  * Marker cleanup runs on the client AFTER the booking flips to a terminal
  * status. Before the marker delete rule allowed a guest to release
@@ -169,7 +165,7 @@ export async function sweepOrphanMarkers(workerEnv) {
   const accessToken = await getGoogleAccessToken(sa);
   const summary = { markers: 0, orphansDeleted: 0, errors: 0 };
 
-  const pairs = [["bookings", "room_availability"], ["training_bookings", "training_availability"]];
+  const pairs = [["bookings", "room_availability"]];
   const orphanIds = [];
   for (const [bookingCol, markerCol] of pairs) {
     let markers;
@@ -335,7 +331,7 @@ export async function purgeNotificationInboxes(workerEnv) {
     }
   }
 
-  for (const [inboxCol, ownerCol] of [["notifications", "users"], ["training_notifications", "training_guests"]]) {
+  for (const [inboxCol, ownerCol] of [["notifications", "users"]]) {
     let pagesScanned = 0;
     let purged = 0;
     const lastDoneUid = await readCursor(ownerCol);
@@ -465,68 +461,6 @@ export async function purgeNotificationInboxes(workerEnv) {
     if (collectionComplete) {
       await writePageCursor(ownerCol, null);
       await writeCursor(ownerCol, "");
-    }
-  }
-
-  return { ok: true, ...summary };
-}
-
-/**
- * Purge abandoned training sandbox accounts. Kicked / expired / tab-closed
- * trainees never run the logout cleanup, so their anonymous Auth accounts +
- * training_guests docs accumulate. Anything idle past STALE_TRAINING_GUEST_MS
- * (by document updateTime) is deleted: notification items, profile doc, then
- * the Auth account best-effort. A returning trainee just rejoins with the
- * session code — nothing production is touched.
- */
-export async function sweepStaleTrainingGuests(workerEnv) {
-  const sa = workerEnv.FIREBASE_SERVICE_ACCOUNT;
-  if (!sa) return { ok: false, reason: "FIREBASE_SERVICE_ACCOUNT not configured" };
-
-  let projectId;
-  try {
-    projectId = JSON.parse(sa).project_id;
-  } catch {
-    return { ok: false, reason: "FIREBASE_SERVICE_ACCOUNT is not valid JSON" };
-  }
-  if (!projectId) return { ok: false, reason: "project_id missing" };
-
-  const accessToken = await getGoogleAccessToken(sa);
-  const summary = { scanned: 0, guestsDeleted: 0, authDeleted: 0, errors: 0 };
-
-  let guests;
-  try {
-    guests = await runFirestoreQuery(accessToken, projectId, "training_guests", {
-      from: [{ collectionId: "training_guests" }],
-    });
-  } catch (e) {
-    return { ok: false, reason: String(e?.message || e) };
-  }
-  summary.scanned = guests.length;
-
-  const cutoff = Date.now() - STALE_TRAINING_GUEST_MS;
-  const stale = guests.filter((g) => {
-    const updated = g.updateTime ? Date.parse(g.updateTime) : NaN;
-    return Number.isNaN(updated) || updated < cutoff;
-  }).slice(0, STALE_TRAINING_GUEST_MAX);
-
-  for (const guest of stale) {
-    try {
-      for (const notifId of await listSubcollectionIds(accessToken, projectId, `training_notifications/${guest.id}`, "items")) {
-        await deleteFirestoreDoc(accessToken, projectId, `training_notifications/${guest.id}/items/${notifId}`);
-      }
-      await deleteFirestoreDoc(accessToken, projectId, `training_guests/${guest.id}`);
-      summary.guestsDeleted += 1;
-      try {
-        const authResult = await deleteAuthAccount(accessToken, projectId, guest.id);
-        if (authResult === "deleted") summary.authDeleted += 1;
-      } catch (authError) {
-        summary.errors += 1;
-        console.error(`[sweep] stale guest auth purge failed ${guest.id}:`, String(authError?.message || authError));
-      }
-    } catch (e) {
-      summary.errors += 1;
-      console.error(`[sweep] stale guest purge failed ${guest.id}:`, String(e?.message || e));
     }
   }
 

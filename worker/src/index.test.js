@@ -72,7 +72,6 @@ describe("POST /claim-booking-markers", () => {
     mocks.resolveBookingClaimIdentity.mockResolvedValue(null);
     const response = await worker.fetch(request({
       bookingId: "booking-1",
-      trainingMode: false,
     }), workerEnv);
 
     expect(response.status).toBe(401);
@@ -87,7 +86,6 @@ describe("POST /claim-booking-markers", () => {
     });
     const anonymousResponse = await worker.fetch(request({
       bookingId: "booking-1",
-      trainingMode: false,
     }), workerEnv);
     expect(anonymousResponse.status).toBe(403);
 
@@ -101,44 +99,37 @@ describe("POST /claim-booking-markers", () => {
     });
     const ownerResponse = await worker.fetch(request({
       bookingId: "booking-1",
-      trainingMode: false,
     }), workerEnv);
     expect(ownerResponse.status).toBe(403);
     expect(mocks.claimBookingNotificationJob).toHaveBeenCalledWith({
       accessToken: "service-token",
       projectId: "hotel-project",
       bookingId: "booking-1",
-      trainingMode: false,
       requesterUid: "other-guest",
     });
   });
 
-  it("allows an authenticated training participant and maps conflicts to 409", async () => {
+  it("rejects anonymous callers and maps conflicts to 409", async () => {
     mocks.resolveBookingClaimIdentity.mockResolvedValue({
-      uid: "anonymous-trainee",
+      uid: "anonymous-1",
       isAnonymous: true,
     });
-    const success = await worker.fetch(request({
-      bookingId: "training-booking",
-      trainingMode: true,
+    const anonDenied = await worker.fetch(request({
+      bookingId: "booking-1",
     }), workerEnv);
-    expect(success.status).toBe(200);
-    expect(await success.json()).toEqual({ ok: true, claimed: 2 });
-    expect(mocks.claimBookingNotificationJob).toHaveBeenCalledWith({
-      accessToken: "service-token",
-      projectId: "hotel-project",
-      bookingId: "training-booking",
-      trainingMode: true,
-      requesterUid: "anonymous-trainee",
-    });
+    expect(anonDenied.status).toBe(403);
+    expect(mocks.claimBookingNotificationJob).not.toHaveBeenCalled();
 
+    mocks.resolveBookingClaimIdentity.mockResolvedValue({
+      uid: "guest-1",
+      isAnonymous: false,
+    });
     mocks.claimBookingNotificationJob.mockResolvedValue({
       status: "conflict",
       claimedMarkers: 0,
     });
     const conflict = await worker.fetch(request({
       bookingId: "booking-2",
-      trainingMode: true,
     }), workerEnv);
     expect(conflict.status).toBe(409);
     expect(await conflict.json()).toMatchObject({ error: expect.any(String) });
@@ -151,7 +142,6 @@ describe("POST /claim-booking-markers", () => {
     });
     const response = await worker.fetch(request({
       bookingId: "booking-1",
-      trainingMode: false,
     }), workerEnv);
 
     expect(response.status).toBe(200);
@@ -160,13 +150,11 @@ describe("POST /claim-booking-markers", () => {
       accessToken: "service-token",
       projectId: "hotel-project",
       bookingId: "booking-1",
-      trainingMode: false,
     });
 
     mocks.deliverQueuedJob.mockRejectedValueOnce(new Error("inbox write failed"));
     const retryResponse = await worker.fetch(request({
       bookingId: "booking-1",
-      trainingMode: false,
     }), workerEnv);
     expect(retryResponse.status).toBe(200);
     expect(await retryResponse.json()).toEqual({ ok: true, claimed: 2 });
@@ -179,7 +167,6 @@ describe("POST /claim-booking-markers", () => {
     });
     const response = await worker.fetch(request({
       bookingId: "",
-      trainingMode: "false",
     }), workerEnv);
 
     expect(response.status).toBe(400);
@@ -190,7 +177,6 @@ describe("POST /claim-booking-markers", () => {
   it("reports missing Worker service-account configuration explicitly", async () => {
     const response = await worker.fetch(request({
       bookingId: "booking-1",
-      trainingMode: false,
     }), {});
 
     expect(response.status).toBe(503);

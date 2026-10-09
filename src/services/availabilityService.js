@@ -152,9 +152,7 @@ export async function claimBookingMarked({ bookingId }) {
       "Content-Type": "application/json",
       "X-HE-AUTH": `Bearer ${token}`},
     body: JSON.stringify({
-      bookingId,
-      // Worker API still requires the flag until Task 14 simplifies it.
-      trainingMode: false})});
+      bookingId})});
 
   const result = await response.json().catch(() => ({}));
   if (!response.ok) {

@@ -8,7 +8,7 @@ import { FIREBASE_CERTS_URL, TOKEN_SKEW_SECONDS } from "./config.js";
 //   signed-in user  → 20 req/min, 100 req/day  (keyed by uid)
 //   anonymous       →  3 req/min,  5 req/day   (keyed by IP)
 // /insights and /admin-chat additionally require a verified user token.
-// Anonymous Firebase sessions (training sandbox) count as anonymous.
+// Anonymous Firebase sessions count as anonymous.
 // ===========================================================================
 
 let firebaseCertsCache = null; // { certs: Map<kid, pem>, fetchedAt }
@@ -161,7 +161,7 @@ export async function verifyFirebaseIdToken(token, projectId) {
 /**
  * Resolve the caller tier from the X-HE-AUTH header.
  * Returns { uid } for verified real users, or { uid: null } for everyone else
- * (missing header, bad/expired token, or anonymous training sessions).
+ * (missing header, bad/expired token, or anonymous sessions).
  */
 export async function resolveAiIdentity(request, workerEnv) {
   const header = request.headers.get("X-HE-AUTH") || "";

@@ -72,12 +72,10 @@ function setClaimDocuments({
   paymentMethod = "GCash",
   markerDates = ["2026-10-01", "2026-10-02"],
   marker = null,
-  trainingMode = false,
 } = {}) {
-  const prefix = trainingMode ? "training_" : "";
-  const bookingCollection = `${prefix}bookings`;
-  const jobCollection = `${prefix}booking_notification_jobs`;
-  const markerCollection = trainingMode ? "training_availability" : "room_availability";
+  const bookingCollection = "bookings";
+  const jobCollection = "booking_notification_jobs";
+  const markerCollection = "room_availability";
   mocks.transactionDocuments = {
     ...mocks.transactionDocuments,
     [`${bookingCollection}/${bookingId}`]: {
@@ -180,7 +178,6 @@ describe("booking notification outbox", () => {
       accessToken: "access-token",
       projectId: "test-project",
       bookingId: "booking-claim",
-      trainingMode: false,
       requesterUid: "guest-1",
     })).resolves.toEqual({ status: "queued", claimedMarkers: 2 });
 
@@ -219,7 +216,6 @@ describe("booking notification outbox", () => {
       accessToken: "access-token",
       projectId: "test-project",
       bookingId: "booking-claim",
-      trainingMode: false,
     })).resolves.toMatchObject({ status: "conflict" });
     expect(mocks.commitFirestoreTransaction).not.toHaveBeenCalled();
     expect(mocks.rollbackFirestoreTransaction).toHaveBeenCalledWith(
@@ -236,7 +232,6 @@ describe("booking notification outbox", () => {
       accessToken: "access-token",
       projectId: "test-project",
       bookingId: "booking-claim",
-      trainingMode: false,
     })).resolves.toMatchObject({ status: "conflict" });
     expect(mocks.commitFirestoreTransaction).not.toHaveBeenCalled();
 
@@ -248,7 +243,6 @@ describe("booking notification outbox", () => {
       accessToken: "access-token",
       projectId: "test-project",
       bookingId: "booking-claim",
-      trainingMode: false,
     })).resolves.toMatchObject({ status: "conflict" });
     expect(mocks.commitFirestoreTransaction).not.toHaveBeenCalled();
   });
@@ -259,7 +253,6 @@ describe("booking notification outbox", () => {
       accessToken: "access-token",
       projectId: "test-project",
       bookingId: "booking-claim",
-      trainingMode: false,
       requesterUid: "guest-1",
     })).resolves.toEqual({ status: "queued", claimedMarkers: 2 });
     expect(mocks.commitFirestoreTransaction).not.toHaveBeenCalled();
@@ -272,7 +265,6 @@ describe("booking notification outbox", () => {
       accessToken: "access-token",
       projectId: "test-project",
       bookingId: "booking-claim",
-      trainingMode: false,
       requesterUid: "other-guest",
     })).resolves.toMatchObject({ status: "cancelled" });
     expect(mocks.commitFirestoreTransaction).not.toHaveBeenCalled();
@@ -309,7 +301,6 @@ describe("booking notification outbox", () => {
       accessToken: "access-token",
       projectId: "test-project",
       bookingId: "booking-claim",
-      trainingMode: false,
       requesterUid: "guest-1",
     })).resolves.toEqual({ status: "queued", claimedMarkers: 2 });
 
@@ -322,34 +313,7 @@ describe("booking notification outbox", () => {
     expect(mocks.beginFirestoreTransaction).toHaveBeenCalledTimes(2);
   });
 
-  it("keeps anonymous training claims inside training collections", async () => {
-    setClaimDocuments({ trainingMode: true });
-
-    await expect(claimBookingNotificationJob({
-      accessToken: "access-token",
-      projectId: "test-project",
-      bookingId: "booking-claim",
-      trainingMode: true,
-      requesterUid: "guest-1",
-    })).resolves.toMatchObject({ status: "queued", claimedMarkers: 2 });
-
-    const paths = mocks.getFirestoreDocInTransaction.mock.calls.map((call) => call[2]);
-    expect(paths).toEqual([
-      "training_bookings/booking-claim",
-      "training_booking_notification_jobs/booking-claim",
-      "training_availability/room-1_2026-10-01",
-      "training_availability/room-1_2026-10-02",
-    ]);
-    expect(mocks.commitFirestoreTransaction.mock.calls[0][3].map(
-      (write) => write.update.name.split("/documents/")[1],
-    )).toEqual([
-      "training_availability/room-1_2026-10-01",
-      "training_availability/room-1_2026-10-02",
-      "training_booking_notification_jobs/booking-claim",
-    ]);
-  });
-
-  it("recovers due production and training jobs before delivering notices", async () => {
+  it("recovers due jobs before delivering notices", async () => {
     const due = new Date(Date.now() - 60_000).toISOString();
     mocks.waitingJobs.booking_notification_jobs = [
       makeJob("booking-prod-recovery", {
@@ -358,33 +322,16 @@ describe("booking notification outbox", () => {
         nextAttemptAt: due,
       }),
     ];
-    mocks.waitingJobs.training_booking_notification_jobs = [
-      makeJob("booking-training-recovery", {
-        status: "waiting_for_markers",
-        guestId: "training-guest",
-        paymentMethod: "Over-the-Counter",
-        createdAt: due,
-        nextAttemptAt: due,
-      }),
-    ];
     mocks.staff.users = [{ id: "fo-prod" }];
-    mocks.staff.training_guests = [{ id: "fo-training" }];
     setClaimDocuments({ bookingId: "booking-prod-recovery" });
-    setClaimDocuments({
-      bookingId: "booking-training-recovery",
-      guestId: "training-guest",
-      paymentMethod: "Over-the-Counter",
-      trainingMode: true,
-    });
 
     const result = await processBookingNotificationOutbox(WORKER_ENV);
 
-    expect(result).toMatchObject({ delivered: 2, cancelled: 0, errors: 0 });
-    expect(mocks.commitFirestoreTransaction).toHaveBeenCalledTimes(2);
+    expect(result).toMatchObject({ delivered: 1, cancelled: 0, errors: 0 });
+    expect(mocks.commitFirestoreTransaction).toHaveBeenCalledTimes(1);
     expect(mocks.createFirestoreDoc.mock.calls.map((call) => call[2])).toEqual([
       "notifications/fo-prod/items",
       "notifications/guest-1/items",
-      "training_notifications/fo-training/items",
     ]);
   });
 
@@ -397,25 +344,8 @@ describe("booking notification outbox", () => {
         nextAttemptAt: due,
       }),
     ];
-    mocks.waitingJobs.training_booking_notification_jobs = [
-      makeJob("booking-training-conflict", {
-        status: "waiting_for_markers",
-        guestId: "training-guest",
-        createdAt: due,
-        nextAttemptAt: due,
-      }),
-    ];
     setClaimDocuments({
       bookingId: "booking-prod-conflict",
-      marker: {
-        exists: true,
-        fields: claimFields({ bookingId: "someone-else", status: "Approved" }),
-      },
-    });
-    setClaimDocuments({
-      bookingId: "booking-training-conflict",
-      guestId: "training-guest",
-      trainingMode: true,
       marker: {
         exists: true,
         fields: claimFields({ bookingId: "someone-else", status: "Approved" }),
@@ -424,19 +354,14 @@ describe("booking notification outbox", () => {
 
     const result = await processBookingNotificationOutbox(WORKER_ENV);
 
-    expect(result).toMatchObject({ cancelled: 2, delivered: 0, errors: 0 });
+    expect(result).toMatchObject({ cancelled: 1, delivered: 0, errors: 0 });
     const writes = mocks.commitFirestoreTransaction.mock.calls.map((call) => call[3]);
-    expect(writes).toHaveLength(2);
+    expect(writes).toHaveLength(1);
     expect(writes[0].map((write) => write.update?.name.split("/documents/")[1] || write.delete.split("/documents/")[1])).toEqual([
       "booking_notification_jobs/booking-prod-conflict",
       "bookings/booking-prod-conflict",
     ]);
     expect(writes[0][1].update.fields.status).toEqual({ stringValue: "Cancelled" });
-    expect(writes[1].map((write) => write.update?.name.split("/documents/")[1] || write.delete.split("/documents/")[1])).toEqual([
-      "training_booking_notification_jobs/booking-training-conflict",
-      "training_bookings/booking-training-conflict",
-    ]);
-    expect(writes[1][1].delete).toContain("/training_bookings/booking-training-conflict");
   });
 
   it("backs off waiting jobs when the Worker claim fails transiently", async () => {
@@ -466,22 +391,17 @@ describe("booking notification outbox", () => {
     );
   });
 
-  it("fans out the existing payloads to production and training recipients", async () => {
+  it("fans out the existing payloads to production recipients", async () => {
     mocks.queuedJobs.booking_notification_jobs = [makeJob("booking-prod")];
-    mocks.queuedJobs.training_booking_notification_jobs = [
-      makeJob("booking-training", { guestId: "trainee-1", paymentMethod: "Over-the-Counter" }),
-    ];
     mocks.staff.users = [{ id: "fo-prod" }, { id: "guest-1" }];
-    mocks.staff.training_guests = [{ id: "fo-training" }];
 
     const result = await processBookingNotificationOutbox(WORKER_ENV);
 
-    expect(result).toMatchObject({ ok: true, delivered: 2, errors: 0 });
+    expect(result).toMatchObject({ ok: true, delivered: 1, errors: 0 });
     const writes = mocks.createFirestoreDoc.mock.calls;
     expect(writes.map(([, , collectionPath, documentId]) => [collectionPath, documentId])).toEqual([
       ["notifications/fo-prod/items", "booking_booking-prod_fo-prod_booking_request"],
       ["notifications/guest-1/items", "booking_booking-prod_guest-1_payment_proof_required"],
-      ["training_notifications/fo-training/items", "booking_booking-training_fo-training_booking_request"],
     ]);
     expect(writes[0][4]).toMatchObject({
       type: { stringValue: "booking_request" },
@@ -500,14 +420,6 @@ describe("booking notification outbox", () => {
       "test-project",
       "booking_notification_jobs",
       "booking-prod",
-      expect.objectContaining({ status: { stringValue: "delivered" } }),
-      expect.arrayContaining(["status"]),
-    );
-    expect(mocks.patchFirestoreDoc).toHaveBeenCalledWith(
-      "access-token",
-      "test-project",
-      "training_booking_notification_jobs",
-      "booking-training",
       expect.objectContaining({ status: { stringValue: "delivered" } }),
       expect.arrayContaining(["status"]),
     );
@@ -660,7 +572,6 @@ describe("deliverQueuedJob", () => {
       accessToken: "access-token",
       projectId: "test-project",
       bookingId: "job-1",
-      trainingMode: false,
     })).resolves.toEqual({ delivered: true });
 
     expect(mocks.getFirestoreDoc).toHaveBeenCalledWith(
@@ -689,7 +600,6 @@ describe("deliverQueuedJob", () => {
       accessToken: "access-token",
       projectId: "test-project",
       bookingId: "job-gone",
-      trainingMode: false,
     })).resolves.toEqual({ delivered: false });
 
     mocks.getFirestoreDoc.mockResolvedValueOnce(queuedJobDoc({ status: "delivered" }));
@@ -697,33 +607,10 @@ describe("deliverQueuedJob", () => {
       accessToken: "access-token",
       projectId: "test-project",
       bookingId: "job-1",
-      trainingMode: false,
     })).resolves.toEqual({ delivered: false });
 
     expect(mocks.createFirestoreDoc).not.toHaveBeenCalled();
     expect(mocks.patchFirestoreDoc).not.toHaveBeenCalled();
-  });
-
-  it("uses training collections for training jobs", async () => {
-    mocks.getFirestoreDoc.mockResolvedValueOnce(queuedJobDoc({ paymentMethod: "Over-the-Counter" }));
-    mocks.staff.training_guests = [{ id: "fo-training" }];
-
-    await expect(deliverQueuedJob({
-      accessToken: "access-token",
-      projectId: "test-project",
-      bookingId: "job-1",
-      trainingMode: true,
-    })).resolves.toEqual({ delivered: true });
-
-    expect(mocks.getFirestoreDoc).toHaveBeenCalledWith(
-      "access-token",
-      "test-project",
-      "training_booking_notification_jobs",
-      "job-1",
-    );
-    expect(mocks.createFirestoreDoc.mock.calls.map(([, , path]) => path)).toEqual([
-      "training_notifications/fo-training/items",
-    ]);
   });
 });
 

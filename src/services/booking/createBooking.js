@@ -170,9 +170,7 @@ export async function createBooking(payload) {
     // The Worker atomically claims availability markers and queues this job.
     try {
       await claimBookingMarked({
-        bookingId: result.id,
-        // Worker API still requires the flag until Task 14 simplifies it.
-        trainingMode: false});
+        bookingId: result.id});
     } catch (e) {
       if (e?.status !== 409 || e?.message !== MARKER_CONFLICT_MESSAGE) {
         throw e;

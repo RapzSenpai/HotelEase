@@ -11,15 +11,12 @@ vi.mock("./google-auth.js", () => ({
 }));
 
 vi.mock("./firestore.js", () => ({
-  deleteAuthAccount: vi.fn(),
-  deleteFirestoreDoc: vi.fn(),
   fsValue: (fields, key) => {
     const value = fields?.[key];
     return value?.booleanValue ?? value?.stringValue ?? value?.timestampValue;
   },
   getFirestoreDoc: vi.fn(),
   listSubcollectionDocs: mocks.listSubcollectionDocs,
-  listSubcollectionIds: vi.fn(),
   patchFirestoreDoc: vi.fn(),
   runFirestoreQuery: mocks.runFirestoreQuery,
 }));
@@ -71,15 +68,9 @@ describe("purgeNotificationInboxes resume cursor", () => {
     const first = await purgeNotificationInboxes(workerEnv);
 
     expect(first.completed).toBe(false);
-    expect(first.pagesScanned).toBe(100);
+    expect(first.pagesScanned).toBe(50);
     expect(values.has("inbox-retention-cursor:users")).toBe(false);
-    expect(values.has("inbox-retention-cursor:training_guests")).toBe(false);
     expect(JSON.parse(values.get("inbox-retention-page-cursor:users"))).toMatchObject({
-      uid: "a",
-      stage: "ordered",
-      pageToken: "50",
-    });
-    expect(JSON.parse(values.get("inbox-retention-page-cursor:training_guests"))).toMatchObject({
       uid: "a",
       stage: "ordered",
       pageToken: "50",
@@ -89,11 +80,10 @@ describe("purgeNotificationInboxes resume cursor", () => {
 
     expect(second.completed).toBe(true);
     expect(values.has("inbox-retention-page-cursor:users")).toBe(false);
-    expect(values.has("inbox-retention-page-cursor:training_guests")).toBe(false);
     const ownerCursorWrites = kv.put.mock.calls
       .filter(([key]) => key.startsWith("inbox-retention-cursor:"))
       .map(([, value]) => value);
-    expect(ownerCursorWrites).toEqual(["a", "b", "a", "b"]);
+    expect(ownerCursorWrites).toEqual(["a", "b"]);
   });
 
   it("drops stale page tokens after repeated list failures and advances the owner cursor", async () => {

@@ -86,8 +86,7 @@ describe("createBooking submit path", () => {
       markerDates: ["2026-10-01", "2026-10-02"]});
     expect(claimBookingMarked).toHaveBeenCalledTimes(1);
     expect(claimBookingMarked.mock.calls[0][0]).toEqual({
-      bookingId: "booking-fixed",
-      trainingMode: false});
+      bookingId: "booking-fixed"});
     resolveClaim({ claimed: 1 });
     await expect(resultPromise).resolves.toMatchObject({
       id: "booking-fixed",

@@ -12,7 +12,6 @@
  *                         bookings past their deadline and frees their
  *                         room_availability markers, then purges any orphan
  *                         markers left behind by a failed client cleanup
- *                         plus abandoned training-guest accounts
  *                         (FIREBASE_SERVICE_ACCOUNT)
  *   POST /insights      → one-shot analyst report over an admin-built data
  *                         snapshot { context } (GROQ_API_KEY secret)
@@ -39,7 +38,7 @@ import { resolveAiIdentity, resolveBookingClaimIdentity } from "./firebase-jwt.j
 import { getGoogleAccessToken } from "./google-auth.js";
 import { getAiDailyCount, incrementAiDailyCount } from "./ai-limits.js";
 import { expireStaleHolds, sweepOrphanMarkers,
-  sweepStaleTrainingGuests, purgeNotificationInboxes } from "./sweeps.js";
+  purgeNotificationInboxes } from "./sweeps.js";
 import { handleDeleteUser } from "./handlers/delete-user.js";
 import { handleChatRequest } from "./handlers/chat.js";
 import { handleInsightsRequest } from "./handlers/insights.js";
@@ -111,11 +110,10 @@ export default {
         !body ||
         typeof body !== "object" ||
         Array.isArray(body) ||
-        Object.keys(body).some((key) => !["bookingId", "trainingMode"].includes(key)) ||
+        Object.keys(body).some((key) => !["bookingId"].includes(key)) ||
         typeof body.bookingId !== "string" ||
         !body.bookingId ||
-        body.bookingId.length > 256 ||
-        typeof body.trainingMode !== "boolean"
+        body.bookingId.length > 256
       ) {
         return send(json({ error: "Invalid booking marker claim request." }, 400));
       }
@@ -130,8 +128,8 @@ export default {
 
       const identity = await resolveBookingClaimIdentity(request, workerEnv);
       if (!identity) return send(json({ error: "Sign in required." }, 401));
-      if (identity.isAnonymous && !body.trainingMode) {
-        return send(json({ error: "Anonymous accounts may only claim training bookings." }, 403));
+      if (identity.isAnonymous) {
+        return send(json({ error: "Sign in required to claim a booking." }, 403));
       }
 
       try {
@@ -140,7 +138,6 @@ export default {
           accessToken,
           projectId,
           bookingId: body.bookingId,
-          trainingMode: body.trainingMode,
           requesterUid: identity.uid,
         });
         if (result.status === "queued") {
@@ -153,7 +150,6 @@ export default {
               accessToken,
               projectId,
               bookingId: body.bookingId,
-              trainingMode: body.trainingMode,
             });
           } catch (error) {
             console.error("[booking-marker-claim] immediate delivery failed:", String(error?.message || error));
@@ -232,7 +228,7 @@ export default {
   },
 
   // Cron (see [triggers] in wrangler.toml). Hourly invocations run the
-  // booking/marker/guest sweeps; the daily 3am invocation runs ONLY inbox
+  // booking/marker sweeps; the daily 3am invocation runs ONLY inbox
   // retention (inboxes grow slowly — hourly would just re-bill the same
   // reads). No cron string (e.g. `wrangler dev` test trigger) runs the
   // hourly set, the safe default.
@@ -264,15 +260,6 @@ export default {
         console.log(`[scheduled] orphan-marker sweep → ${JSON.stringify(swept)}`);
       } catch (e) {
         console.error("[scheduled] orphan-marker sweep failed:", String(e?.message || e));
-      }
-
-      // Sandbox hygiene: purge anonymous trainee accounts abandoned via kick,
-      // expiry, or tab-close (they never run the logout cleanup).
-      try {
-        const zombies = await sweepStaleTrainingGuests(workerEnv);
-        console.log(`[scheduled] stale-guest sweep → ${JSON.stringify(zombies)}`);
-      } catch (e) {
-        console.error("[scheduled] stale-guest sweep failed:", String(e?.message || e));
       }
     }
 

@@ -11,9 +11,3 @@ export const TOKEN_SKEW_SECONDS = 60;
 export const EXPIRY_SWEEP_MAX_PER_COLLECTION = 100;
 
 export const ORPHAN_SWEEP_MAX_DELETES = 200;
-
-// Training zombies: anonymous trainee accounts abandoned via kick, expiry, or
-// tab-close never log out, so their training_guests docs pile up. Docs idle
-// longer than this get purged by the hourly cron (doc + auth account).
-export const STALE_TRAINING_GUEST_MS = 7 * 24 * 60 * 60 * 1000;
-export const STALE_TRAINING_GUEST_MAX = 200;

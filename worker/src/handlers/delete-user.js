@@ -90,7 +90,7 @@ export async function handleDeleteUser(request, workerEnv) {
     // Pre-deletion checks FIRST: both refusals below must fire before ANY
     // write. (The last-admin path deletes the profile inside its own
     // transaction, so a live-booking 409 after it would strand a half-delete.)
-    const PAIRS = [["bookings", "room_availability"], ["training_bookings", "training_availability"]];
+    const PAIRS = [["bookings", "room_availability"]];
     const BLOCKING = new Set(["Pending", "Approved", "Checked In", "Cancellation Requested"]);
     const holdsByCol = new Map();
     for (const [col] of PAIRS) {
@@ -141,7 +141,7 @@ export async function handleDeleteUser(request, workerEnv) {
     for (const notifId of await listSubcollectionIds(accessToken, projectId, `notifications/${uid}`, "items")) {
       await deleteFirestoreDoc(accessToken, projectId, `notifications/${uid}/items/${notifId}`);
     }
-    for (const col of ["users", "training_guests"]) {
+    for (const col of ["users"]) {
       await deleteFirestoreDoc(accessToken, projectId, `${col}/${uid}`);
       deleted.push(col);
     }

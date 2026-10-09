@@ -53,7 +53,7 @@ describe("availability marker notification outbox", () => {
         headers: {
           "Content-Type": "application/json",
           "X-HE-AUTH": "Bearer firebase-token"},
-        body: JSON.stringify({ bookingId: "booking-1", trainingMode: false })}));
+        body: JSON.stringify({ bookingId: "booking-1" })}));
   });
 
   it("fails explicitly when authentication or Worker configuration is missing", async () => {
