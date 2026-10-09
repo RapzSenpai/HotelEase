@@ -8,6 +8,7 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 const { default: DemoGuestPage } = await import("@/demo/guest/DemoGuestPage");
 const { default: DemoFoPage } = await import("@/demo/fo/DemoFoPage");
+const { default: DemoAdminPage } = await import("@/demo/admin/DemoAdminPage");
 
 let root = null;
 let container = null;
@@ -102,5 +103,46 @@ describe("fo payment guard", () => {
     const b = data.bookings.find((x) => x.status === "Approved");
     const paid = data.payments.filter((p) => p.bookingId === b.id).reduce((s, p) => s + p.amount, 0);
     expect(b.totalCost - paid).toBeGreaterThan(0);
+  });
+});
+
+function AdminWithRole() {
+  const { role, setRole } = useDemo();
+  useEffect(() => {
+    if (!role) setRole("admin");
+  }, [role, setRole]);
+  return createElement(DemoAdminPage);
+}
+
+async function renderAdmin() {
+  container = document.createElement("div");
+  document.body.appendChild(container);
+  root = createRoot(container);
+  await act(async () => {
+    root.render(
+      createElement(MemoryRouter, null,
+        createElement(DemoProvider, null, createElement(AdminWithRole))),
+    );
+  });
+  const text = container.textContent;
+  act(() => root.unmount());
+  container.remove();
+  root = null;
+  container = null;
+  return text;
+}
+
+describe("admin demo actions", () => {
+  it("shows Rooms, Users, Analytics tabs", async () => {
+    const text = await renderAdmin();
+    for (const tab of ["Rooms", "Users", "Analytics"]) {
+      expect(text).toContain(tab);
+    }
+  });
+
+  it("fixture factory returns fresh objects per call", async () => {
+    const { buildDemoData } = await import("@/demo/fixtures");
+    const now = new Date();
+    expect(buildDemoData(now).rooms).not.toBe(buildDemoData(now).rooms);
   });
 });
