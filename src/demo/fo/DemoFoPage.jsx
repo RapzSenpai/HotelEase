@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import HousekeepingList from "@/components/housekeeping/HousekeepingList";
+import RoomScheduleTape from "@/components/dashboard/RoomScheduleTape";
 import { roomLabel } from "@/lib/room-label";
 import { useDemo } from "../DemoContext";
 
@@ -132,15 +133,16 @@ export default function DemoFoPage() {
               <div className="text-xs text-foreground/60">{label}</div>
             </Card>
           ))}
-          <Card className="p-4 space-y-2 sm:col-span-2">
-            <div className="font-semibold text-sm">Upcoming schedule (sample)</div>
-            {data.bookings.slice(0, 4).map((b) => (
-              <div key={b.id} className="flex flex-wrap items-center justify-between gap-2 text-xs">
-                <span>{roomsById.get(b.roomId) ? roomLabel(roomsById.get(b.roomId)) : b.roomId}</span>
-                <Badge variant="outline">{b.status}</Badge>
-              </div>
-            ))}
-          </Card>
+          <div className="sm:col-span-2">
+            <RoomScheduleTape
+              rooms={data.rooms}
+              bookings={data.bookings}
+              onSelectBooking={(booking) => {
+                setTab("Bookings");
+                toast.message(`Demo: ${booking.id} selected — see the Bookings tab.`);
+              }}
+            />
+          </div>
         </div>
       )}
 

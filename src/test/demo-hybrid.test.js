@@ -5,11 +5,17 @@ import { MemoryRouter } from "react-router-dom";
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
+vi.mock("@/services/bookingsService", () => ({
+  subscribeToBookingsPage: vi.fn(() => () => {}),
+}));
+
 const { default: DemoRoomCard } = await import("@/demo/DemoRoomCard");
 const { default: DemoBookingCard } = await import("@/demo/DemoBookingCard");
 const { buildDemoData } = await import("@/demo/fixtures");
 const { default: DemoAdminPage } = await import("@/demo/admin/DemoAdminPage");
 const { default: DemoFoPage } = await import("@/demo/fo/DemoFoPage");
+const { default: RoomScheduleTape } = await import("@/components/dashboard/RoomScheduleTape");
+const { subscribeToBookingsPage } = await import("@/services/bookingsService");
 const { DemoProvider, useDemo } = await import("@/demo/DemoContext");
 const { useEffect } = await import("react");
 
@@ -236,5 +242,77 @@ describe("demo FO housekeeping", () => {
       (tr.textContent || "").includes("Leyte Suite"),
     );
     expect(gone).toBe(false);
+  });
+});
+
+describe("schedule tape", () => {
+  function renderTape(props = {}) {
+    const data = buildDemoData(new Date());
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+    act(() => {
+      root.render(
+        createElement(MemoryRouter, null,
+          createElement(RoomScheduleTape, { rooms: data.rooms, ...props })),
+      );
+    });
+    return { el: container, data };
+  }
+
+  it("renders fixture bookings with zero subscription calls", () => {
+    subscribeToBookingsPage.mockClear();
+    const data = buildDemoData(new Date());
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+    act(() => {
+      root.render(
+        createElement(MemoryRouter, null,
+          createElement(RoomScheduleTape, { rooms: data.rooms, bookings: data.bookings })),
+      );
+    });
+    const el = container;
+    expect(subscribeToBookingsPage).not.toHaveBeenCalled();
+    const chips = [...el.querySelectorAll("button[title]")];
+    expect(chips.length).toBeGreaterThan(0);
+    expect(el.textContent).toContain("Cebu Suite");
+  });
+
+  it("chip CTA calls onSelectBooking instead of navigating", () => {    const onSelectBooking = vi.fn();
+    const { el } = renderTape({ bookings: buildDemoData(new Date()).bookings, onSelectBooking });
+    const chip = el.querySelector("button[title]");
+    act(() => {
+      chip.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    expect(document.body.textContent).toContain("Booking ID");
+    const cta = [...document.querySelectorAll("button")].find((b) =>
+      /Open in Bookings|Go to Check-In|Go to Check-Out/.test(b.textContent || ""),
+    );
+    expect(cta).not.toBeUndefined();
+    act(() => {
+      cta.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    expect(onSelectBooking).toHaveBeenCalledTimes(1);
+    expect(onSelectBooking.mock.calls[0][0].id).toMatch(/^demo-bk-/);
+  });
+
+  it("prop-less render still feeds lanes from the live subscription", () => {
+    const data = buildDemoData(new Date());
+    subscribeToBookingsPage.mockImplementationOnce((args, cb) => {
+      cb(data.bookings);
+      return () => {};
+    });
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+    act(() => {
+      root.render(
+        createElement(MemoryRouter, null,
+          createElement(RoomScheduleTape, { rooms: data.rooms })),
+      );
+    });
+    expect(subscribeToBookingsPage).toHaveBeenCalled();
+    expect(container.querySelectorAll("button[title]").length).toBeGreaterThan(0);
   });
 });

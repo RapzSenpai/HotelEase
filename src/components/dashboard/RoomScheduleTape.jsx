@@ -65,10 +65,13 @@ function badgeVariant(status, roomStatus) {
   return "reserved";
 }
 
-export default function RoomScheduleTape({ rooms = []}) {
+export default function RoomScheduleTape({ rooms = [], bookings: bookingsProp, onSelectBooking }) {
   const navigate = useNavigate();
   const [windowOffset, setWindowOffset] = useState(0); // days shifted from default
-  const [bookings, setBookings] = useState([]);
+  const [liveBookings, setLiveBookings] = useState([]);
+  // Demo preview: fixture bookings via props skip the live subscription.
+  // Prod call sites omit both props — behavior identical to before.
+  const bookings = bookingsProp ?? liveBookings;
   const [selected, setSelected] = useState(null); // booking|null + room
 
   const winStart = useMemo(() => {
@@ -86,15 +89,17 @@ export default function RoomScheduleTape({ rooms = []}) {
     [winStart]);
 
   // One bounded window query — arrival-ordered, client filters true overlap.
+  // Skipped when fixture bookings are injected via props (demo preview).
   useEffect(() => {
+    if (bookingsProp !== undefined) return;
     const fromDate = new Date(winStart.getTime() - LOOKBACK_DAYS * DAY_MS);
     const unsub = subscribeToBookingsPage(
       { fromDate, toDate: winEnd, pageSize: 300},
-      (rows) => setBookings(Array.isArray(rows) ? rows : []));
+      (rows) => setLiveBookings(Array.isArray(rows) ? rows : []));
     return () => {
       if (typeof unsub === "function") unsub();
     };
-  }, [winStart, winEnd]);
+  }, [winStart, winEnd, bookingsProp]);
 
   // Room id → stacked lanes of chips intersecting the window.
   const lanesByRoom = useMemo(() => {
@@ -335,6 +340,11 @@ export default function RoomScheduleTape({ rooms = []}) {
                     size="sm"
                     className="flex-1"
                     onClick={() => {
+                      if (onSelectBooking) {
+                        onSelectBooking(selected.booking);
+                        setSelected(null);
+                        return;
+                      }
                       const s = selected.booking.status;
                       const path = s === "Approved" ? "/fo/check-in" : s === "Checked In" ? "/fo/check-out" : "/fo/bookings";
                       navigate(`${path}?roomId=${selected.room?.id || selected.booking.roomId || ""}`);
