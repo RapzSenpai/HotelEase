@@ -13,6 +13,16 @@ export default defineConfig([
     languageOptions: { globals: globals.node },
   },
   {
+    // Try Demo is frontend-only: anything under src/demo that reaches the
+    // backend fails the build instead of shipping a prod write.
+    files: ['src/demo/**/*.{js,jsx}'],
+    rules: {
+      'no-restricted-imports': ['error', {
+        patterns: ['firebase', 'firebase/*', '@/firebase/*', '@/services/*'],
+      }],
+    },
+  },
+  {
     files: ['**/*.{js,jsx}'],
     extends: [
       js.configs.recommended,
