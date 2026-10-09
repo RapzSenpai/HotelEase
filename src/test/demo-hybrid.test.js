@@ -14,8 +14,10 @@ const { default: DemoBookingCard } = await import("@/demo/DemoBookingCard");
 const { buildDemoData } = await import("@/demo/fixtures");
 const { default: DemoAdminPage } = await import("@/demo/admin/DemoAdminPage");
 const { default: DemoFoPage } = await import("@/demo/fo/DemoFoPage");
+const { default: DemoGuestPage } = await import("@/demo/guest/DemoGuestPage");
 const { default: RoomScheduleTape } = await import("@/components/dashboard/RoomScheduleTape");
 const { subscribeToBookingsPage } = await import("@/services/bookingsService");
+const { buildRequests, ACTIVE_STATUS_TEXT } = await import("@/lib/housekeeping-requests");
 const { DemoProvider, useDemo } = await import("@/demo/DemoContext");
 const { useEffect } = await import("react");
 
@@ -314,5 +316,61 @@ describe("schedule tape", () => {
     });
     expect(subscribeToBookingsPage).toHaveBeenCalled();
     expect(container.querySelectorAll("button[title]").length).toBeGreaterThan(0);
+  });
+});
+
+describe("demo guest housekeeping", () => {
+  async function renderGuestHk() {
+    function WithRole() {
+      const { role, setRole } = useDemo();
+      useEffect(() => {
+        if (!role) setRole("guest");
+      }, [role, setRole]);
+      probeCtx = useDemo();
+      return createElement(DemoGuestPage);
+    }
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+    await act(async () => {
+      root.render(
+        createElement(MemoryRouter, null,
+          createElement(DemoProvider, null, createElement(WithRole))),
+      );
+    });
+    return container;
+  }
+
+  function openHk(el) {
+    const tab = [...el.querySelectorAll("button")].find((b) =>
+      (b.textContent || "").trim() === "Housekeeping",
+    );
+    if (!tab) throw new Error("Housekeeping tab not found");
+    act(() => {
+      tab.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+  }
+
+  it("groups one request cycle from the log stream", () => {
+    const logs = buildDemoData(new Date()).housekeepingLogs
+      .filter((l) => l.roomId === "demo-104");
+    const reqs = buildRequests(logs);
+    expect(reqs).toHaveLength(1);
+    expect(reqs[0].isInFlight).toBe(true);
+    expect(ACTIVE_STATUS_TEXT[reqs[0].status]).toBeTruthy();
+  });
+
+  it("shows the active request, then completed history", async () => {
+    const el = await renderGuestHk();
+    openHk(el);
+    expect(el.textContent).toContain("currently refreshing");
+    act(() => {
+      probeCtx.fo.demoAdvanceCleaning({ requestId: "demo-req-1" });
+    });
+    act(() => {
+      probeCtx.fo.demoAdvanceCleaning({ requestId: "demo-req-1" });
+    });
+    expect(el.textContent).toContain("Completed");
+    expect(el.textContent).toContain("Fresh towels");
   });
 });

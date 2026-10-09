@@ -1,11 +1,13 @@
 import { useState } from "react";
 import { Link, Navigate } from "react-router-dom";
 import { toast } from "sonner";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, CheckCircle2, Clock, Loader2, XCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
+import { ACTIVE_STATUS_TEXT, buildRequests, formatWhen } from "@/lib/housekeeping-requests";
 import { useDemo } from "../DemoContext";
 import DemoRoomCard from "../DemoRoomCard";
 import DemoBookingCard from "../DemoBookingCard";
@@ -149,12 +151,67 @@ export default function DemoGuestPage() {
                 <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. Fresh towels please" />
                 <Button size="sm" onClick={requestCleaning}>Send request (demo)</Button>
               </CardContent>
+              {(() => {
+                const requests = buildRequests(
+                  data.housekeepingLogs.filter((l) => l.bookingId === checkedIn.id),
+                );
+                const active = requests.find((r) => r.isInFlight) || null;
+                const past = requests.filter((r) => !r.isInFlight);
+                return (
+                  <div className="space-y-2">
+                    {active && (
+                      <p className="flex items-start gap-2 rounded-lg border border-border bg-background px-3 py-2.5 text-sm shadow-sm">
+                        {active.status === "Being Cleaned" ? (
+                          <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-info" />
+                        ) : (
+                          <Clock className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+                        )}
+                        <span>
+                          {ACTIVE_STATUS_TEXT[active.status] || active.status}
+                          {active.note ? (
+                            <span className="mt-1 block text-foreground/60">
+                              Requested: &ldquo;{active.note}&rdquo;
+                            </span>
+                          ) : null}
+                        </span>
+                      </p>
+                    )}
+                    {past.map((request) => (
+                      <div key={request.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-border bg-background px-3 py-2.5 shadow-sm">
+                        <span
+                          className={cn(
+                            "flex h-7 w-7 shrink-0 items-center justify-center rounded-full",
+                            request.isCancelled
+                              ? "bg-destructive/10 text-destructive"
+                              : "bg-success/10 text-success")}
+                        >
+                          {request.isCancelled ? (
+                            <XCircle className="h-4 w-4" />
+                          ) : (
+                            <CheckCircle2 className="h-4 w-4" />
+                          )}
+                        </span>
+                        <div className="min-w-0 flex-1 space-y-0.5">
+                          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
+                            <span className="font-medium text-foreground">
+                              {request.isCancelled ? "Cancelled" : "Completed"}
+                            </span>
+                            <span className="text-foreground/40">
+                              {formatWhen(request.requestedAt)}
+                            </span>
+                          </div>
+                          {request.note && (
+                            <p className="truncate text-xs text-foreground/60">
+                              &ldquo;{request.note}&rdquo;
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
             </>
-          )}
-          {data.housekeepingLogs.filter((l) => l.toStatus === "Dirty / Needs Cleaning").length > 0 && (
-            <p className="text-xs text-foreground/60">
-              {data.housekeepingLogs.filter((l) => l.toStatus === "Dirty / Needs Cleaning").length} cleaning request(s) in the sample log.
-            </p>
           )}
         </Card>
       )}
