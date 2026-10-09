@@ -1,26 +1,29 @@
 import { useState } from "react";
-import { Navigate } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 import { toast } from "sonner";
+import { ArrowRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { roomLabel } from "@/lib/room-label";
 import { useDemo } from "../DemoContext";
+import DemoRoomCard from "../DemoRoomCard";
 
 const TABS = ["Rooms", "My Bookings", "Reviews", "Housekeeping"];
-
-function statusVariant(status) {
-  if (status === "Available") return "success";
-  if (status === "Occupied / Checked In" || status === "Reserved") return "warning";
-  return "outline";
-}
 
 export default function DemoGuestPage() {
   const { role, data, guest } = useDemo();
   const [tab, setTab] = useState("Rooms");
   const [note, setNote] = useState("");
   const [rating, setRating] = useState(5);
+  const [favorites, setFavorites] = useState([]);
+
+  function toggleFavorite(roomId) {
+    setFavorites((favs) =>
+      favs.includes(roomId) ? favs.filter((id) => id !== roomId) : [...favs, roomId],
+    );
+  }
 
   if (!role) return <Navigate to="/demo" replace />;
 
@@ -73,22 +76,27 @@ export default function DemoGuestPage() {
       </div>
 
       {tab === "Rooms" && (
-        <div className="grid gap-3 sm:grid-cols-2">
-          {data.rooms.filter((r) => r.isActive !== false).map((room) => (
-            <Card key={room.id} className="p-4 space-y-2">
-              <div className="flex items-center justify-between gap-2">
-                <div className="font-semibold">{roomLabel(room)}</div>
-                <Badge variant={statusVariant(room.status)} className="shrink-0">{room.status}</Badge>
-              </div>
-              <p className="text-xs text-foreground/60">{room.description}</p>
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-sm font-semibold tabular-nums">PHP {Number(room.ratePerNight).toLocaleString()} / night</span>
-                <Button size="sm" className="h-8 text-xs" onClick={() => book(room)}>
+        <div className="space-y-4">
+          <Button asChild variant="outline" size="sm" className="h-8 text-xs">
+            <Link to="/rooms?demo=1">
+              Browse live rooms <ArrowRight className="ml-1 h-3.5 w-3.5" />
+            </Link>
+          </Button>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {data.rooms.filter((r) => r.isActive !== false).map((room, i) => (
+              <div key={room.id} className="space-y-2">
+                <DemoRoomCard
+                  room={room}
+                  animationIndex={i}
+                  isFavorite={favorites.includes(room.id)}
+                  onToggleFavorite={toggleFavorite}
+                />
+                <Button size="sm" variant="secondary" className="h-8 w-full text-xs" onClick={() => book(room)}>
                   Book (demo)
                 </Button>
               </div>
-            </Card>
-          ))}
+            ))}
+          </div>
         </div>
       )}
 
