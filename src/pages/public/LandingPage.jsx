@@ -108,7 +108,7 @@ export default function LandingPage() {
   return (
     <div className="overflow-x-hidden">
       <HeroSection user={user} isStaff={isStaff} staffDashboardPath={staffDashboardPath} onTryDemo={() => setDemoOpen(true)} />
-      <DemoRoleDialog open={demoOpen} onOpenChange={setDemoOpen} onPick={(role) => navigate(role.to)} />
+      <DemoRoleDialog open={demoOpen} onOpenChange={setDemoOpen} onPick={() => navigate("/demo")} />
       <SectionDivider />
       <PartnershipSection />
       <SectionDivider />

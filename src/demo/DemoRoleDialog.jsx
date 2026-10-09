@@ -16,7 +16,8 @@ const ROLES = [
   { id: "admin", label: "Admin", hint: "Rooms, users, analytics", to: "/demo/admin" },
 ];
 
-// /demo index: same picker, wired to the route provider.
+// /demo index: same picker, wired to the route provider. Closing without
+// a role returns home instead of stranding on an empty shell.
 export function DemoIndex() {
   const navigate = useNavigate();
   const { setRole } = useDemo();
@@ -24,7 +25,10 @@ export function DemoIndex() {
   return (
     <DemoRoleDialog
       open={open}
-      onOpenChange={setOpen}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (!next) navigate("/");
+      }}
       onPick={(role) => {
         setRole(role.id);
         navigate(role.to);
