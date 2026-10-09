@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { isHiddenInTraining } from "@/lib/trainingAccess";
 import { useFOIndicators } from "@/hooks/useFOIndicators";
 import { subscribeToUnresolvedCount } from "@/services/alertService";
 import { X } from "lucide-react";
@@ -17,7 +16,6 @@ import {
   Users,
   Building2,
   Settings,
-  GraduationCap,
   Mail,
   MessageSquareQuote,
   XCircle,
@@ -142,7 +140,6 @@ const ADMIN_LINKS = [
       { to: "/admin/performance", label: "Performance", icon: Gauge },
       { to: "/admin/audit-logs", label: "Audit Logs", icon: Shield },
       { to: "/admin/settings", label: "System Settings", icon: Settings },
-      { to: "/admin/training", label: "Training Mode", icon: GraduationCap },
     ],
   },
 ];
@@ -316,16 +313,7 @@ export default function Sidebar({ open, onClose }) {
   if (!user || (role !== "fo" && role !== "admin")) return null;
 
   const baseGroups = role === "fo" ? FO_LINKS : ADMIN_LINKS;
-  // Training hides instructor-only and prod-identity pages (same gate as
-  // PrivateRoute, so hidden pages are unreachable by URL too).
-  const groups = trainingMode
-    ? baseGroups
-        .map((group) => ({
-          ...group,
-          items: group.items.filter((l) => !isHiddenInTraining(l.to, true)),
-        }))
-        .filter((group) => group.items.length > 0)
-    : baseGroups;
+  const groups = baseGroups;
   const roleLabel = role === "fo" ? "Front Office" : "Administrator";
 
   const shouldShowIndicator = (linkPath, value) => {

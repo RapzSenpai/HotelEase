@@ -11,15 +11,8 @@ import { cn } from "@/lib/utils";
 import AdminAssistantWidget from "@/components/admin/AdminAssistantWidget";
 import "@/components/ui/toast-custom.css";
 
-const trainingBanner = (
-  <div className="rounded-xl border border-primary/30 bg-primary/10 p-4 text-sm text-foreground">
-    Training Mode — Sandbox data is stored in{" "}
-    <code className="font-mono text-xs">training_*</code> collections.
-  </div>
-);
-
 export default function AppShell() {
-  const { user, role, profile, loading, trainingMode } = useAuth();
+  const { user, role, profile, loading } = useAuth();
   const location = useLocation();
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
@@ -79,7 +72,6 @@ export default function AppShell() {
 
       {isLanding ? (
         <main className="min-h-[calc(100vh-64px)]">
-          {trainingMode && <div className="px-6 pt-5">{trainingBanner}</div>}
           <ErrorBoundary>
             <Outlet />
           </ErrorBoundary>
@@ -95,7 +87,6 @@ export default function AppShell() {
             <Sidebar open={mobileSidebarOpen} onClose={closeMobileSidebar} />
           )}
           <main className="flex-1 min-w-0 w-full px-5 py-6 md:px-8 md:py-8">
-            {trainingMode && <div className="mb-6">{trainingBanner}</div>}
             <ErrorBoundary>
               <Outlet />
             </ErrorBoundary>

@@ -2,7 +2,6 @@
 import { createContext, useContext, useCallback, useEffect, useMemo, useState, useRef } from "react";
 import {
   createUserWithEmailAndPassword,
-  signInAnonymously,
   signInWithEmailAndPassword,
   signOut,
   sendPasswordResetEmail,
@@ -17,11 +16,6 @@ import { getCol } from "@/lib/db-utils";
 import { createUserProfile, getUserDoc, updateLastLogin, setOnlineStatus } from "@/services/userService";
 import { startPresence, stopPresence } from "@/services/presenceService";
 import { createSession } from "@/services/sessionService";
-import {
-  getTrainingSystemState,
-  validateTrainingSessionCode,
-  deleteOwnTrainingProfile,
-} from "@/services/trainingService";
 import { mapAuthError } from "@/lib/authErrors";
 import {
   issueVerificationCode,
@@ -36,7 +30,9 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => auth.currentUser);
   const [role, setRole] = useState(null); // 'guest' | 'fo' | 'admin'
   const [profile, setProfile] = useState(null);
-  const [trainingMode, setTrainingMode] = useState(false);
+  // Training sandbox is gone: trainingMode stays pinned to false so every
+  // existing consumer keeps working until Task 12 removes the threading.
+  const [trainingMode] = useState(false);
   const [loading, setLoading] = useState(true);
   const [authError, setAuthError] = useState(null);
 
@@ -47,9 +43,8 @@ export function AuthProvider({ children }) {
   const profileSnapUnsubRef = useRef(null);
   const profileSnapUserRef = useRef(null);
 
-  // Live profile subscription for one user + mode. Extracted so joining a
-  // training session mid-login (no auth-state change) can repoint the
-  // listener instead of leaving it stuck on the previous collection.
+  // Live profile subscription for one user. Extracted so the listener can
+  // be repointed without leaving it stuck on a previous user/collection.
   function startProfileSubscription(firebaseUser, mode) {
     if (profileSnapUnsubRef.current) {
       profileSnapUnsubRef.current();
@@ -70,7 +65,6 @@ export function AuthProvider({ children }) {
           ).getTime();
           if (signedInAt < kickedAt) {
             if (profileSnapUserRef.current?.isAnonymous) {
-              await deleteOwnTrainingProfile(profileSnapUserRef.current.uid).catch(() => {});
               await profileSnapUserRef.current.delete().catch(() => {});
             }
             signOut(auth).catch(() => {});
@@ -118,7 +112,6 @@ export function AuthProvider({ children }) {
             profileSnapUserRef.current = null;
             setRole(null);
             setProfile(null);
-            setTrainingMode(false);
             setAuthError(null); // clear any stale error from sign-out transition
             assignedRoleRef.current = null;
             setLoading(false);
@@ -134,22 +127,8 @@ export function AuthProvider({ children }) {
           const stillSignedIn = () => auth.currentUser?.uid === firebaseUser.uid;
           if (!stillSignedIn()) return;
 
-          const TRAINING_OVERRIDE_KEY = "bshm_training_override";
-
-          let effectiveTrainingMode = (() => {
-            try {
-              return localStorage.getItem(TRAINING_OVERRIDE_KEY) === "true";
-            } catch {
-              return false;
-            }
-          })();
-
-          if (!effectiveTrainingMode) {
-            const sys = await getTrainingSystemState();
-            effectiveTrainingMode = Boolean(sys.enabled);
-          }
-
-          setTrainingMode(effectiveTrainingMode);
+          // Training sandbox is gone: collections are always production.
+          const effectiveTrainingMode = false;
 
           if (!stillSignedIn()) return;
 
@@ -169,10 +148,8 @@ export function AuthProvider({ children }) {
               const kickedAt = new Date(userDoc.forceLogoutTimestamp || 0).getTime();
               const signedInAt = new Date(firebaseUser.metadata?.lastSignInTime || 0).getTime();
               if (signedInAt < kickedAt) {
-                // Kicked trainees never reach logout(): purge their sandbox
-                // profile best-effort so they don't zombie in training_guests.
+                // Kicked anonymous accounts are purged best-effort.
                 if (firebaseUser.isAnonymous) {
-                  await deleteOwnTrainingProfile(firebaseUser.uid).catch(() => {});
                   await firebaseUser.delete().catch(() => {});
                 }
                 await signOut(auth);
@@ -289,14 +266,6 @@ export function AuthProvider({ children }) {
       setAuthError(null);
       setLoading(true);
       assignedRoleRef.current = null;
-      // A stale training override from a previous sandbox session must never
-      // route a real login into the training collections (register/logout
-      // already clear it — login is the remaining entry point).
-      try {
-        localStorage.removeItem("bshm_training_override");
-      } catch {
-        // ignore
-      }
       try {
         await signInWithEmailAndPassword(auth, email, password);
       } catch (e) {
@@ -311,24 +280,10 @@ export function AuthProvider({ children }) {
       setLoading(true);
       assignedRoleRef.current = "guest";
 
-      // Registration is always a production guest signup (training users join
-      // via session codes). Clear any stale local override so the new account
-      // isn't silently routed into the sandbox on its next login.
-      try {
-        localStorage.removeItem("bshm_training_override");
-      } catch {
-        // ignore
-      }
-
       try {
         const cred = await createUserWithEmailAndPassword(auth, email, password);
-        const effectiveTrainingMode = (() => {
-          try {
-            return localStorage.getItem("bshm_training_override") === "true";
-          } catch {
-            return false;
-          }
-        })();
+        // Sandbox is gone: registration is always a production guest signup.
+        const effectiveTrainingMode = false;
 
         await createUserProfile({
           uid: cred.user.uid,
@@ -349,51 +304,6 @@ export function AuthProvider({ children }) {
       }
     }
 
-    async function signInWithTrainingCode({ code, role: nextRole }) {
-      // The session-code doc requires authentication to read (otherwise anyone
-      // could scrape the code and crash the sandbox), so logged-out joiners
-      // sign in anonymously FIRST and validate second. A failed validation
-      // deletes the fresh anon account so wrong-code attempts leave no orphans.
-      let freshAnon = null;
-      if (!auth.currentUser) {
-        freshAnon = (await signInAnonymously(auth)).user;
-      }
-      try {
-        const validation = await validateTrainingSessionCode(code);
-        if (!validation.ok) throw new Error(validation.reason || "Invalid training code.");
-      } catch (e) {
-        if (freshAnon) await freshAnon.delete().catch(() => {});
-        throw e;
-      }
-
-      assignedRoleRef.current = nextRole || "guest";
-      try {
-        localStorage.setItem("bshm_training_override", "true");
-      } catch {
-        // ignore
-      }
-      setTrainingMode(true);
-
-      const res = auth.currentUser
-        ? { user: auth.currentUser }
-        : await signInAnonymously(auth);
-      const uid = res.user.uid;
-
-      setRole(assignedRoleRef.current);
-
-      await createUserProfile({
-        uid,
-        email: null,
-        role: nextRole || "guest",
-        fullName: "Training User",
-        trainingMode: true,
-      });
-
-      // Same-user join fires no auth-state change, so repoint the profile
-      // listener here instead of leaving it on the previous collection.
-      startProfileSubscription(res.user, true);
-    }
-
     async function logout() {
       setAuthError(null);
       setLoading(true);
@@ -411,24 +321,12 @@ export function AuthProvider({ children }) {
             // Don't block logout if this fails
           }
         }
-        
+
         if (currentUser?.isAnonymous) {
-          // Training sandbox session: remove the trainee's own profile doc and
-          // notifications first — the rules need request.auth to still resolve,
-          // and this keeps the admin Training tab free of past-session users.
-          await deleteOwnTrainingProfile(currentUser.uid).catch((e) => {
-            console.error("Training profile cleanup failed:", e);
-          });
           // This also signs the user out automatically.
           await currentUser.delete();
         } else {
           await signOut(auth);
-        }
-
-        try {
-          localStorage.removeItem("bshm_training_override");
-        } catch {
-          // ignore
         }
       } catch (e) {
         setAuthError(mapAuthError(e) || "Logout failed.");
@@ -441,7 +339,7 @@ export function AuthProvider({ children }) {
       await sendPasswordResetEmail(auth, email);
     }
 
-    return { login, register, logout, signInWithTrainingCode, forgotPassword };
+      return { login, register, logout, forgotPassword };
   }, [trainingMode]);
 
   const value = useMemo(

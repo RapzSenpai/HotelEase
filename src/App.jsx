@@ -52,7 +52,6 @@ const AdminAvailabilityPage = lazy(() => import("@/pages/admin/AdminAvailability
 const AdminPerformancePage = lazy(() => import("@/pages/admin/AdminPerformancePage"));
 const AdminAuditLogsPage = lazy(() => import("@/pages/admin/AdminAuditLogsPage"));
 const AdminAlertsPage = lazy(() => import("@/pages/admin/AdminAlertsPage"));
-const AdminTrainingModePage = lazy(() => import("@/pages/admin/AdminTrainingModePage"));
 
 // Demo pages (frontend-only Try Demo — no auth, no backend)
 const DemoShell = lazy(() => import("@/demo/DemoShell"));
@@ -386,14 +385,6 @@ export default function App() {
           element={
             <PrivateRoute allowedRoles={["admin"]}>
               <SuspenseWrapper><AdminAlertsPage /></SuspenseWrapper>
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="/admin/training"
-          element={
-            <PrivateRoute allowedRoles={["admin"]}>
-              <SuspenseWrapper><AdminTrainingModePage /></SuspenseWrapper>
             </PrivateRoute>
           }
         />

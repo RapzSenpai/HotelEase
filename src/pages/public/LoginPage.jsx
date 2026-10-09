@@ -6,19 +6,17 @@ import RequiredIndicator from "@/components/common/RequiredIndicator";
 import { useAuth } from "@/contexts/AuthContext";
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import { Eye, EyeOff } from "lucide-react";
-import { Select } from "radix-ui";
 import { mapAuthError } from "@/lib/authErrors";
 import { useLoginLockout } from "@/hooks/useLoginLockout";
 import { toast } from "sonner";
 
 export default function LoginPage() {
   const navigate = useNavigate();
-  const { login, signInWithTrainingCode, loading, role } = useAuth();
+  const { login, loading, role } = useAuth();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [showTraining, setShowTraining] = useState(false);
 
   // Brute-force protection (persists across refresh via sessionStorage)
   const {
@@ -30,10 +28,6 @@ export default function LoginPage() {
     registerFailure,
     resetAttempts,
   } = useLoginLockout();
-
-  const [trainingCode, setTrainingCode] = useState("");
-  const [trainingRole, setTrainingRole] = useState("guest");
-  const [trainingSubmitting, setTrainingSubmitting] = useState(false);
 
   // Firebase returns invalid-credential for both bad passwords and unknown
   // emails (enumeration protection); treat all three codes identically so
@@ -151,114 +145,6 @@ export default function LoginPage() {
           >
             Register
           </NavLink>
-        </div>
-
-        <div className="pt-2 border-t border-border">
-          {!showTraining ? (
-            <div className="text-center">
-              <Button
-                variant="link"
-                size="sm"
-                type="button"
-                onClick={() => setShowTraining(true)}
-                className="text-xs text-foreground/50 hover-surface-text h-auto p-0"
-              >
-                Join Training Session
-              </Button>
-            </div>
-          ) : (
-            <div className="space-y-4 pt-2 animate-in fade-in slide-in-from-top-2 duration-300">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-semibold">Training Session Access</span>
-                <Button
-                  variant="ghost"
-                  size="xs"
-                  type="button"
-                  onClick={() => setShowTraining(false)}
-                  className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                >
-                  Cancel
-                </Button>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="trainingCode">Training Code</Label>
-                <Input
-                  id="trainingCode"
-                  value={trainingCode}
-                  onChange={(e) => setTrainingCode(e.target.value)}
-                  placeholder="Enter code from Admin"
-                  className="h-10"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="trainingRole">Session Role</Label>
-                <Select.Root
-                  value={trainingRole}
-                  onValueChange={(value) => setTrainingRole(value)}
-                  disabled={trainingSubmitting}
-                >
-                  <Select.Trigger
-                    id="trainingRole"
-                    className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <Select.Value />
-                  </Select.Trigger>
-                  <Select.Portal>
-                    <Select.Content position="popper" side="bottom" align="start" sideOffset={4} className="z-50 max-h-64 min-w-[8rem] overflow-hidden rounded-md border border-border bg-background p-1 text-foreground shadow-md">
-                      <Select.Viewport>
-                        <Select.Item
-                          value="guest"
-                          className="relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none data-[highlighted]:bg-surface-hover data-[state=checked]:bg-primary/15 data-[highlighted]:text-foreground"
-                        >
-                          <Select.ItemText>Guest</Select.ItemText>
-                        </Select.Item>
-                        <Select.Item
-                          value="fo"
-                          className="relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none data-[highlighted]:bg-surface-hover data-[state=checked]:bg-primary/15 data-[highlighted]:text-foreground"
-                        >
-                          <Select.ItemText>Front Office</Select.ItemText>
-                        </Select.Item>
-                        <Select.Item
-                          value="admin"
-                          className="relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none data-[highlighted]:bg-surface-hover data-[state=checked]:bg-primary/15 data-[highlighted]:text-foreground"
-                        >
-                          <Select.ItemText>System Admin</Select.ItemText>
-                        </Select.Item>
-                      </Select.Viewport>
-                    </Select.Content>
-                  </Select.Portal>
-                </Select.Root>
-              </div>
-
-              <Button
-                type="button"
-                variant="default"
-                size="default"
-                className="w-full"
-                disabled={trainingSubmitting || !trainingCode || !trainingRole}
-                onClick={async () => {
-                  setTrainingSubmitting(true);
-                  try {
-                    await signInWithTrainingCode({
-                      code: trainingCode,
-                      role: trainingRole,
-                    });
-                    if (trainingRole === "fo") navigate("/fo");
-                    else if (trainingRole === "admin") navigate("/admin");
-                    else navigate("/my-bookings");
-                  } catch (err) {
-                    toast.error(mapAuthError(err) || "Training login failed.");
-                  } finally {
-                    setTrainingSubmitting(false);
-                  }
-                }}
-              >
-                {trainingSubmitting ? "Joining..." : "Join Session"}
-              </Button>
-            </div>
-          )}
         </div>
       </form>
     </div>
