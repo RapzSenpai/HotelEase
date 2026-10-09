@@ -121,8 +121,26 @@ function reducer(state, action) {
       };
     }
     case "FO_CHECKIN": {
+      const target = data.bookings.find((b) => b.id === action.bookingId);
+      if (!target || target.status !== "Approved") return state;
       const bookings = data.bookings.map((b) =>
         b.id === action.bookingId ? { ...b, status: "Checked In", updatedAt: ts(new Date()) } : b,
+      );
+      return { ...state, data: { ...data, bookings } };
+    }
+    case "FO_CHECKOUT": {
+      const target = data.bookings.find((b) => b.id === action.bookingId);
+      if (!target || target.status !== "Checked In") return state;
+      const bookings = data.bookings.map((b) =>
+        b.id === action.bookingId ? { ...b, status: "Checked Out", updatedAt: ts(new Date()) } : b,
+      );
+      return { ...state, data: { ...data, bookings } };
+    }
+    case "GUEST_CANCEL": {
+      const target = data.bookings.find((b) => b.id === action.bookingId);
+      if (!target || (target.status !== "Pending" && target.status !== "Awaiting Payment")) return state;
+      const bookings = data.bookings.map((b) =>
+        b.id === action.bookingId ? { ...b, status: "Cancelled", updatedAt: ts(new Date()) } : b,
       );
       return { ...state, data: { ...data, bookings } };
     }
@@ -244,10 +262,12 @@ export function DemoProvider({ children }) {
         demoCreateBooking: (args) => dispatch({ type: "GUEST_BOOK", ...args }),
         demoSubmitReview: (args) => dispatch({ type: "GUEST_REVIEW", ...args }),
         demoRequestHousekeeping: (args) => dispatch({ type: "GUEST_REQUEST_CLEANING", ...args }),
+        demoCancelBooking: ({ bookingId }) => dispatch({ type: "GUEST_CANCEL", bookingId }),
       },
       fo: {
         demoApproveBooking: ({ bookingId }) => dispatch({ type: "FO_APPROVE", bookingId }),
         demoCheckIn: ({ bookingId }) => dispatch({ type: "FO_CHECKIN", bookingId }),
+        demoCheckOut: ({ bookingId }) => dispatch({ type: "FO_CHECKOUT", bookingId }),
         demoRecordPayment: (args) => dispatch({ type: "FO_PAY", ...args }),
         demoAdvanceCleaning: ({ requestId }) => dispatch({ type: "FO_ADVANCE_CLEANING", requestId }),
       },

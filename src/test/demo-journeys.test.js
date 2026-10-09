@@ -170,3 +170,70 @@ describe("demo smoke", () => {
     }
   });
 });
+
+let probeCtx = null;
+function Probe() {
+  probeCtx = useDemo();
+  return null;
+}
+
+async function renderProbe() {
+  container = document.createElement("div");
+  document.body.appendChild(container);
+  root = createRoot(container);
+  await act(async () => {
+    root.render(
+      createElement(MemoryRouter, null,
+        createElement(DemoProvider, null, createElement(Probe))),
+    );
+  });
+}
+
+function statusOf(id) {
+  return probeCtx.data.bookings.find((b) => b.id === id).status;
+}
+
+describe("demo stay lifecycle", () => {
+  it("check-in flips Approved to Checked In", async () => {
+    await renderProbe();
+    const id = probeCtx.data.bookings.find((b) => b.status === "Approved").id;
+    act(() => {
+      probeCtx.fo.demoCheckIn({ bookingId: id });
+    });
+    expect(statusOf(id)).toBe("Checked In");
+  });
+
+  it("check-out flips Checked In to Checked Out", async () => {
+    await renderProbe();
+    const id = probeCtx.data.bookings.find((b) => b.status === "Checked In").id;
+    act(() => {
+      probeCtx.fo.demoCheckOut({ bookingId: id });
+    });
+    expect(statusOf(id)).toBe("Checked Out");
+  });
+
+  it("guest cancel flips Pending to Cancelled", async () => {
+    await renderProbe();
+    const id = probeCtx.data.bookings.find((b) => b.status === "Pending").id;
+    act(() => {
+      probeCtx.guest.demoCancelBooking({ bookingId: id });
+    });
+    expect(statusOf(id)).toBe("Cancelled");
+  });
+
+  it("illegal transitions are no-ops", async () => {
+    await renderProbe();
+    const outId = probeCtx.data.bookings.find((b) => b.status === "Checked Out").id;
+    const pendId = probeCtx.data.bookings.find((b) => b.status === "Pending").id;
+    const before = JSON.stringify(probeCtx.data.bookings);
+    act(() => {
+      probeCtx.guest.demoCancelBooking({ bookingId: outId });
+    });
+    act(() => {
+      probeCtx.fo.demoCheckIn({ bookingId: pendId });
+    });
+    expect(statusOf(outId)).toBe("Checked Out");
+    expect(statusOf(pendId)).toBe("Pending");
+    expect(JSON.stringify(probeCtx.data.bookings)).toBe(before);
+  });
+});
