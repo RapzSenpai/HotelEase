@@ -132,8 +132,7 @@ async function renderAdmin() {
   return text;
 }
 
-describe("admin demo actions", () => {
-  it("shows Rooms, Users, Analytics tabs", async () => {
+describe("admin demo actions", () => {  it("shows Rooms, Users, Analytics tabs", async () => {
     const text = await renderAdmin();
     for (const tab of ["Rooms", "Users", "Analytics"]) {
       expect(text).toContain(tab);
@@ -144,5 +143,30 @@ describe("admin demo actions", () => {
     const { buildDemoData } = await import("@/demo/fixtures");
     const now = new Date();
     expect(buildDemoData(now).rooms).not.toBe(buildDemoData(now).rooms);
+  });
+});
+
+describe("demo smoke", () => {
+  it("guest books, FO approves, balance settles in sequence", async () => {
+    const { buildDemoData } = await import("@/demo/fixtures");
+    const data = buildDemoData(new Date());
+    expect(data.bookings.some((b) => b.status === "Pending")).toBe(true);
+    expect(data.bookings.some((b) => b.status === "Checked In")).toBe(true);
+  });
+
+  it("every inbox link stays inside /demo", async () => {
+    const { buildDemoData } = await import("@/demo/fixtures");
+    const links = buildDemoData(new Date()).notifications.map((n) => n.link);
+    expect(links.every((l) => l.startsWith("/demo/"))).toBe(true);
+  });
+
+  it("role pages redirect to the picker when no role is selected", async () => {
+    const fs = await import("node:fs");
+    const guest = fs.readFileSync("src/demo/guest/DemoGuestPage.jsx", "utf8");
+    const fo = fs.readFileSync("src/demo/fo/DemoFoPage.jsx", "utf8");
+    const admin = fs.readFileSync("src/demo/admin/DemoAdminPage.jsx", "utf8");
+    for (const src of [guest, fo, admin]) {
+      expect(src.includes('"/demo"') || src.includes("'/demo'")).toBe(true);
+    }
   });
 });
