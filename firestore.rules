@@ -17,16 +17,9 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == uid;
     }
 
-    // FIX: Separated prod and training role helpers.
-    // getProdRole only reads /users — never training_guests.
+    // Role helpers. getProdRole only reads /users.
     function getProdRole() {
       let path = /databases/$(database)/documents/users/$(request.auth.uid);
-      return exists(path) ? get(path).data.role : 'guest';
-    }
-
-    // getTrainingRole reads /training_guests (Training mode)
-    function getTrainingRole() {
-      let path = /databases/$(database)/documents/training_guests/$(request.auth.uid);
       return exists(path) ? get(path).data.role : 'guest';
     }
 
@@ -41,41 +34,9 @@ service cloud.firestore {
       return getProdRole() == 'admin';
     }
 
-    function isFOorAdmin() {
-      return isProdFOOrAdmin() || isTrainingFOOrAdmin();
-    }
-
-    // Admin = production admin ONLY. Training users may self-declare an "admin"
-    // role inside the sandbox (training_*) but must never gain access to
-    // production collections like messages/testimonials.
+    // Admin = production admin ONLY.
     function isAdmin() {
       return isProdAdmin();
-    }
-
-    // Training sandbox access: signed-in users who joined a session
-    // (training_guests doc exists) while training is globally enabled.
-    // No custom claims are issued (no backend), so gates are doc-based.
-    // Blast radius is sandbox-only: prod collections never grant anything
-    // on training identity.
-    function trainingSessionActive() {
-      return get(/databases/$(database)/documents/users/system).data.enabled == true;
-    }
-
-    function isTrainingParticipant() {
-      // Prod staff always pass: they own prod access already, and admin
-      // seeding/reset runs as prod admin (no training_guests doc).
-      return isAuthenticated() && (isProdFOOrAdmin() ||
-              (trainingSessionActive() &&
-               exists(/databases/$(database)/documents/training_guests/$(request.auth.uid))));
-    }
-
-    // Training staff powers come from the trainee's own training_guests doc
-    // (role self-declared at join). Worst case a trainee promotes themself
-    // inside the sandbox — production is untouched.
-    function isTrainingFOOrAdmin() {
-      return isProdFOOrAdmin() ||
-              (isTrainingParticipant() &&
-               get(/databases/$(database)/documents/training_guests/$(request.auth.uid)).data.role in ['fo', 'admin']);
     }
 
     // Guest read-only access to payments linked to their own prod booking (Phase 18.3 folio).
@@ -106,9 +67,9 @@ service cloud.firestore {
       return roomType == 'Single Room' ? 300 : roomType == 'Presidential Room' ? 1000 : 500;
     }
 
-    // Shared by the prod and training inbox rules so the two lists can never
-    // drift apart. The client writes exactly these `type` values into
-    // notifications/{uid}/items via notificationService.createNotification().
+    // Shared inbox type allowlist. The client writes exactly these `type`
+    // values into notifications/{uid}/items via
+    // notificationService.createNotification().
     function isNotificationType(t) {
       return t in [
         'booking_request', 'booking_approved', 'booking_rejected', 'booking_cancelled',
@@ -409,215 +370,6 @@ service cloud.firestore {
       allow delete: if isProdAdmin() && !isAnonymous();
     }
 
-    // --- TRAINING COLLECTIONS (training_*) ---
-
-    match /training_guests/{uid} {
-      allow read: if isOwner(uid) || isProdFOOrAdmin() || isTrainingFOOrAdmin();
-      // Trainees sign in ANONYMOUSLY, so self-creation must not require
-      // !isAnonymous(). Role is self-declared so trainees can practice each
-      // role; access is limited to the training_* sandbox via isTraining*.
-      // Staff (prod or training) may seed demo users of any role.
-      allow create: if (isProdFOOrAdmin() || isTrainingFOOrAdmin()) ||
-                     (isOwner(uid) &&
-                      // Self-declared roles only count while a session is live.
-                      trainingSessionActive() &&
-                      request.resource.data.role in ['guest', 'fo', 'admin'] &&
-                      request.resource.data.uid == request.auth.uid &&
-                      request.resource.data.keys().hasOnly(
-                        ['uid', 'email', 'fullName', 'phone', 'role', 'emailVerified',
-                         'createdAt', 'updatedAt']));
-      // Trainees may edit only their own profile fields (never their role).
-      allow update: if isProdFOOrAdmin() || isTrainingFOOrAdmin() ||
-                     (isOwner(uid) &&
-                      request.resource.data.diff(resource.data).affectedKeys().hasOnly(
-                        ['fullName', 'email', 'phone', 'photoUrl', 'updatedAt', 'lastLoginAt',
-                         'lastLoginIp', 'isOnline', 'lastSeenAt', 'emailVerified', 'verifiedAt'])) ||
-                     // Sandbox mirror of the guest self-increment above.
-                     (isOwner(uid) &&
-                      request.resource.data.diff(resource.data).affectedKeys().hasOnly(['cancellationCount', 'updatedAt']) &&
-                      request.resource.data.cancellationCount == resource.data.get('cancellationCount', 0) + 1);
-      allow delete: if isProdFOOrAdmin() || isTrainingFOOrAdmin();
-
-      // Favorites subcollection — trainees can manage their own favorites in
-      // the sandbox (mirrors the prod users/{uid}/favorites pattern).
-      match /favorites/{roomId} {
-        allow read, create, delete: if isOwner(uid);
-      }
-    }
-
-    match /training_bookings/{id} {
-      allow read: if isTrainingParticipant() &&
-               (isTrainingFOOrAdmin() || resource.data.guestId == request.auth.uid);
-      allow create: if isTrainingParticipant() && 
-                       (request.resource.data.guestId == request.auth.uid || isProdFOOrAdmin() || isTrainingFOOrAdmin());
-      allow update: if (isTrainingParticipant() &&
-                                (isProdFOOrAdmin() || isTrainingFOOrAdmin()) &&
-                                (request.resource.data.status != "Checked Out" ||
-                                 request.resource.data.payment.deposit >= resource.data.totalCost ||
-                                 request.resource.data.diff(resource.data).affectedKeys().hasOnly(['refundStatus', 'refundAmount', 'refundMethod', 'refundReason', 'refundProcessedAt', 'refundProcessedBy', 'updatedAt']))) ||
-                       (isTrainingParticipant() &&
-                        isOwner(resource.data.guestId) &&
-                        ((resource.data.status == "Pending" && request.resource.data.status == "Cancelled") ||
-                         (resource.data.status == "Approved" && request.resource.data.status == "Cancellation Requested") ||
-                         (resource.data.status == "Awaiting Payment" &&
-                          request.resource.data.status == "Pending" &&
-                          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['paymentProofUrl', 'paymentType', 'paymentMethod', 'proofUploadedAt', 'status', 'updatedAt'])) ||
-                         (resource.data.status == "Awaiting Payment" &&
-                          request.resource.data.status == "Pending" &&
-                           request.resource.data.paymentGateway == 'simulated' &&
-                           request.resource.data.gatewayRef is string &&
-                           request.resource.data.gatewayRef.size() > 0 &&
-                           request.resource.data.get('bankRef', '') is string &&
-                           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['paymentGateway', 'gatewayRef', 'bankRef', 'paidAt', 'status', 'updatedAt']))));
-      allow delete: if isTrainingParticipant() &&
-               (isOwner(resource.data.guestId) || isProdFOOrAdmin() || isTrainingFOOrAdmin());
-    }
-
-    match /training_booking_notification_jobs/{jobId} {
-      allow create: if isTrainingParticipant() &&
-        isOwner(request.resource.data.guestId) &&
-        validBookingNotificationJob(
-          jobId,
-          /databases/$(database)/documents/training_bookings/$(jobId)
-        );
-    }
-
-    match /training_payments/{id} {
-      allow read: if isTrainingParticipant() &&
-               (isTrainingFOOrAdmin() ||
-            (resource.data.bookingId is string &&
-             get(/databases/$(database)/documents/training_bookings/$(resource.data.bookingId)).data.guestId == request.auth.uid));
-      // Sandbox: any authenticated user (including anonymous trainees playing
-      // FO) may create — mirrors training_rooms/training_reviews.
-      allow create: if isTrainingParticipant() &&
-        (isTrainingFOOrAdmin() ||
-         (request.resource.data.bookingId is string &&
-          get(/databases/$(database)/documents/training_bookings/$(request.resource.data.bookingId)).data.guestId == request.auth.uid));
-      allow update: if isTrainingParticipant() && (isProdFOOrAdmin() || isTrainingFOOrAdmin());
-      allow delete: if isTrainingParticipant() && isTrainingFOOrAdmin();
-    }
-
-    match /training_refunds/{id} {
-      allow read: if isTrainingParticipant() &&
-               (isTrainingFOOrAdmin() ||
-            (resource.data.bookingId is string &&
-             get(/databases/$(database)/documents/training_bookings/$(resource.data.bookingId)).data.guestId == request.auth.uid));
-      allow create, update: if isTrainingParticipant() && (isProdFOOrAdmin() || isTrainingFOOrAdmin());
-      allow delete: if isTrainingParticipant() && isTrainingFOOrAdmin();
-    }
-
-    match /training_housekeeping_logs/{id} {
-      allow read: if isTrainingParticipant() &&
-        (isTrainingFOOrAdmin() ||
-         (resource.data.bookingId is string &&
-          get(/databases/$(database)/documents/training_bookings/$(resource.data.bookingId)).data.guestId == request.auth.uid));
-      // Sandbox: any authenticated user (including anonymous trainees) may create.
-      allow create: if isTrainingParticipant() &&
-        (isTrainingFOOrAdmin() ||
-         (request.resource.data.bookingId is string &&
-          get(/databases/$(database)/documents/training_bookings/$(request.resource.data.bookingId)).data.guestId == request.auth.uid));
-      allow update: if isTrainingParticipant() && isTrainingFOOrAdmin();
-      allow delete: if isTrainingParticipant() && isTrainingFOOrAdmin();
-    }
-
-    match /training_rooms/{id} {
-      // Trainees are anonymous accounts, so anonymous reads must be allowed.
-      allow read: if isTrainingParticipant();
-      allow write: if isTrainingParticipant() && isTrainingFOOrAdmin();
-    }
-
-    match /training_availability/{markerId} {
-      // Sandbox mirror of /room_availability: PII-free { roomId, date,
-      // bookingId, status } markers that form the double-booking lock for
-      // training holds. Anonymous trainees must read + claim them (same
-      // reason as training_rooms above); prod roles never touch this.
-      allow read: if isTrainingParticipant();
-      allow create, update: if isTrainingParticipant() &&
-        (isTrainingFOOrAdmin() ||
-         (request.resource.data.bookingId is string &&
-          get(/databases/$(database)/documents/training_bookings/$(request.resource.data.bookingId)).data.guestId == request.auth.uid));
-      allow delete: if isTrainingParticipant() &&
-        (isTrainingFOOrAdmin() ||
-         (resource.data.bookingId is string &&
-          get(/databases/$(database)/documents/training_bookings/$(resource.data.bookingId)).data.guestId == request.auth.uid));
-    }
-
-    match /training_reviews/{id} {
-      allow read: if isTrainingParticipant() &&
-               (isTrainingFOOrAdmin() || resource.data.guestId == request.auth.uid);
-      allow create: if isTrainingParticipant() && request.resource.data.guestId == request.auth.uid;
-      allow update, delete: if isTrainingParticipant() &&
-               (isTrainingFOOrAdmin() || resource.data.guestId == request.auth.uid);
-    }
-
-    // Sandbox mirrors for admin diagnostics — trainee "admins" can exercise
-    // alerts and audit trails without touching production collections.
-    match /training_system_alerts/{id} {
-      allow read, write: if isTrainingParticipant() && isTrainingFOOrAdmin();
-    }
-
-    match /training_audit_logs/{id} {
-      allow read, create: if isTrainingParticipant() && isTrainingFOOrAdmin();
-    }
-
-    // Training sandbox inbox. Mirrors /notifications, but every recipient here
-    // is the trainee themselves or a training_* user, so there is deliberately
-    // no prod-user gate — that gate exists solely to stop one real guest from
-    // writing into another real guest's bell. Without this block the training
-    // bell would be silent, because notificationService now resolves the
-    // collection through getCol() and would write to training_notifications.
-    match /training_notifications/{userId}/items/{notifId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-      allow create: if isAuthenticated() &&
-                       isNotificationType(request.resource.data.type) &&
-                       request.resource.data.isRead == false &&
-                       request.resource.data.keys().hasAll(['title', 'message', 'link', 'createdAt']) &&
-                       request.resource.data.link is string &&
-                       request.resource.data.link.matches('^/.*');
-    }
-
-    // Training contact inbox. Mirrors /messages so trainee questions never
-    // land in the production FO inbox. Same shape validation as /messages.
-    match /training_messages/{messageId} {
-      // FO/Admin see all; trainees see only their own submissions.
-      allow read: if isTrainingParticipant() &&
-                     (isTrainingFOOrAdmin() ||
-                      resource.data.get('guestId', null) == request.auth.uid);
-      allow create: if isTrainingParticipant() &&
-                       request.resource.data.get('honeypot', '') == '' &&
-                       request.resource.data.keys().hasOnly(
-                         ['id', 'name', 'email', 'subject', 'message', 'status',
-                          'guestId', 'createdAt', 'repliedAt', 'replyMessage']) &&
-                       request.resource.data.name is string &&
-                       request.resource.data.name.size() >= 1 &&
-                       request.resource.data.name.size() <= 100 &&
-                       request.resource.data.email is string &&
-                       request.resource.data.email.size() <= 254 &&
-                       request.resource.data.email.matches('^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$') &&
-                       request.resource.data.subject is string &&
-                       request.resource.data.subject.size() >= 1 &&
-                       request.resource.data.subject.size() <= 200 &&
-                       request.resource.data.message is string &&
-                       request.resource.data.message.size() >= 1 &&
-                       request.resource.data.message.size() <= 5000 &&
-                       request.resource.data.status == 'unread' &&
-                       request.resource.data.get('repliedAt', null) == null &&
-                       request.resource.data.get('replyMessage', null) == null &&
-                       (request.resource.data.get('guestId', null) == null ||
-                        request.resource.data.get('guestId', null) is string) &&
-                       request.resource.data.createdAt == request.time;
-      allow update: if isTrainingParticipant() && isTrainingFOOrAdmin();
-      allow delete: if isTrainingParticipant() && isTrainingFOOrAdmin();
-    }
-
-    // Training session state (holds the join code). Authenticated eyes only:
-    // a world-readable code lets anyone scrape it, join the sandbox
-    // uninvited, and deface the dry run. Trainees authenticate (anonymously)
-    // BEFORE validating the code — see signInWithTrainingCode.
-    match /users/system {
-      allow read: if isAuthenticated();
-      allow write: if isProdFOOrAdmin() && !isAnonymous();
-    }
 
     // System settings (e.g. maintenance mode)
     match /system_settings/{docId} {
@@ -749,11 +501,10 @@ service cloud.firestore {
                        request.resource.data.link.matches('^/.*') &&
                        (isProdFOOrAdmin() ||
                         request.auth.uid == userId ||
-                        // Only PROD user inboxes are gated: staff (FO/Admin) may
-                        // still be notified by guests, but one guest can no longer
-                        // inject a notification into another guest's inbox.
-                        // Non-prod recipients (training sandbox) stay permissive,
-                        // matching the rest of the training_* design.
+                        // Staff (FO/Admin) may still be notified by guests,
+                        // but one guest can no longer inject a notification
+                        // into another guest's inbox. Unknown uids stay
+                        // permissive so transactional notices never bounce.
                         !exists(/databases/$(database)/documents/users/$(userId)) ||
                         get(/databases/$(database)/documents/users/$(userId)).data.role in ['fo', 'admin']);
     }
