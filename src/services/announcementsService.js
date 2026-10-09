@@ -52,18 +52,13 @@ export async function listAnnouncements({ limitCount = 6 } = {}) {
  * @param {string} payload.date - YYYY-MM-DD
  * @param {File=} payload.imageFile - optional
  */
-// Announcements are production-only (no training_announcements sandbox).
-// Writes from training mode are blocked so trainees can never publish to
-// the real site or notify real guests.
+// Announcements are production-only. The training sandbox is gone, so the
+// mode always resolves to production and this guard never fires.
 function blockTrainingWrites(trainingMode) {
   // Match getCol: an omitted mode falls back to the training override.
   let mode = trainingMode;
   if (mode === null || mode === undefined) {
-    try {
-      mode = localStorage.getItem("bshm_training_override") === "true";
-    } catch {
-      mode = false;
-    }
+    mode = false;
   }
   if (mode === true || mode === "training") {
     throw new Error("Announcements are turned off in training mode.");

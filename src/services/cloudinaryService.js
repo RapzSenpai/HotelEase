@@ -48,14 +48,11 @@ export async function uploadImageToCloudinary(file, { onProgress, compressionPre
     );
   }
 
-  // Resolve like getCol: explicit param wins, else the training override.
+  // Resolve like getCol: explicit param wins, else production (the training
+  // sandbox is gone, so uploads are always tagged prod).
   let isTraining = trainingMode === true || trainingMode === "training";
   if (trainingMode === null || trainingMode === undefined) {
-    try {
-      isTraining = localStorage.getItem("bshm_training_override") === "true";
-    } catch {
-      // ignore
-    }
+    isTraining = false;
   }
 
   return new Promise((resolve, reject) => {

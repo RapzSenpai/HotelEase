@@ -55,11 +55,8 @@ async function getAnalyticsInstance() {
  * @returns {Promise<void>}
  */
 function isTrainingSession() {
-  try {
-    return localStorage.getItem("bshm_training_override") === "true";
-  } catch {
-    return false;
-  }
+  // Training sandbox is gone: no session is ever a training session.
+  return false;
 }
 
 export async function trackEvent(eventName, params = {}) {
