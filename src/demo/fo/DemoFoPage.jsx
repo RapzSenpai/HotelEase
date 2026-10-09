@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import HousekeepingList from "@/components/housekeeping/HousekeepingList";
 import { roomLabel } from "@/lib/room-label";
 import { useDemo } from "../DemoContext";
 
@@ -71,6 +72,37 @@ export default function DemoFoPage() {
     }, 3000);
     toast.success("Demo: cleaning advanced. Notification lands in ~3s.");
   }
+
+  function latestRequestId(roomId) {
+    const logs = data.housekeepingLogs
+      .filter((l) => l.roomId === roomId)
+      .sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis());
+    return logs[0]?.requestId ?? null;
+  }
+
+  function moveRoom(room) {
+    const requestId = latestRequestId(room.id);
+    if (!requestId) {
+      toast.message("Demo — no cleaning cycle for this room yet.");
+      return;
+    }
+    advance(requestId, room.name);
+  }
+
+  // TEMP (Task 9 unifies): assignments and photo drafts are disabled in demo.
+  function demoDisabled() {
+    toast.message("Demo — nothing was saved.");
+  }
+
+  function assignmentFor(room) {
+    const latest = data.housekeepingLogs
+      .filter((l) => l.roomId === room.id)
+      .sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis())[0];
+    if (!latest) return null;
+    return { userId: latest.changedByUserId, name: latest.changedByName };
+  }
+
+  const staffUsers = data.users.filter((u) => u.role === "fo");
 
   return (
     <div className="space-y-4">
@@ -167,19 +199,24 @@ export default function DemoFoPage() {
       {tab === "Housekeeping" && (
         <div className="space-y-2">
           {dirtyRooms.length === 0 && <p className="text-sm text-foreground/60">No rooms need cleaning in the sample data.</p>}
-          {dirtyRooms.map((r) => {
-            const log = data.housekeepingLogs.find((l) => l.roomId === r.id);
-            return (
-              <Card key={r.id} className="flex flex-wrap items-center justify-between gap-2 p-4">
-                <div className="text-sm font-medium">{roomLabel(r)} · {r.status}</div>
-                {log?.requestId ? (
-                  <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => advance(log.requestId, r.name)}>Advance cleaning (demo)</Button>
-                ) : (
-                  <Badge variant="outline">Turnover</Badge>
-                )}
-              </Card>
-            );
-          })}
+          {dirtyRooms.length > 0 && (
+            <HousekeepingList
+              rooms={dirtyRooms}
+              getAssignmentForRoom={assignmentFor}
+              staffUsers={staffUsers}
+              onReassign={demoDisabled}
+              verificationPhotosByRoom={{}}
+              onVerificationPhotosChange={demoDisabled}
+              onOpenLogs={(room) => {
+                const count = data.housekeepingLogs.filter((l) => l.roomId === room.id).length;
+                toast.message(`${room.name}: ${count} log entr${count === 1 ? "y" : "ies"} in the sample data.`);
+              }}
+              onMoveRoom={(room) => moveRoom(room)}
+              onApproveRoom={(room) => moveRoom(room)}
+              mode="turnover"
+              disableUploads
+            />
+          )}
         </div>
       )}
     </div>

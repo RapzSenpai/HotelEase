@@ -72,6 +72,9 @@ export default function HousekeepingList({
   onMoveRoom,
   onApproveRoom,
   mode = "turnover",
+  // Demo preview: real uploads write to prod Cloudinary, so demo callers
+  // pass disableUploads to render a disabled note instead. Prod default false.
+  disableUploads = false,
 }) {
   const isMidstay = mode === "midstay";
 
@@ -508,7 +511,11 @@ export default function HousekeepingList({
 
                   {/* Verification Photos column */}
                   <TableCell className="px-5 py-3 align-middle">
-                    {isCleaning ? (
+                    {isCleaning && disableUploads ? (
+                      <span className="text-[11px] italic text-foreground/40">
+                        Photo proof disabled in demo
+                      </span>
+                    ) : isCleaning ? (
                       <HousekeepingPhotoUpload
                         photos={draftPhotos}
                         onChange={(updatedPhotos) =>

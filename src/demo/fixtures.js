@@ -80,8 +80,10 @@ export function buildDemoData(now = new Date()) {
   ];
 
   const housekeepingLogs = [
-    { id: "demo-hk-1", roomId: "demo-104", bookingId: "demo-bk-checkedin", requestId: "demo-req-1", fromStatus: "Occupied / Checked In", toStatus: "Dirty / Needs Cleaning", changedByRole: "guest", changedByUserId: "demo-guest-1", changedByName: "Juan Dela Cruz", note: "[Mid-Stay Request] Fresh towels", photoUrls: [], isMidStayRequest: true, createdAt: ts(daysFrom(now, 0, 9)) },
-    { id: "demo-hk-2", roomId: "demo-104", bookingId: "demo-bk-checkedin", requestId: "demo-req-1", fromStatus: "Dirty / Needs Cleaning", toStatus: "Being Cleaned", changedByRole: "fo", changedByUserId: "demo-fo-1", changedByName: "Cynthia Abell", note: "", photoUrls: [], isMidStayRequest: true, createdAt: ts(daysFrom(now, 0, 10)) },
+    // Relative-past times (not fixed clock hours): a fresh request must
+    // always sort latest regardless of wall-clock time of visit.
+    { id: "demo-hk-1", roomId: "demo-104", bookingId: "demo-bk-checkedin", requestId: "demo-req-1", fromStatus: "Occupied / Checked In", toStatus: "Dirty / Needs Cleaning", changedByRole: "guest", changedByUserId: "demo-guest-1", changedByName: "Juan Dela Cruz", note: "[Mid-Stay Request] Fresh towels", photoUrls: [], isMidStayRequest: true, createdAt: ts(new Date(now.getTime() - 3 * 3600000)) },
+    { id: "demo-hk-2", roomId: "demo-104", bookingId: "demo-bk-checkedin", requestId: "demo-req-1", fromStatus: "Dirty / Needs Cleaning", toStatus: "Being Cleaned", changedByRole: "fo", changedByUserId: "demo-fo-1", changedByName: "Cynthia Abell", note: "", photoUrls: [], isMidStayRequest: true, createdAt: ts(new Date(now.getTime() - 2 * 3600000)) },
     { id: "demo-hk-3", roomId: "demo-102", bookingId: "demo-bk-checkedout", requestId: "demo-req-0", fromStatus: "Being Cleaned", toStatus: "Available", changedByRole: "fo", changedByUserId: "demo-fo-1", changedByName: "Cynthia Abell", note: "", photoUrls: [], isMidStayRequest: false, createdAt: ts(daysFrom(now, -3, 11)) },
     { id: "demo-hk-4", roomId: "demo-102", bookingId: "demo-bk-checkedout", requestId: "demo-req-0", fromStatus: "Occupied / Checked In", toStatus: "Dirty / Needs Cleaning", changedByRole: "guest", changedByUserId: "demo-guest-1", changedByName: "Juan Dela Cruz", note: "[Mid-Stay Request] Deep clean", photoUrls: [], isMidStayRequest: true, createdAt: ts(daysFrom(now, -3, 9)) },
   ];

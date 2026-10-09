@@ -9,11 +9,13 @@ const { default: DemoRoomCard } = await import("@/demo/DemoRoomCard");
 const { default: DemoBookingCard } = await import("@/demo/DemoBookingCard");
 const { buildDemoData } = await import("@/demo/fixtures");
 const { default: DemoAdminPage } = await import("@/demo/admin/DemoAdminPage");
+const { default: DemoFoPage } = await import("@/demo/fo/DemoFoPage");
 const { DemoProvider, useDemo } = await import("@/demo/DemoContext");
 const { useEffect } = await import("react");
 
 let root = null;
 let container = null;
+let probeCtx = null;
 
 afterEach(() => {
   act(() => root?.unmount());
@@ -160,5 +162,79 @@ describe("demo admin rooms", () => {
       edit.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
     expect(el.textContent).toContain("Reserved");
+  });
+});
+
+describe("demo FO housekeeping", () => {
+  async function renderFoHousekeeping() {
+    function WithRole() {
+      const { role, setRole } = useDemo();
+      useEffect(() => {
+        if (!role) setRole("fo");
+      }, [role, setRole]);
+      probeCtx = useDemo();
+      return createElement(DemoFoPage);
+    }
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+    await act(async () => {
+      root.render(
+        createElement(MemoryRouter, null,
+          createElement(DemoProvider, null, createElement(WithRole))),
+      );
+    });
+    return container;
+  }
+
+  function clickText(el, text) {
+    const btn = [...el.querySelectorAll("button")].find((b) =>
+      (b.textContent || "").includes(text),
+    );
+    if (!btn) throw new Error(`button not found: ${text}`);
+    act(() => {
+      btn.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+  }
+
+  function clickInRow(el, rowText, btnText) {
+    const row = [...el.querySelectorAll("tr")].find((tr) =>
+      (tr.textContent || "").includes(rowText),
+    );
+    if (!row) throw new Error(`row not found: ${rowText}`);
+    const btn = [...row.querySelectorAll("button")].find((b) =>
+      (b.textContent || "").includes(btnText),
+    );
+    if (!btn) throw new Error(`button not found: ${btnText} in ${rowText}`);
+    act(() => {
+      btn.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    return row;
+  }
+
+  it("full cleaning cycle runs on the real list view", async () => {
+    const el = await renderFoHousekeeping();
+    act(() => {
+      probeCtx.guest.demoRequestHousekeeping({ bookingId: "demo-bk-checkedin", note: "Fresh towels" });
+    });
+    clickText(el, "Housekeeping");
+    expect(el.textContent).toContain("Verification Photos");
+    expect(el.textContent).toContain("Leyte Suite");
+    clickInRow(el, "Leyte Suite", "Start Clean");
+    clickInRow(el, "Leyte Suite", "Submit Review");
+    const row = [...el.querySelectorAll("tr")].find((tr) =>
+      (tr.textContent || "").includes("Leyte Suite"),
+    );
+    const approve = [...row.querySelectorAll("button")].find((b) =>
+      (b.textContent || "").trim() === "Approve",
+    );
+    expect(approve).not.toBeUndefined();
+    act(() => {
+      approve.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    const gone = [...el.querySelectorAll("tr")].some((tr) =>
+      (tr.textContent || "").includes("Leyte Suite"),
+    );
+    expect(gone).toBe(false);
   });
 });
