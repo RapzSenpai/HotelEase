@@ -2,6 +2,7 @@ import { useState, useCallback } from "react";
 import { Outlet, useLocation, Navigate } from "react-router-dom";
 import { Toaster } from "sonner";
 import Navbar from "@/components/layout/Navbar";
+import DemoPreviewStrip from "@/components/layout/DemoPreviewStrip";
 import Sidebar from "@/components/layout/Sidebar";
 import Footer from "@/components/layout/Footer";
 import ErrorBoundary from "@/components/common/ErrorBoundary";
@@ -69,6 +70,7 @@ export default function AppShell() {
         }}
       />
       <Navbar onToggleSidebar={toggleMobileSidebar} />
+      <DemoPreviewStrip />
 
       {isLanding ? (
         <main className="min-h-[calc(100vh-64px)]">
