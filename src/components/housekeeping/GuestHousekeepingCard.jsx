@@ -155,6 +155,87 @@ const ACTIVE_STATUS_TEXT = {
     "Cleaning completed! Awaiting final approval from Front Office. We'll notify you once your room is ready.",
 };
 
+/**
+ * One past-request row. Shared by the inline latest entry and the history
+ * drawer so both stay identical without duplicating markup.
+ */
+function PastRequestRow({ request, onRate, onSeePhotos }) {
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-border bg-background px-3 py-2.5 shadow-sm">
+      <span
+        className={cn(
+          "flex h-7 w-7 shrink-0 items-center justify-center rounded-full",
+          request.isCancelled
+            ? "bg-destructive/10 text-destructive"
+            : "bg-success/10 text-success",
+        )}
+      >
+        {request.isCancelled ? (
+          <XCircle className="h-4 w-4" />
+        ) : (
+          <CheckCircle2 className="h-4 w-4" />
+        )}
+      </span>
+      <div className="min-w-0 flex-1 space-y-0.5">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
+          <span className="font-medium text-foreground">
+            {request.isCancelled
+              ? request.latestRole === "fo"
+                ? "Cancelled by Front Office"
+                : "Cancelled"
+              : "Completed"}
+          </span>
+          <span className="text-foreground/40">
+            {formatWhen(request.requestedAt)}
+          </span>
+          {request.isCompleted && request.rated && (
+            <span className="flex items-center gap-0.5">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <Star
+                  key={star}
+                  className={cn(
+                    "h-3.5 w-3.5",
+                    star <= request.rating
+                      ? "fill-amber-400 text-amber-400"
+                      : "text-foreground/20",
+                  )}
+                />
+              ))}
+            </span>
+          )}
+        </div>
+        {request.note && (
+          <p className="truncate text-xs text-foreground/60">
+            &ldquo;{request.note}&rdquo;
+          </p>
+        )}
+      </div>
+      <div className="flex items-center gap-1.5">
+        {request.isCompleted && !request.rated && (
+          <Button
+            variant="default"
+            size="sm"
+            className="h-8 text-xs"
+            onClick={() => onRate(request)}
+          >
+            Rate Cleanliness
+          </Button>
+        )}
+        {request.photos.length > 0 && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 text-xs"
+            onClick={() => onSeePhotos(request)}
+          >
+            <ImageIcon className="mr-1 h-3.5 w-3.5" /> See Photos
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function GuestHousekeepingCard({ booking, room, trainingMode, userProfile }) {
   const [hkDialogOpen, setHkDialogOpen] = useState(false);
   const [selectedOptions, setSelectedOptions] = useState([]);
@@ -164,6 +245,7 @@ export default function GuestHousekeepingCard({ booking, room, trainingMode, use
   const [logs, setLogs] = useState([]);
   const [reviewTarget, setReviewTarget] = useState(null);
   const [photosTarget, setPhotosTarget] = useState(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [rating, setRating] = useState(5);
   const [feedback, setFeedback] = useState("");
   const [submittingReview, setSubmittingReview] = useState(false);
@@ -380,86 +462,53 @@ export default function GuestHousekeepingCard({ booking, room, trainingMode, use
               </span>
             </div>
 
-            {pastRequests.map((request) => (
-              <div
-                key={request.id}
-                className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-border bg-background px-3 py-2.5 shadow-sm"
+            {/* Latest stays inline so the card stays short; the rest live
+                in the history drawer below. */}
+            <PastRequestRow
+              request={pastRequests[0]}
+              onRate={openReview}
+              onSeePhotos={setPhotosTarget}
+            />
+            {pastRequests.length > 1 && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 w-full text-xs"
+                onClick={() => setHistoryOpen(true)}
               >
-                <span
-                  className={cn(
-                    "flex h-7 w-7 shrink-0 items-center justify-center rounded-full",
-                    request.isCancelled
-                      ? "bg-destructive/10 text-destructive"
-                      : "bg-success/10 text-success",
-                  )}
-                >
-                  {request.isCancelled ? (
-                    <XCircle className="h-4 w-4" />
-                  ) : (
-                    <CheckCircle2 className="h-4 w-4" />
-                  )}
-                </span>
-                <div className="min-w-0 flex-1 space-y-0.5">
-                  <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
-                    <span className="font-medium text-foreground">
-                      {request.isCancelled
-                        ? request.latestRole === "fo"
-                          ? "Cancelled by Front Office"
-                          : "Cancelled"
-                        : "Completed"}
-                    </span>
-                    <span className="text-foreground/40">
-                      {formatWhen(request.requestedAt)}
-                    </span>
-                    {request.isCompleted && request.rated && (
-                      <span className="flex items-center gap-0.5">
-                        {[1, 2, 3, 4, 5].map((star) => (
-                          <Star
-                            key={star}
-                            className={cn(
-                              "h-3.5 w-3.5",
-                              star <= request.rating
-                                ? "fill-amber-400 text-amber-400"
-                                : "text-foreground/20",
-                            )}
-                          />
-                        ))}
-                      </span>
-                    )}
-                  </div>
-                  {request.note && (
-                    <p className="truncate text-xs text-foreground/60">
-                      &ldquo;{request.note}&rdquo;
-                    </p>
-                  )}
-                </div>
-                <div className="flex items-center gap-1.5">
-                  {request.isCompleted && !request.rated && (
-                    <Button
-                      variant="default"
-                      size="sm"
-                      className="h-8 text-xs"
-                      onClick={() => openReview(request)}
-                    >
-                      Rate Cleanliness
-                    </Button>
-                  )}
-                  {request.photos.length > 0 && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-8 text-xs"
-                      onClick={() => setPhotosTarget(request)}
-                    >
-                      <ImageIcon className="mr-1 h-3.5 w-3.5" /> See Photos
-                    </Button>
-                  )}
-                </div>
-              </div>
-            ))}
+                View all history ({pastRequests.length})
+              </Button>
+            )}
           </div>
         )}
       </CardContent>
+
+      {/* History Drawer */}
+      <Dialog open={historyOpen} onOpenChange={setHistoryOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Housekeeping History</DialogTitle>
+            <DialogDescription>
+              All past requests for {roomTitle} — newest first.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[60vh] space-y-2 overflow-y-auto py-2">
+            {pastRequests.map((request) => (
+              <PastRequestRow
+                key={request.id}
+                request={request}
+                onRate={openReview}
+                onSeePhotos={setPhotosTarget}
+              />
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setHistoryOpen(false)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Request Modal */}
       <Dialog open={hkDialogOpen} onOpenChange={setHkDialogOpen}>
