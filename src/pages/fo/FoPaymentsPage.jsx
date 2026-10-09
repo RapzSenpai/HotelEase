@@ -10,12 +10,10 @@ import { Select } from "radix-ui";
 import { listBookingsByStatuses } from "@/services/bookingsService";
 import {
   listPaymentsForBooking,
-  recordPayment,
-} from "@/services/paymentsService";
+  recordPayment} from "@/services/paymentsService";
 import { listRooms } from "@/services/roomsService";
 import { getUserDoc } from "@/services/userService";
 import { Search } from "lucide-react";
-import { useAuth } from "@/contexts/AuthContext";
 import { trackEvent, GA_EVENTS } from "@/services/gaService";
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -49,7 +47,6 @@ const METHOD_OPTIONS = ["Cash", "GCash", "Check", "Credit Card"];
 // ── Main component ─────────────────────────────────────────────────────────────
 
 export default function FoPaymentsPage() {
-  const { trainingMode } = useAuth();
 
   // ── Data ──────────────────────────────────────────────────────────────────
   const [rooms, setRooms] = useState([]);
@@ -75,13 +72,12 @@ export default function FoPaymentsPage() {
     const entries = await Promise.all(
       missing.map(async (id) => {
         try {
-          const d = await getUserDoc(id, { preferTraining: trainingMode });
+          const d = await getUserDoc(id);
           return [id, d?.fullName || d?.email || ""];
         } catch {
           return [id, ""];
         }
-      }),
-    );
+      }));
     if (generation !== guestsGenerationRef.current) return;
     entries.forEach(([id, name]) => {
       guestsMapRef.current[id] = name;
@@ -91,8 +87,7 @@ export default function FoPaymentsPage() {
 
   const selectedBooking = useMemo(
     () => bookings.find((b) => b.id === selectedBookingId) ?? null,
-    [bookings, selectedBookingId],
-  );
+    [bookings, selectedBookingId]);
 
   // ── Payment history ───────────────────────────────────────────────────────
   const [payments, setPayments] = useState([]);
@@ -117,8 +112,7 @@ export default function FoPaymentsPage() {
   const total = Number(selectedBooking?.totalCost ?? 0);
   const totalPaidFromRecords = useMemo(
     () => payments.reduce((sum, p) => sum + Number(p.amount ?? 0), 0),
-    [payments],
-  );
+    [payments]);
   const balance = Math.max(0, total - totalPaidFromRecords);
 
   // ── Load bookings + rooms ─────────────────────────────────────────────────
@@ -128,7 +122,7 @@ export default function FoPaymentsPage() {
     try {
       const [roomData, bookingData] = await Promise.all([
         listRooms(),
-        listBookingsByStatuses(["Approved", "Checked In"], { trainingMode }),
+        listBookingsByStatuses(["Approved", "Checked In"]),
       ]);
       setRooms(roomData);
       setBookings(bookingData);
@@ -137,15 +131,12 @@ export default function FoPaymentsPage() {
         const entries = await Promise.all(
           bookingData.map(async (b) => {
             try {
-              const recs = await listPaymentsForBooking(b.id, {
-                trainingMode,
-              });
+              const recs = await listPaymentsForBooking(b.id);
               return [b.id, recs.reduce((s, p) => s + Number(p.amount ?? 0), 0)];
             } catch {
               return [b.id, 0];
             }
-          }),
-        );
+          }));
         setPaidTotals(Object.fromEntries(entries));
       } catch {
         setPaidTotals({});
@@ -172,7 +163,7 @@ export default function FoPaymentsPage() {
     setGuestsMap({});
     refreshBookings();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [trainingMode]);
+  }, []);
 
   // ── Load payment history ──────────────────────────────────────────────────
   // Extracted into a named function so it can be called both from the
@@ -189,7 +180,7 @@ export default function FoPaymentsPage() {
     setPaymentsLoading(true);
     setPaymentsError(null);
     try {
-      const data = await listPaymentsForBooking(bid, { trainingMode });
+      const data = await listPaymentsForBooking(bid);
       if (requestId !== paymentsRequestRef.current) return;
       setPayments(data);
     } catch (err) {
@@ -205,7 +196,7 @@ export default function FoPaymentsPage() {
   useEffect(() => {
     reloadPayments(selectedBookingId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedBookingId, trainingMode]);
+  }, [selectedBookingId]);
 
   // Pre-fill the amount with the outstanding balance once records load —
   // FO usually collects the full remainder. Never overwrites typed input.
@@ -226,8 +217,7 @@ export default function FoPaymentsPage() {
   function mapBalance(b) {
     return Math.max(
       0,
-      Number(b.totalCost ?? 0) - Number(paidTotals[b.id] ?? 0),
-    );
+      Number(b.totalCost ?? 0) - Number(paidTotals[b.id] ?? 0));
   }
 
   // ── Sorted + filtered list ────────────────────────────────────────────────
@@ -296,16 +286,13 @@ export default function FoPaymentsPage() {
         // Legacy per-method fields kept so older records are still usable
         referenceNumber: method === "GCash" ? note.trim() || null : null,
         checkNumber: method === "Check" ? note.trim() || null : null,
-        trainingMode,
-        idempotencyKey: idempotencyKeyRef.current,
-      });
+        idempotencyKey: idempotencyKeyRef.current});
 
       trackEvent(GA_EVENTS.PAYMENT_SUCCESS, {
         booking_id: selectedBookingId,
         currency: "PHP",
         value: amt,
-        payment_method: method.trim(),
-      });
+        payment_method: method.trim()});
 
       // 1. Reload bookings so the folio totals update
       await refreshBookings();

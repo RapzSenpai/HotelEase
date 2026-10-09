@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Select } from "radix-ui";
 import { toast } from "sonner";
-import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,8 +11,7 @@ import {
   CardTitle,
   CardDescription,
   CardContent,
-  CardFooter,
-} from "@/components/ui/card";
+  CardFooter} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   AlertCircle,
@@ -24,31 +22,27 @@ import {
   RefreshCw,
   Bell,
   Plus,
-  ChevronDown,
-} from "lucide-react";
+  ChevronDown} from "lucide-react";
 import {
   subscribeToAlerts,
   resolveAlert,
   deleteAlert,
   createAlert,
   scanAndCreateAlerts,
-  SEVERITIES,
-} from "@/services/alertService";
+  SEVERITIES} from "@/services/alertService";
 import { auditAction, AUDIT_ACTIONS } from "@/services/auditService";
 
 const SEVERITY_STYLES = {
   critical: "bg-destructive/10 text-destructive border-destructive/20",
   high: "bg-warning/10 text-warning border-warning/20",
   medium: "bg-primary/10 text-primary border-primary/20",
-  low: "bg-muted/50 text-foreground/60 border-border",
-};
+  low: "bg-muted/50 text-foreground/60 border-border"};
 
 const SEVERITY_ICONS = {
   critical: AlertCircle,
   high: AlertTriangle,
   medium: Bell,
-  low: Bell,
-};
+  low: Bell};
 
 function formatWhen(ts) {
   if (!ts) return "—";
@@ -58,7 +52,6 @@ function formatWhen(ts) {
 }
 
 export default function AdminAlertsPage() {
-  const { trainingMode } = useAuth();
   const [alerts, setAlerts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [scanning, setScanning] = useState(false);
@@ -77,11 +70,9 @@ export default function AdminAlertsPage() {
       (data) => {
         setAlerts(data);
         setLoading(false);
-      },
-      { trainingMode }
-    );
+      });
     return () => unsub();
-  }, [trainingMode]);
+  }, []);
 
   const filtered = useMemo(() => {
     return alerts.filter((a) => {
@@ -98,7 +89,7 @@ export default function AdminAlertsPage() {
 
   async function onResolve(id) {
     try {
-      await resolveAlert(id, { trainingMode });
+      await resolveAlert(id);
       toast.success("Alert resolved");
     } catch (e) {
       toast.error(e?.message || "Failed to resolve alert");
@@ -107,7 +98,7 @@ export default function AdminAlertsPage() {
 
   async function onDelete(id) {
     try {
-      await deleteAlert(id, { trainingMode });
+      await deleteAlert(id);
       toast.success("Alert deleted");
     } catch (e) {
       toast.error(e?.message || "Failed to delete alert");
@@ -117,7 +108,7 @@ export default function AdminAlertsPage() {
   async function onScan() {
     setScanning(true);
     try {
-      const res = await scanAndCreateAlerts({ trainingMode });
+      const res = await scanAndCreateAlerts();
       toast.success(res.created ? `${res.created} new alert(s) created` : "No new issues found");
     } catch (e) {
       toast.error(e?.message || "Scan failed");
@@ -137,15 +128,11 @@ export default function AdminAlertsPage() {
         type: "manual",
         severity: formSeverity,
         title: formTitle.trim(),
-        message: formMessage.trim(),
-        trainingMode,
-      });
+        message: formMessage.trim()});
       auditAction(AUDIT_ACTIONS.SYSTEM_SETTINGS_CHANGE, {
         targetType: "system",
         changes: { severity: formSeverity, title: formTitle.trim() },
-        description: `Manual system alert raised: ${formTitle.trim()}`,
-        trainingMode,
-      });
+        description: `Manual system alert raised: ${formTitle.trim()}`});
       toast.success("Alert raised");
       setFormTitle("");
       setFormMessage("");
@@ -165,12 +152,6 @@ export default function AdminAlertsPage() {
           System alerts for operational issues, errors, and manual notifications.
         </p>
       </div>
-
-      {trainingMode && (
-        <div className="rounded-xl border border-warning/40 bg-warning/10 px-4 py-3 text-sm text-warning">
-          Training mode is active — alerts write to the training sandbox.
-        </div>
-      )}
 
       {/* ── Summary cards ── */}
       <Card className="overflow-hidden">

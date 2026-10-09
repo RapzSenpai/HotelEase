@@ -12,8 +12,7 @@ import { isRoomActive } from "@/services/roomsService";
 
 const STATUS_VARIANT = {
   "Checked Out": "muted",
-  Cancelled: "danger",
-};
+  Cancelled: "danger"};
 
 /**
  * Compact history row for past bookings (Checked Out / Cancelled).
@@ -21,7 +20,7 @@ const STATUS_VARIANT = {
  * small text details on expand. No payment or cancel actions —
  * only re-book + receipt download.
  */
-export default function PastBookingRow({ booking, room, trainingMode, userProfile, autoExpand = false }) {
+export default function PastBookingRow({ booking, room, userProfile, autoExpand = false }) {
   const [expanded, setExpanded] = useState(!!autoExpand);
   const [payments, setPayments] = useState([]);
   const [paymentsFetched, setPaymentsFetched] = useState(false);
@@ -32,7 +31,7 @@ export default function PastBookingRow({ booking, room, trainingMode, userProfil
 
   async function fetchPaymentsOnce() {
     try {
-      const data = await listPaymentsForBooking(booking.id, { trainingMode });
+      const data = await listPaymentsForBooking(booking.id);
       setPayments(data);
     } catch {
       setPayments([]);
@@ -114,8 +113,7 @@ export default function PastBookingRow({ booking, room, trainingMode, userProfil
       balance: Math.max(0, Number(booking.totalCost ?? 0) - totalPaid),
       paymentMethod: receiptPayment.method || booking.paymentMethod || "",
       paymentRef,
-      paymentDate: receiptPayment.createdAt?.toDate?.() || new Date(),
-    });
+      paymentDate: receiptPayment.createdAt?.toDate?.() || new Date()});
   }
 
   return (

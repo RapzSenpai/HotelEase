@@ -26,7 +26,7 @@ const SUBJECT_OPTIONS = [
 const COOLDOWN_SECONDS = 30;
 
 export default function ContactPage() {
-  const { user, trainingMode } = useAuth();
+  const { user} = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [cooldown, setCooldown] = useState(0);
   const cooldownTimer = useRef(null);
@@ -38,9 +38,7 @@ export default function ContactPage() {
       email: "",
       subject: SUBJECT_OPTIONS[0],
       message: "",
-      honeypot: "",
-    },
-  });
+      honeypot: ""}});
 
   async function onSubmit(values) {
     if (values.honeypot?.trim()) {
@@ -60,9 +58,7 @@ export default function ContactPage() {
         subject: values.subject,
         message: values.message,
         guestId: user?.uid || null,
-        honeypot: values.honeypot || "",
-        trainingMode,
-      });
+        honeypot: values.honeypot || ""});
       toast.success("Message sent! We'll get back to you shortly.");
       reset();
       setCooldown(COOLDOWN_SECONDS);
@@ -166,9 +162,7 @@ export default function ContactPage() {
                       required: "Email is required.",
                       pattern: {
                         value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-                        message: "Please enter a valid email.",
-                      },
-                    })}
+                        message: "Please enter a valid email."}})}
                     placeholder="Enter your email"
                     className="h-11"
                   />
@@ -220,8 +214,7 @@ export default function ContactPage() {
                   {...register("message", {
                     required: "Message is required.",
                     minLength: { value: 20, message: "Message must be at least 20 characters." },
-                    maxLength: { value: 2000, message: "Message must be at most 2000 characters." },
-                  })}
+                    maxLength: { value: 2000, message: "Message must be at most 2000 characters." }})}
                   placeholder="Tell us how we can help..."
                   className="min-h-36"
                   maxLength={2000}

@@ -11,27 +11,26 @@ export const ONLINE_WINDOW_MS = 150000;
 
 const sessions = new Map();
 
-function writeHeartbeat(uid, trainingMode) {
-  return updateDoc(doc(db, getCol("users", trainingMode), uid), {
-    lastSeenAt: serverTimestamp(),
-  });
+function writeHeartbeat(uid) {
+  return updateDoc(doc(db, getCol("users"), uid), {
+    lastSeenAt: serverTimestamp()});
 }
 
-export function startPresence(uid, { trainingMode = false } = {}) {
+export function startPresence(uid) {
   if (!uid || typeof window === "undefined") return;
   stopPresence(uid);
 
-  writeHeartbeat(uid, trainingMode).catch(() => {});
+  writeHeartbeat(uid).catch(() => {});
 
   const interval = setInterval(() => {
     // Background tabs don't need fresh dots — the visibility/pagehide
     // handlers already record the exit write.
     if (typeof document !== "undefined" && document.hidden) return;
-    writeHeartbeat(uid, trainingMode).catch(() => {});
+    writeHeartbeat(uid).catch(() => {});
   }, HEARTBEAT_INTERVAL_MS);
 
   const handleExit = () => {
-    writeHeartbeat(uid, trainingMode).catch(() => {});
+    writeHeartbeat(uid).catch(() => {});
   };
 
   window.addEventListener("beforeunload", handleExit);
@@ -44,17 +43,16 @@ export function startPresence(uid, { trainingMode = false } = {}) {
       window.removeEventListener("beforeunload", handleExit);
       window.removeEventListener("pagehide", handleExit);
       document.removeEventListener("visibilitychange", handleExit);
-    },
-  });
+    }});
 }
 
-export function stopPresence(uid, { trainingMode = false } = {}) {
+export function stopPresence(uid) {
   const session = sessions.get(uid);
   if (session) {
     session.cleanup();
     sessions.delete(uid);
   }
-  if (uid) writeHeartbeat(uid, trainingMode).catch(() => {});
+  if (uid) writeHeartbeat(uid).catch(() => {});
 }
 
 export function isOnlineNow(userData) {

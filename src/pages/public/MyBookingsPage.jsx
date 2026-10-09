@@ -13,8 +13,7 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+  DropdownMenuTrigger} from "@/components/ui/dropdown-menu";
 import BookingCard from "@/components/bookings/BookingCard";
 import PastBookingRow from "@/components/bookings/PastBookingRow";
 import CancelBookingDialog from "@/components/bookings/CancelBookingDialog";
@@ -90,7 +89,7 @@ const FILTER_STATUSES = [
 ];
 
 export default function MyBookingsPage() {
-  const { user, profile, trainingMode } = useAuth();
+  const { user, profile} = useAuth();
   const [searchParams] = useSearchParams();
   const deepBookingId = searchParams.get("bookingId");
 
@@ -142,7 +141,7 @@ export default function MyBookingsPage() {
   async function refreshBookings() {
     if (!user?.uid) return;
     try {
-      const bookingData = await listBookingsForUser(user.uid, { trainingMode });
+      const bookingData = await listBookingsForUser(user.uid);
       setBookings(sortBookings(bookingData));
     } catch (e) {
       setError(mapFirebaseError(e) || "Failed to refresh bookings.");
@@ -175,9 +174,7 @@ export default function MyBookingsPage() {
           if (!isMounted) return;
           setBookings(sortBookings(data));
           setLoading(false);
-        },
-        { trainingMode },
-      );
+        });
 
       unsubRooms = subscribeToRooms(
         (roomData) => {
@@ -187,9 +184,7 @@ export default function MyBookingsPage() {
             map[r.id] = r;
           }
           setRoomsMap(map);
-        },
-        { trainingMode },
-      );
+        });
     }
 
     init();
@@ -199,7 +194,7 @@ export default function MyBookingsPage() {
       if (unsubBookings) unsubBookings();
       if (unsubRooms) unsubRooms();
     };
-  }, [user?.uid, trainingMode]);
+  }, [user?.uid]);
 
   // ── Filtering ──────────────────────────────────────────────────────────────
   const filtered = useMemo(() => {
@@ -222,12 +217,10 @@ export default function MyBookingsPage() {
 
   const activeBookings = useMemo(
     () => filtered.filter((b) => ACTIVE_STATUSES.has(b.status)),
-    [filtered],
-  );
+    [filtered]);
   const pastBookings = useMemo(
     () => filtered.filter((b) => !ACTIVE_STATUSES.has(b.status)),
-    [filtered],
-  );
+    [filtered]);
 
   function countForTab(tab) {
     if (tab === "All") return bookings.length;
@@ -363,7 +356,6 @@ export default function MyBookingsPage() {
                       <BookingCard
                         booking={b}
                         room={roomsMap[b.roomId] || { id: b.roomId, isActive: false }}
-                        trainingMode={trainingMode}
                         userProfile={profile}
                         onCancelled={refreshBookings}
                         onRequestCancel={setCancelTarget}
@@ -394,7 +386,6 @@ export default function MyBookingsPage() {
                       <PastBookingRow
                         booking={b}
                         room={roomsMap[b.roomId] || { id: b.roomId, isActive: false }}
-                        trainingMode={trainingMode}
                         userProfile={profile}
                         autoExpand={b.id === deepBookingId}
                       />
@@ -411,7 +402,6 @@ export default function MyBookingsPage() {
                       <PastBookingRow
                         booking={b}
                         room={roomsMap[b.roomId] || { id: b.roomId, isActive: false }}
-                        trainingMode={trainingMode}
                         userProfile={profile}
                         autoExpand={b.id === deepBookingId}
                       />
@@ -441,7 +431,6 @@ export default function MyBookingsPage() {
         room={cancelTarget ? roomsMap[cancelTarget.roomId] : null}
         status={cancelTarget?.status}
         userProfile={profile}
-        trainingMode={trainingMode}
         onCancelled={refreshBookings}
       />
     </div>

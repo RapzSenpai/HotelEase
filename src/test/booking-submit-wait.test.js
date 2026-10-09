@@ -19,8 +19,7 @@ vi.mock("firebase/firestore", () => {
           : collectionRef?.__col || collectionRef?.__doc || "collection";
       return {
         id: id || "booking-fixed",
-        __doc: `${collectionName}${id ? `/${id}` : ""}`,
-      };
+        __doc: `${collectionName}${id ? `/${id}` : ""}`};
     },
     getDoc: async () => ({ exists: () => false, data: () => ({}) }),
     getDocs: async () => ({ docs: [], size: 0 }),
@@ -32,14 +31,12 @@ vi.mock("firebase/firestore", () => {
       fn({
         get: async () => ({ exists: () => true, data: () => room }),
         set: (...write) => transactionWrites.push(write),
-        update: () => {},
-      }),
+        update: () => {}}),
     serverTimestamp: () => ({ __ts: true }),
     setDoc: async () => {},
     Timestamp: { fromDate: (d) => d },
     updateDoc: async (...args) => compensationCalls.push(["updateDoc", ...args]),
-    where: () => ({}),
-  };
+    where: () => ({})};
 });
 
 vi.mock("@/services/availabilityService", () => ({
@@ -47,17 +44,14 @@ vi.mock("@/services/availabilityService", () => ({
   claimBookingMarked,
   clearBookingMarked: async () => {},
   getBlockedRoomIds: async () => new Set(),
-  nightKeys: () => ["2026-10-01", "2026-10-02"],
-}));
+  nightKeys: () => ["2026-10-01", "2026-10-02"]}));
 
 vi.mock("@/services/userService", () => ({
-  listFoUsers: async () => [{ id: "fo-1" }],
-}));
+  listFoUsers: async () => [{ id: "fo-1" }]}));
 
 // Never settles: if createBooking still awaited the fan-out, the test hangs.
 vi.mock("@/services/notificationService", () => ({
-  createNotification: () => new Promise(() => {}),
-}));
+  createNotification: () => new Promise(() => {})}));
 
 const { createBooking } = await import("@/services/booking/createBooking");
 
@@ -68,8 +62,7 @@ describe("createBooking submit path", () => {
     claimBookingMarked.mockImplementation(
       () => new Promise((resolve) => {
         resolveClaim = resolve;
-      }),
-    );
+      }));
     let settled = false;
     const resultPromise = createBooking({
       guestId: "guest-1",
@@ -77,9 +70,7 @@ describe("createBooking submit path", () => {
       checkInDate: "2026-10-01",
       checkOutDate: "2026-10-03",
       paxCount: 1,
-      paymentMethod: "GCash",
-      trainingMode: "prod",
-    }).then((result) => {
+      paymentMethod: "GCash"}).then((result) => {
       settled = true;
       return result;
     });
@@ -87,31 +78,26 @@ describe("createBooking submit path", () => {
     await vi.waitFor(() => expect(claimBookingMarked).toHaveBeenCalledTimes(1));
     expect(settled).toBe(false);
     const outboxWrite = transactionWrites.find(([ref]) =>
-      ref.__doc === "booking_notification_jobs/booking-fixed",
-    );
+      ref.__doc === "booking_notification_jobs/booking-fixed");
     expect(outboxWrite?.[1]).toMatchObject({
       bookingId: "booking-fixed",
       guestId: "guest-1",
       status: "waiting_for_markers",
-      markerDates: ["2026-10-01", "2026-10-02"],
-    });
+      markerDates: ["2026-10-01", "2026-10-02"]});
     expect(claimBookingMarked).toHaveBeenCalledTimes(1);
     expect(claimBookingMarked.mock.calls[0][0]).toEqual({
       bookingId: "booking-fixed",
-      trainingMode: false,
-    });
+      trainingMode: false});
     resolveClaim({ claimed: 1 });
     await expect(resultPromise).resolves.toMatchObject({
       id: "booking-fixed",
-      roomName: "Deluxe Suite",
-    });
+      roomName: "Deluxe Suite"});
   });
 
   it("leaves an ambiguous Worker failure recoverable instead of compensating", async () => {
     compensationCalls.length = 0;
     claimBookingMarked.mockRejectedValueOnce(
-      new Error("Booking availability could not be confirmed."),
-    );
+      new Error("Booking availability could not be confirmed."));
 
     await expect(createBooking({
       guestId: "guest-1",
@@ -119,13 +105,10 @@ describe("createBooking submit path", () => {
       checkInDate: "2026-10-01",
       checkOutDate: "2026-10-03",
       paxCount: 1,
-      paymentMethod: "GCash",
-      trainingMode: "prod",
-    })).rejects.toThrow("Booking availability could not be confirmed.");
+      paymentMethod: "GCash"})).rejects.toThrow("Booking availability could not be confirmed.");
 
     expect(transactionWrites.some(([ref]) =>
-      ref.__doc === "booking_notification_jobs/booking-fixed",
-    )).toBe(true);
+      ref.__doc === "booking_notification_jobs/booking-fixed")).toBe(true);
     expect(compensationCalls).toEqual([]);
   });
 
@@ -133,8 +116,7 @@ describe("createBooking submit path", () => {
     compensationCalls.length = 0;
     const conflict = Object.assign(
       new Error("Those dates were just taken by another guest."),
-      { status: 409 },
-    );
+      { status: 409 });
     claimBookingMarked.mockRejectedValueOnce(conflict);
 
     await expect(createBooking({
@@ -143,15 +125,12 @@ describe("createBooking submit path", () => {
       checkInDate: "2026-10-01",
       checkOutDate: "2026-10-03",
       paxCount: 1,
-      paymentMethod: "GCash",
-      trainingMode: false,
-    })).rejects.toThrow("Those dates were just taken by another guest.");
+      paymentMethod: "GCash"})).rejects.toThrow("Those dates were just taken by another guest.");
 
     expect(compensationCalls).toHaveLength(1);
     expect(compensationCalls[0][0]).toBe("updateDoc");
     expect(compensationCalls[0][2]).toMatchObject({
       status: "Cancelled",
-      rejectionReason: "Dates taken by an earlier booking.",
-    });
+      rejectionReason: "Dates taken by an earlier booking."});
   });
 });

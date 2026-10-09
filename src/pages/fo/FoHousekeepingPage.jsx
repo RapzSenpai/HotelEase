@@ -11,15 +11,13 @@ import {
   Dialog,
   DialogContent,
   DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  DialogTitle} from "@/components/ui/dialog";
 import {
   updateRoomStatus,
   assignHousekeepingStaff,
   bulkUpdateRoomStatus,
   saveHousekeepingPhotos,
-  subscribeToHousekeepingLogsForRoom,
-} from "@/services/housekeepingService";
+  subscribeToHousekeepingLogsForRoom} from "@/services/housekeepingService";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -43,7 +41,7 @@ export default function FoHousekeepingPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const roomIdParam = searchParams.get("roomId");
-  const { trainingMode, user, profile } = useAuth();
+  const { user, profile } = useAuth();
 
   const [rooms, setRooms] = useState([]);
   const [staffUsers, setStaffUsers] = useState([]);
@@ -76,14 +74,12 @@ export default function FoHousekeepingPage() {
           settled = true;
           setLoading(false);
         }
-      },
-      { trainingMode },
-    );
+      });
 
     return () => {
       if (typeof unsubscribe === "function") unsubscribe();
     };
-  }, [trainingMode]);
+  }, []);
 
   // Photos are persisted to the room doc as they upload, so after a reload the
   // in-memory draft is empty but the room still has them. Merge room.photoUrls
@@ -108,7 +104,7 @@ export default function FoHousekeepingPage() {
     async function loadStaff() {
       try {
         // P2 scalability: staff-only query instead of the whole users list.
-        const users = await listStaffUsers({ trainingMode: !!trainingMode });
+        const users = await listStaffUsers();
         if (!isMounted) return;
         setStaffUsers(users);
       } catch {
@@ -120,7 +116,7 @@ export default function FoHousekeepingPage() {
     return () => {
       isMounted = false;
     };
-  }, [trainingMode]);
+  }, []);
 
   const visibleRooms = useMemo(() => {
     const cleaningStatuses = [
@@ -135,13 +131,11 @@ export default function FoHousekeepingPage() {
 
   const turnoverRooms = useMemo(
     () => visibleRooms.filter((r) => !r.isMidStayRequest),
-    [visibleRooms],
-  );
+    [visibleRooms]);
 
   const midStayRooms = useMemo(
     () => visibleRooms.filter((r) => r.isMidStayRequest === true),
-    [visibleRooms],
-  );
+    [visibleRooms]);
 
   const hasMidStayPending = useMemo(
     () =>
@@ -149,10 +143,8 @@ export default function FoHousekeepingPage() {
         (r) =>
           r.isActive !== false &&
           r.isMidStayRequest === true &&
-          r.status === "Dirty / Needs Cleaning",
-      ),
-    [rooms],
-  );
+          r.status === "Dirty / Needs Cleaning"),
+    [rooms]);
 
   // Display-only urgency: wait > 2h surfaces via the existing midStayNote line.
   // No schema change, no priority field write.
@@ -170,8 +162,7 @@ export default function FoHousekeepingPage() {
   const filteredRoom = useMemo(
     () =>
       rooms.find((r) => r.id === roomIdParam && r.isActive !== false) || null,
-    [rooms, roomIdParam],
-  );
+    [rooms, roomIdParam]);
   const deepLinkTab = filteredRoom
     ? filteredRoom.isMidStayRequest === true
       ? "midstay"
@@ -203,22 +194,19 @@ export default function FoHousekeepingPage() {
         if (!active) return;
         setLogs(data);
         setLogsLoading(false);
-      },
-      { trainingMode },
-    );
+      });
     return () => {
       active = false;
       unsub();
     };
-  }, [selectedRoomId, trainingMode, logsRequestId]);
+  }, [selectedRoomId, logsRequestId]);
 
   function getAssignmentForRoom(room) {
     if (assignments[room.id]) return assignments[room.id];
     if (room.assignedToUserId) {
       return {
         userId: room.assignedToUserId,
-        name: room.assignedToName || "Assigned staff",
-      };
+        name: room.assignedToName || "Assigned staff"};
     }
     if (user?.uid) {
       return { userId: user.uid, name: currentStaffName };
@@ -229,8 +217,7 @@ export default function FoHousekeepingPage() {
   function setAssignmentForRoom(roomId, userId, name) {
     setAssignments((prev) => ({
       ...prev,
-      [roomId]: { userId, name },
-    }));
+      [roomId]: { userId, name }}));
   }
 
   function toggleSelectRoom(roomId) {
@@ -258,7 +245,7 @@ export default function FoHousekeepingPage() {
   function handleVerificationPhotosChange(roomId, photos) {
     setVerificationPhotosByRoom((prev) => ({ ...prev, [roomId]: photos }));
     // Persist immediately so a page reload or status move never loses photos.
-    saveHousekeepingPhotos({ roomId, photoUrls: photos, trainingMode }).catch(() => {
+    saveHousekeepingPhotos({ roomId, photoUrls: photos}).catch(() => {
       // Non-fatal: the in-memory draft is kept; the next change retries.
     });
   }
@@ -282,9 +269,7 @@ export default function FoHousekeepingPage() {
         photoUrls:
           nextStatus === "Pending Approval" && photoUrls.length > 0
             ? photoUrls
-            : [],
-        trainingMode,
-      });
+            : []});
 
       if (nextStatus === "Available" || nextStatus === "Pending Approval") {
         setVerificationPhotosByRoom((prev) => {
@@ -303,8 +288,7 @@ export default function FoHousekeepingPage() {
       }
 
       toast.success(
-        `${room.name || room.roomNumber || "Room"} moved to ${nextStatus}`,
-      );
+        `${room.name || room.roomNumber || "Room"} moved to ${nextStatus}`);
     } catch (e) {
       setError(e?.message || "Failed to update room status.");
       toast.error(e?.message || "Failed to update room status.");
@@ -320,9 +304,7 @@ export default function FoHousekeepingPage() {
       await assignHousekeepingStaff({
         roomId,
         assignedToUserId: userId,
-        assignedToName: name,
-        trainingMode,
-      });
+        assignedToName: name});
     } catch (e) {
       setError(e?.message || "Failed to assign staff.");
     }
@@ -334,8 +316,7 @@ export default function FoHousekeepingPage() {
     const roomIds = sourceRooms
       .filter(
         (room) =>
-          room.status === "Pending Approval" && selectedRoomIds.has(room.id),
-      )
+          room.status === "Pending Approval" && selectedRoomIds.has(room.id))
       .map((room) => room.id);
 
     if (roomIds.length === 0) return;
@@ -347,9 +328,7 @@ export default function FoHousekeepingPage() {
         newStatus: "Available",
         changedByRole: "fo",
         changedByUserId: user?.uid || null,
-        changedByName: currentStaffName,
-        trainingMode,
-      });
+        changedByName: currentStaffName});
 
       setSelectedRoomIds((prev) => {
         const next = new Set(prev);

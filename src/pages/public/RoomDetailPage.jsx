@@ -7,8 +7,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
+  DialogDescription} from "@/components/ui/dialog";
 import { NavLink, useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { getRoom, isRoomActive } from "@/services/roomsService";
 import { getRoomCapacity } from "@/lib/roomCapacity";
@@ -18,8 +17,7 @@ import ChatbotWidget from "@/components/chatbot/ChatbotWidget";
 import {
   listReviewsForRoom,
   createReview,
-  hasUserReviewedRoom,
-} from "@/services/reviewsService";
+  hasUserReviewedRoom} from "@/services/reviewsService";
 import { listBookingsForUser, getAvailableRooms } from "@/services/bookingsService";
 import { useAuth } from "@/contexts/AuthContext";
 import { trackEvent, GA_EVENTS } from "@/services/gaService";
@@ -46,8 +44,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ShieldCheck,
-  AlertTriangle,
-} from "lucide-react";
+  AlertTriangle} from "lucide-react";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -99,7 +96,7 @@ export default function RoomDetailPage() {
   const { roomId } = useParams();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { user, role, profile, trainingMode } = useAuth();
+  const { user, role, profile} = useAuth();
 
   // --- date state (initialised from URL params set by RENO-1) ---
   const todayStr = useMemo(() => getLocalDateString(), []);
@@ -186,17 +183,16 @@ export default function RoomDetailPage() {
         setLoading(true);
         setError(null);
         setRoom(null);
-        const data = await getRoom(roomId, { trainingMode });
+        const data = await getRoom(roomId);
         if (!isMounted) return;
         setRoom(data);
-        if (roomViewTrackedRef.current !== `${trainingMode}:${roomId}`) {
-          roomViewTrackedRef.current = `${trainingMode}:${roomId}`;
+        if (roomViewTrackedRef.current !== `live:${roomId}`) {
+          roomViewTrackedRef.current = `live:${roomId}`;
           trackEvent(GA_EVENTS.ROOM_VIEW, {
             item_id: roomId,
             item_name: data?.name || data?.roomNumber || "",
             item_category: data?.type || "",
-            price: data?.ratePerNight ?? 0,
-          });
+            price: data?.ratePerNight ?? 0});
         }
       } catch (e) {
         if (!isMounted) return;
@@ -209,7 +205,7 @@ export default function RoomDetailPage() {
     return () => {
       isMounted = false;
     };
-  }, [roomId, trainingMode]);
+  }, [roomId]);
 
   // ---- fetch reviews ----
   // ponytail: sequence guard so slow room A can't overwrite fast room B.
@@ -219,7 +215,7 @@ export default function RoomDetailPage() {
     setReviewsLoading(true);
     setReviewsError(null);
     try {
-      const data = await listReviewsForRoom(roomId, { trainingMode });
+      const data = await listReviewsForRoom(roomId);
       if (reviewsSeqRef.current !== seq) return;
       setReviews(data);
     } catch (e) {
@@ -234,7 +230,7 @@ export default function RoomDetailPage() {
     if (!roomId) return;
     loadReviews();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roomId, trainingMode]);
+  }, [roomId]);
 
   // ---- check review eligibility ----
   useEffect(() => {
@@ -248,8 +244,8 @@ export default function RoomDetailPage() {
     async function checkEligibility() {
       try {
         const [bookings, alreadyReviewed] = await Promise.all([
-          listBookingsForUser(user.uid, { trainingMode }),
-          hasUserReviewedRoom(user.uid, roomId, { trainingMode }),
+          listBookingsForUser(user.uid),
+          hasUserReviewedRoom(user.uid, roomId),
         ]);
 
         if (!isMounted) return;
@@ -261,8 +257,7 @@ export default function RoomDetailPage() {
         }
 
         const checkedOut = bookings.find(
-          (b) => b.roomId === roomId && b.status === "Checked Out",
-        );
+          (b) => b.roomId === roomId && b.status === "Checked Out");
 
         setCanReview(Boolean(checkedOut));
         setEligibleBookingId(checkedOut?.id ?? null);
@@ -277,7 +272,7 @@ export default function RoomDetailPage() {
     return () => {
       isMounted = false;
     };
-  }, [user, role, roomId, trainingMode]);
+  }, [user, role, roomId]);
 
   // ---- subscribe to favorites ----
   useEffect(() => {
@@ -289,12 +284,12 @@ export default function RoomDetailPage() {
 
     const unsubscribe = subscribeToFavorites(user.uid, (data) => {
       setFavorites(data);
-    }, { trainingMode });
+    });
 
     return () => {
       if (typeof unsubscribe === "function") unsubscribe();
     };
-  }, [user, role, trainingMode]);
+  }, [user, role]);
 
   // ---- update isFavorite when favorites or roomId changes ----
   useEffect(() => {
@@ -306,7 +301,7 @@ export default function RoomDetailPage() {
   async function handleToggleFavorite() {
     if (!user || role !== "guest") return;
     try {
-      await toggleFavorite(user.uid, roomId, { trainingMode });
+      await toggleFavorite(user.uid, roomId);
     } catch (e) {
       console.error("Failed to toggle favorite:", e);
     }
@@ -322,9 +317,7 @@ export default function RoomDetailPage() {
       guestId: user.uid,
       guestName: profile?.fullName || user.displayName || user.email || "Guest",
       rating,
-      feedback,
-      trainingMode,
-    });
+      feedback});
     await loadReviews();
     setCanReview(false);
     setEligibleBookingId(null);
@@ -346,12 +339,11 @@ export default function RoomDetailPage() {
     setBookNowLoading(true);
     setBookNowError(null);
     try {
-      const available = await getAvailableRooms(checkIn, checkOut, { trainingMode });
+      const available = await getAvailableRooms(checkIn, checkOut);
       const isStillAvailable = available.some((r) => r.id === roomId);
       if (!isStillAvailable) {
         setBookNowError(
-          "This room is no longer available for your selected dates. It may have just been booked. Please choose different dates.",
-        );
+          "This room is no longer available for your selected dates. It may have just been booked. Please choose different dates.");
         return;
       }
       const dateParams = `?checkIn=${checkIn}&checkOut=${checkOut}`;
@@ -361,7 +353,7 @@ export default function RoomDetailPage() {
     } finally {
       setBookNowLoading(false);
     }
-  }, [datesSelected, room, checkIn, checkOut, trainingMode, roomId, navigate, user?.uid]);
+  }, [datesSelected, room, checkIn, checkOut, roomId, navigate, user?.uid]);
 
   // ---- derived ----
   const roomActive = isRoomActive(room);

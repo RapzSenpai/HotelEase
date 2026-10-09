@@ -5,13 +5,12 @@ import {
   query,
   runTransaction,
   serverTimestamp,
-  where,
-} from "firebase/firestore";
+  where} from "firebase/firestore";
 import { db } from "@/firebase/firebase.config";
 import { getCol } from "@/lib/db-utils";
 
-function paymentsCollection(trainingMode) {
-  return getCol("payments", trainingMode);
+function paymentsCollection() {
+  return getCol("payments");
 }
 
 // Idempotency keys become the payment doc ID so parallel tabs / double-clicks
@@ -39,22 +38,18 @@ export function sanitizeIdempotencyKey(key) {
  * Sorting is done client-side instead.
  *
  * @param {string} bookingId
- * @param {{ trainingMode?: boolean|string|null }} options
  * @returns {Promise<Array<{ id: string, [key: string]: any }>>}
  */
 export async function listPaymentsForBooking(
-  bookingId,
-  { trainingMode = null } = {},
-) {
+  bookingId) {
   if (!bookingId || typeof bookingId !== "string") {
     console.warn(
       "[paymentsService] listPaymentsForBooking: invalid bookingId",
-      bookingId,
-    );
+      bookingId);
     return [];
   }
 
-  const col = paymentsCollection(trainingMode);
+  const col = paymentsCollection();
 
   const q = query(
     collection(db, col),
@@ -110,7 +105,6 @@ export async function listPaymentsForBooking(
  *   checkNumber?: string | null,
  *   bankName?: string | null,
  *   cardLast4?: string | null,
- *   trainingMode?: boolean | string | null,
  *   guestName?: string,
  *   guestEmail?: string,
  *   roomName?: string,
@@ -122,7 +116,6 @@ export async function listPaymentsForBooking(
   * @returns {Promise<{ id: string, newDeposit: number, receiptData: any }>}
   */
 export async function recordPayment(payload) {
-  const trainingMode = payload?.trainingMode ?? null;
   const bookingId = payload?.bookingId;
   const amount = Number(payload?.amount ?? 0);
   const method = String(payload?.method ?? "").trim();
@@ -145,8 +138,8 @@ export async function recordPayment(payload) {
   const bankName = payload?.bankName ?? null;
   const cardLast4 = payload?.cardLast4 ?? null;
 
-  const bCol = getCol("bookings", trainingMode);
-  const pCol = paymentsCollection(trainingMode);
+  const bCol = getCol("bookings");
+  const pCol = paymentsCollection();
 
   const receiptNo = "RCP-" + Date.now();
 
@@ -157,8 +150,7 @@ export async function recordPayment(payload) {
 
     if (!bookingSnap.exists()) {
       throw new Error(
-        `Booking "${bookingId}" not found in collection "${bCol}".`,
-      );
+        `Booking "${bookingId}" not found in collection "${bCol}".`);
     }
 
     // Idempotent retry: the winner already wrote this key — return it instead
@@ -204,9 +196,7 @@ export async function recordPayment(payload) {
             bankRef: booking.bankRef || null,
             reference: existing.note || existing.methodDetails?.referenceNumber || existing.methodDetails?.checkNumber || existing.methodDetails?.cardLast4 || null,
             paymentDate: new Date(),
-            processedBy: existing.processedBy || payload.processedBy || "Front Office Staff",
-          },
-        };
+            processedBy: existing.processedBy || payload.processedBy || "Front Office Staff"}};
       }
     }
 
@@ -253,15 +243,13 @@ export async function recordPayment(payload) {
       processedBy: payload.processedBy || "Front Office Staff",
       source: payload.source || "fo_manual",
       createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
+      updatedAt: serverTimestamp()});
 
     // ── Step 4: update the booking folio ──
     transaction.update(bookingRef, {
       "payment.deposit": newDeposit,
       "payment.method": method,
-      updatedAt: serverTimestamp(),
-    });
+      updatedAt: serverTimestamp()});
 
     return {
       id: paymentRef.id,
@@ -291,8 +279,6 @@ export async function recordPayment(payload) {
         bankRef: booking.bankRef || null,
         reference: note ?? referenceNumber ?? checkNumber ?? cardLast4 ?? null,
         paymentDate: new Date(),
-        processedBy: payload.processedBy || "Front Office Staff",
-      },
-    };
+        processedBy: payload.processedBy || "Front Office Staff"}};
   });
 }

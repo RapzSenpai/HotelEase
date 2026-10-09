@@ -12,14 +12,11 @@ const state = vi.hoisted(() => ({ payments: [] }));
 
 vi.mock("@/services/bookingsService", () => ({
   cancelBooking: vi.fn(async () => ({ ok: true })),
-  requestCancellation: vi.fn(async () => ({ ok: true })),
-}));
+  requestCancellation: vi.fn(async () => ({ ok: true }))}));
 vi.mock("@/services/paymentsService", () => ({
-  listPaymentsForBooking: async () => state.payments,
-}));
+  listPaymentsForBooking: async () => state.payments}));
 vi.mock("@/services/userService", () => ({
-  getUserDoc: async () => ({ cancellationCount: 0 }),
-}));
+  getUserDoc: async () => ({ cancellationCount: 0 })}));
 
 const { default: CancelBookingDialog } = await import("@/components/bookings/CancelBookingDialog");
 
@@ -34,8 +31,7 @@ const BOOKING = {
   checkInDate: new Date("2026-12-01T00:00:00"),
   checkOutDate: new Date("2026-12-03T00:00:00"),
   cancellationDeadline: new Date("2026-11-30T00:00:00"),
-  paymentMethod: "GCash",
-};
+  paymentMethod: "GCash"};
 
 let root = null;
 let container = null;
@@ -53,10 +49,7 @@ async function renderDialog(props) {
         room: { name: "Deluxe Suite" },
         status: "Approved",
         userProfile: { cancellationCount: 0 },
-        trainingMode: false,
-        ...props,
-      }),
-    );
+        ...props}));
   });
 }
 
@@ -75,8 +68,7 @@ async function confirmCancel() {
     });
   }
   const confirm = [...document.querySelectorAll("button")].find((b) =>
-    /yes, cancel/i.test(b.textContent || ""),
-  );
+    /yes, cancel/i.test(b.textContent || ""));
   await act(async () => {
     confirm.click();
   });

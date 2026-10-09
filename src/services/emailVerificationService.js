@@ -45,10 +45,8 @@ async function sendVerificationEmail({ toEmail, toName, otp }) {
         to_name: toName,
         subject: "HotelEase — Your Verification Code",
         eyebrow: "Account Verification",
-        bodyHTML: buildOtpBody(otp),
-      },
-      publicKey,
-    );
+        bodyHTML: buildOtpBody(otp)},
+      publicKey);
     return { sent: true };
   } catch (e) {
     // Same fallback path: sending email failed, so let the guest log in by
@@ -64,12 +62,10 @@ async function sendVerificationEmail({ toEmail, toName, otp }) {
 export async function issueVerificationCode({
   uid,
   email,
-  fullName = "",
-  trainingMode = false,
-} = {}) {
+  fullName = ""} = {}) {
   if (!uid || !email) throw new Error("Missing uid/email for verification.");
 
-  const col = getCol("users", trainingMode);
+  const col = getCol("users");
   const ref = doc(db, col, uid);
   const snap = await getDoc(ref);
   if (!snap.exists()) throw new Error("User profile not found.");
@@ -88,20 +84,12 @@ export async function issueVerificationCode({
     verificationExpiresAt: Date.now() + CODE_TTL_MS,
     verificationAttempts: 0,
     verificationResendAt: Date.now() + RESEND_COOLDOWN_MS,
-    updatedAt: serverTimestamp(),
-  });
-
-  // Training codes stay in the sandbox — surface the code directly and
-  // never send a real email for them.
-  if (trainingMode === true || trainingMode === "training") {
-    return { ok: true, fallbackCode: otp, fallbackReason: "Training mode. No email sent." };
-  }
+    updatedAt: serverTimestamp()});
 
   const sendResult = await sendVerificationEmail({
     toEmail: email,
     toName: fullName || "Guest",
-    otp,
-  });
+    otp});
 
   // If the email couldn't actually be delivered (EmailJS not configured or a
   // send failure), surface the code so the guest can still verify and log in
@@ -117,10 +105,10 @@ export async function issueVerificationCode({
  * Verify a submitted code against the stored hash. Bounded attempts + expiry.
  * On success marks the guest's profile emailVerified.
  */
-export async function verifyEmailCode({ uid, code, trainingMode = false } = {}) {
+export async function verifyEmailCode({ uid, code } = {}) {
   if (!uid || !code) return { ok: false, reason: "Missing code." };
 
-  const col = getCol("users", trainingMode);
+  const col = getCol("users");
   const ref = doc(db, col, uid);
   const snap = await getDoc(ref);
   if (!snap.exists()) return { ok: false, reason: "User profile not found." };
@@ -142,16 +130,14 @@ export async function verifyEmailCode({ uid, code, trainingMode = false } = {}) 
     const next = attempts + 1;
     await updateDoc(ref, {
       verificationAttempts: next,
-      updatedAt: serverTimestamp(),
-    });
+      updatedAt: serverTimestamp()});
     const remaining = MAX_ATTEMPTS - next;
     return {
       ok: false,
       reason:
         remaining > 0
           ? `Incorrect code. ${remaining} attempt${remaining === 1 ? "" : "s"} left.`
-          : "No attempts left. Request a new code.",
-    };
+          : "No attempts left. Request a new code."};
   }
 
   await updateDoc(ref, {
@@ -161,8 +147,7 @@ export async function verifyEmailCode({ uid, code, trainingMode = false } = {}) 
     verificationExpiresAt: null,
     verificationAttempts: null,
     verificationResendAt: null,
-    updatedAt: serverTimestamp(),
-  });
+    updatedAt: serverTimestamp()});
 
   return { ok: true };
 }

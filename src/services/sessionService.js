@@ -46,11 +46,10 @@ function getDeviceInfo() {
  * Create a new session for a user
  * @param {string} uid - User ID
  * @param {Object} options
- * @param {boolean} options.trainingMode - Whether to use training collection
  * @returns {Promise<Object>} Session data
  */
-export async function createSession(uid, { trainingMode = false } = {}) {
-  const col = getCol("users", trainingMode);
+export async function createSession(uid) {
+  const col = getCol("users");
   const ref = doc(db, col, uid);
   
   const deviceInfo = getDeviceInfo();
@@ -61,8 +60,7 @@ export async function createSession(uid, { trainingMode = false } = {}) {
     createdAt: new Date().toISOString(),
     lastActiveAt: new Date().toISOString(),
     ipAddress: null, // Can be enhanced with IP detection service
-    isActive: true,
-  };
+    isActive: true};
 
   // Cap the sessions array so the user doc doesn't grow unboundedly
   const userSnap = await getDoc(ref);
@@ -75,8 +73,7 @@ export async function createSession(uid, { trainingMode = false } = {}) {
 
   await updateDoc(ref, {
     sessions,
-    lastLoginDevice: deviceInfo,
-  });
+    lastLoginDevice: deviceInfo});
 
   return session;
 }
@@ -85,23 +82,20 @@ export async function createSession(uid, { trainingMode = false } = {}) {
  * Force logout a user (revoke all sessions)
  * @param {string} uid - User ID
  * @param {Object} options
- * @param {boolean} options.trainingMode - Whether to use training collection
  * @returns {Promise<void>}
  */
-export async function forceLogoutUser(uid, { trainingMode = false } = {}) {
-  const col = getCol("users", trainingMode);
+export async function forceLogoutUser(uid) {
+  const col = getCol("users");
   const ref = doc(db, col, uid);
   
   await updateDoc(ref, {
     forceLogout: true,
-    forceLogoutTimestamp: new Date().toISOString(),
-  });
+    forceLogoutTimestamp: new Date().toISOString()});
 }
 
 /**
  * Clear force logout flag after user has been logged out
  * @param {string} uid - User ID
  * @param {Object} options
- * @param {boolean} options.trainingMode - Whether to use training collection
  * @returns {Promise<void>}
  */

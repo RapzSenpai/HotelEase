@@ -7,28 +7,27 @@ import {
   orderBy,
   query,
   serverTimestamp,
-  setDoc,
-} from "firebase/firestore";
+  setDoc} from "firebase/firestore";
 import { db } from "@/firebase/firebase.config";
 import { getCol } from "@/lib/db-utils";
 
 // Favorites live under the user doc — prod users/{uid}/favorites, sandbox
 // training_guests/{uid}/favorites — so routing follows the users collection.
-function favoritesCollection(userId, trainingMode = null) {
-  return collection(db, getCol("users", trainingMode), userId, "favorites");
+function favoritesCollection(userId) {
+  return collection(db, getCol("users"), userId, "favorites");
 }
 
-function favoriteDoc(userId, roomId, trainingMode = null) {
-  return doc(db, getCol("users", trainingMode), userId, "favorites", roomId);
+function favoriteDoc(userId, roomId) {
+  return doc(db, getCol("users"), userId, "favorites", roomId);
 }
 
-export function subscribeToFavorites(userId, callback, { trainingMode = null } = {}) {
+export function subscribeToFavorites(userId, callback) {
   if (!userId) {
     callback([]);
     return () => {};
   }
 
-  const q = query(favoritesCollection(userId, trainingMode), orderBy("createdAt", "desc"));
+  const q = query(favoritesCollection(userId), orderBy("createdAt", "desc"));
 
   return onSnapshot(
     q,
@@ -38,29 +37,27 @@ export function subscribeToFavorites(userId, callback, { trainingMode = null } =
     (error) => {
       console.error("[favoritesService] subscribeToFavorites error:", error);
       callback([]);
-    },
-  );
+    });
 }
 
-export async function addFavorite(userId, roomId, { trainingMode = null } = {}) {
+export async function addFavorite(userId, roomId) {
   if (!userId || !roomId) throw new Error("User and room are required.");
-  await setDoc(favoriteDoc(userId, roomId, trainingMode), {
+  await setDoc(favoriteDoc(userId, roomId), {
     roomId,
-    createdAt: serverTimestamp(),
-  });
+    createdAt: serverTimestamp()});
   return true;
 }
 
-export async function removeFavorite(userId, roomId, { trainingMode = null } = {}) {
+export async function removeFavorite(userId, roomId) {
   if (!userId || !roomId) throw new Error("User and room are required.");
-  await deleteDoc(favoriteDoc(userId, roomId, trainingMode));
+  await deleteDoc(favoriteDoc(userId, roomId));
   return true;
 }
 
-export async function toggleFavorite(userId, roomId, { trainingMode = null } = {}) {
+export async function toggleFavorite(userId, roomId) {
   if (!userId || !roomId) throw new Error("User and room are required.");
 
-  const ref = favoriteDoc(userId, roomId, trainingMode);
+  const ref = favoriteDoc(userId, roomId);
   const snap = await getDoc(ref);
   if (snap.exists()) {
     await deleteDoc(ref);
@@ -69,7 +66,6 @@ export async function toggleFavorite(userId, roomId, { trainingMode = null } = {
 
   await setDoc(ref, {
     roomId,
-    createdAt: serverTimestamp(),
-  });
+    createdAt: serverTimestamp()});
   return true;
 }

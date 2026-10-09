@@ -7,8 +7,8 @@ import { clearBookingMarked, nightKeys } from "../availabilityService";
  * edge is what keeps the split free of import cycles.
  */
 
-export function bookingsCollection(trainingMode) {
-  return getCol("bookings", trainingMode);
+export function bookingsCollection() {
+  return getCol("bookings");
 }
 
 export function calcNights(checkIn, checkOut) {
@@ -26,22 +26,21 @@ export function calcNights(checkIn, checkOut) {
  * transient network failures; a genuine failure is logged with enough context
  * to fix by hand, and the hourly worker orphan sweep is the backstop.
  */
-export async function releaseAvailabilityMarkers(booking, trainingMode = null) {
+export async function releaseAvailabilityMarkers(booking) {
   if (!booking?.roomId) return;
   const dates = nightKeys(booking.checkInDate, booking.checkOutDate);
   if (dates.length === 0) return;
 
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
-      await clearBookingMarked({ roomId: booking.roomId, bookingId: booking.id, dates, trainingMode });
+      await clearBookingMarked({ roomId: booking.roomId, bookingId: booking.id, dates});
       return;
     } catch (e) {
       if (attempt === 1) {
         console.error(
           "[bookingsService] availability marker cleanup failed:",
           { bookingId: booking.id, roomId: booking.roomId, dates },
-          e,
-        );
+          e);
         throw e;
       }
     }

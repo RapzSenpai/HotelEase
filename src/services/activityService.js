@@ -6,12 +6,11 @@ import { isOnlineNow } from "@/services/presenceService";
 /**
  * Subscribe to active users count in real-time
  * @param {Object} options
- * @param {boolean} options.trainingMode - Whether to use training collection
  * @param {Function} callback - Callback function that receives the count
  * @returns {Function} Unsubscribe function
  */
-export function subscribeToActiveUsersCount({ trainingMode = false }, callback) {
-  const col = getCol("users", trainingMode);
+export function subscribeToActiveUsersCount(callback) {
+  const col = getCol("users");
   const q = query(collection(db, col), where("isOnline", "==", true));
   
   const unsubscribe = onSnapshot(
@@ -32,12 +31,11 @@ export function subscribeToActiveUsersCount({ trainingMode = false }, callback) 
 /**
  * Subscribe to active users by role breakdown
  * @param {Object} options
- * @param {boolean} options.trainingMode - Whether to use training collection
  * @param {Function} callback - Callback function that receives the breakdown
  * @returns {Function} Unsubscribe function
  */
-export function subscribeToActiveUsersByRole({ trainingMode = false }, callback) {
-  const col = getCol("users", trainingMode);
+export function subscribeToActiveUsersByRole(callback) {
+  const col = getCol("users");
   const q = query(collection(db, col), where("isOnline", "==", true));
   
   const unsubscribe = onSnapshot(
@@ -48,8 +46,7 @@ export function subscribeToActiveUsersByRole({ trainingMode = false }, callback)
         total: users.length,
         guest: users.filter(u => u.role === "guest").length,
         fo: users.filter(u => u.role === "fo").length,
-        admin: users.filter(u => u.role === "admin").length,
-      };
+        admin: users.filter(u => u.role === "admin").length};
       callback(breakdown);
     },
     (error) => {

@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Plus, BedDouble } from "lucide-react";
 import RoomsTableView from "@/components/rooms/RoomsTableView";
@@ -13,8 +12,7 @@ import {
   activateRoom,
   createRoom,
   listRooms,
-  updateRoom,
-} from "@/services/roomsService";
+  updateRoom} from "@/services/roomsService";
 import { getRoomCapacity, ROOM_TYPE_CAPACITY_DEFAULTS } from "@/lib/roomCapacity";
 
 // ---------------------------------------------------------------------------
@@ -56,8 +54,7 @@ function initialForm() {
     checkOutTime: "",
     facilitiesCsv: "",
     isActive: true,
-    photos: [],
-  };
+    photos: []};
 }
 
 // ---------------------------------------------------------------------------
@@ -65,7 +62,6 @@ function initialForm() {
 // ---------------------------------------------------------------------------
 
 export default function AdminRoomManagementPage() {
-  const { trainingMode } = useAuth();
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -85,17 +81,15 @@ export default function AdminRoomManagementPage() {
   const [formOpen, setFormOpen] = useState(false);
 
   // ---- fetch rooms ----
-  // Explicit mode (never the override fallback) so training edits can
-  // never land in production inventory. Superseded loads are discarded so
-  // a slow request for the previous mode cannot overwrite the live list.
+  // Superseded loads are discarded so a slow request cannot overwrite the
+  // live list.
   const roomsRequestRef = useRef(0);
   async function refresh() {
-    const mode = trainingMode;
     const requestId = ++roomsRequestRef.current;
     setLoading(true);
     setError(null);
     try {
-      const data = await listRooms({ trainingMode: mode });
+      const data = await listRooms();
       if (roomsRequestRef.current !== requestId) return;
       setRooms(data);
     } catch (e) {
@@ -116,7 +110,7 @@ export default function AdminRoomManagementPage() {
     setFormOpen(false);
     refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [trainingMode]);
+  }, []);
 
   // ---- derived lists for filters ----
   const existingTypes = useMemo(() => {
@@ -224,8 +218,7 @@ export default function AdminRoomManagementPage() {
         .map((s) => s.trim())
         .filter(Boolean),
       isActive: !!form.isActive,
-      photos: Array.isArray(form.photos) ? form.photos : [],
-    };
+      photos: Array.isArray(form.photos) ? form.photos : []};
 
     if (!payload.roomNumber) throw new Error("Room number is required.");
     if (!payload.name) throw new Error("Room name is required.");
@@ -254,9 +247,9 @@ export default function AdminRoomManagementPage() {
     try {
       setSubmitting(true);
       if (editingId) {
-        await updateRoom(editingId, { ...payload, trainingMode });
+        await updateRoom(editingId, { ...payload});
       } else {
-        await createRoom({ ...payload, trainingMode });
+        await createRoom({ ...payload});
       }
       setEditingId(null);
       setForm(initialForm());
@@ -272,7 +265,7 @@ export default function AdminRoomManagementPage() {
   async function onArchive(id) {
     if (!window.confirm("Archive this room? It will be hidden from guests.")) return;
     try {
-      await deactivateRoom(id, { trainingMode });
+      await deactivateRoom(id);
       await refresh();
     } catch (e) {
       setSubmitError(e?.message || "Failed to archive room.");
@@ -281,7 +274,7 @@ export default function AdminRoomManagementPage() {
 
   async function onRestore(id) {
     try {
-      await activateRoom(id, { trainingMode });
+      await activateRoom(id);
       await refresh();
     } catch (e) {
       setSubmitError(e?.message || "Failed to restore room.");
@@ -308,8 +301,7 @@ export default function AdminRoomManagementPage() {
       checkOutTime: room.checkOutTime ?? "",
       facilitiesCsv: Array.isArray(room.facilities) ? room.facilities.join(", ") : "",
       isActive: room.isActive !== false,
-      photos: Array.isArray(room.photos) ? room.photos : [],
-    });
+      photos: Array.isArray(room.photos) ? room.photos : []});
     setSubmitError(null);
     setFormOpen(true);
   }
@@ -363,8 +355,7 @@ export default function AdminRoomManagementPage() {
           type: setTypeFilter,
           floor: setFloorFilter,
           sort: setSortBy,
-          view: setViewMode,
-        }}
+          view: setViewMode}}
         onClear={clearFilters}
       />
 

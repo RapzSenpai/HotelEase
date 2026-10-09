@@ -23,8 +23,7 @@ import {
   Activity,
   Shield,
   Bell,
-  Gauge,
-} from "lucide-react";
+  Gauge} from "lucide-react";
 
 const FO_LINKS = [
   {
@@ -35,10 +34,8 @@ const FO_LINKS = [
         to: "/fo/housekeeping",
         label: "Housekeeping",
         icon: Sparkles,
-        notification: { type: "dot", key: "hasDirtyRooms" },
-      },
-    ],
-  },
+        notification: { type: "dot", key: "hasDirtyRooms" }},
+    ]},
   {
     group: "Guest Stay",
     expandable: true,
@@ -47,34 +44,28 @@ const FO_LINKS = [
         to: "/fo/bookings",
         label: "Bookings",
         icon: CalendarDays,
-        notification: { type: "count", key: "pendingBookingsCount" },
-      },
+        notification: { type: "count", key: "pendingBookingsCount" }},
       {
         to: "/fo/check-in",
         label: "Check-In",
         icon: LogIn,
-        notification: { type: "dot", key: "hasApprovedCheckIns" },
-      },
+        notification: { type: "dot", key: "hasApprovedCheckIns" }},
       {
         to: "/fo/check-out",
         label: "Check-Out",
         icon: LogOut,
-        notification: { type: "dot", key: "hasDueCheckOuts" },
-      },
+        notification: { type: "dot", key: "hasDueCheckOuts" }},
       {
         to: "/fo/payments",
         label: "Payments",
         icon: CreditCard,
-        notification: { type: "dot", key: "hasPaymentsNeedingAttention" },
-      },
+        notification: { type: "dot", key: "hasPaymentsNeedingAttention" }},
       {
         to: "/fo/cancellations",
         label: "Cancellations & Refunds",
         icon: XCircle,
-        notification: { type: "dot", key: "hasPendingCancellations" },
-      },
-    ],
-  },
+        notification: { type: "dot", key: "hasPendingCancellations" }},
+    ]},
   {
     group: "Communication",
     items: [
@@ -82,11 +73,9 @@ const FO_LINKS = [
         to: "/fo/messages",
         label: "Messages",
         icon: Mail,
-        notification: { type: "count", key: "unreadMessagesCount" },
-      },
+        notification: { type: "count", key: "unreadMessagesCount" }},
       { to: "/fo/announcements", label: "Announcements", icon: Megaphone },
-    ],
-  },
+    ]},
 ];
 
 const ADMIN_LINKS = [
@@ -95,8 +84,7 @@ const ADMIN_LINKS = [
     items: [
       { to: "/admin", label: "Analytics", icon: BarChart3, end: true },
       { to: "/admin/operations", label: "Operations", icon: ClipboardList },
-    ],
-  },
+    ]},
   {
     group: "Management",
     items: [
@@ -105,10 +93,8 @@ const ADMIN_LINKS = [
         to: "/admin/rooms",
         label: "Room Management",
         icon: Building2,
-        notification: { type: "dot", key: "hasDirtyRooms" },
-      },
-    ],
-  },
+        notification: { type: "dot", key: "hasDirtyRooms" }},
+    ]},
   {
     group: "Communication",
     items: [
@@ -116,16 +102,13 @@ const ADMIN_LINKS = [
         to: "/admin/messages",
         label: "Messages",
         icon: Mail,
-        notification: { type: "count", key: "unreadMessagesCount" },
-      },
+        notification: { type: "count", key: "unreadMessagesCount" }},
       {
         to: "/admin/testimonials",
         label: "Testimonials",
         icon: MessageSquareQuote,
-        notification: { type: "count", key: "pendingTestimonialsCount" },
-      },
-    ],
-  },
+        notification: { type: "count", key: "pendingTestimonialsCount" }},
+    ]},
   {
     group: "System",
     items: [
@@ -133,15 +116,13 @@ const ADMIN_LINKS = [
         to: "/admin/alerts",
         label: "Alerts",
         icon: Bell,
-        notification: { type: "count", key: "unresolvedAlertsCount" },
-      },
+        notification: { type: "count", key: "unresolvedAlertsCount" }},
       { to: "/admin/health", label: "System Health", icon: Activity },
       { to: "/admin/availability", label: "Availability", icon: CalendarDays },
       { to: "/admin/performance", label: "Performance", icon: Gauge },
       { to: "/admin/audit-logs", label: "Audit Logs", icon: Shield },
       { to: "/admin/settings", label: "System Settings", icon: Settings },
-    ],
-  },
+    ]},
 ];
 
 function SidebarNotification({ type, value }) {
@@ -190,7 +171,7 @@ function SidebarNotification({ type, value }) {
 }
 
 export default function Sidebar({ open, onClose }) {
-  const { role, user, trainingMode, logout } = useAuth();
+  const { role, user, logout } = useAuth();
   const location = useLocation();
   const [visitedSections, setVisitedSections] = useState(new Set());
   const [unresolvedAlertsCount, setUnresolvedAlertsCount] = useState(0);
@@ -204,14 +185,13 @@ export default function Sidebar({ open, onClose }) {
     dirtyRoomsCount,
     pendingTestimonialsCount,
     hasPendingCancellations,
-    hasPaymentsNeedingAttention,
-  } = useFOIndicators({ trainingMode, role });
+    hasPaymentsNeedingAttention} = useFOIndicators({ role });
 
   useEffect(() => {
     if (role !== "admin") return;
-    const unsub = subscribeToUnresolvedCount(setUnresolvedAlertsCount, { trainingMode });
+    const unsub = subscribeToUnresolvedCount(setUnresolvedAlertsCount);
     return () => unsub();
-  }, [role, trainingMode]);
+  }, [role]);
 
   const indicators = useMemo(
     () => ({
@@ -223,8 +203,7 @@ export default function Sidebar({ open, onClose }) {
       pendingTestimonialsCount,
       hasPendingCancellations,
       hasPaymentsNeedingAttention,
-      unresolvedAlertsCount,
-    }),
+      unresolvedAlertsCount}),
     [
       pendingBookingsCount,
       unreadMessagesCount,
@@ -235,8 +214,7 @@ export default function Sidebar({ open, onClose }) {
       hasPendingCancellations,
       hasPaymentsNeedingAttention,
       unresolvedAlertsCount,
-    ],
-  );
+    ]);
 
   // Testimonials + alerts stay admin-only; the Messages inbox is shared by
   // FO and Admin, so both roles keep the unread badge.
@@ -244,8 +222,7 @@ export default function Sidebar({ open, onClose }) {
     ...indicators,
     unreadMessagesCount: 0,
     pendingTestimonialsCount: 0,
-    unresolvedAlertsCount: 0,
-  };
+    unresolvedAlertsCount: 0};
 
 // Re-arm dot indicators when a NEW event arrives after the section was last
 // seen. Uses the last seen value/count as a baseline: when the current value

@@ -11,11 +11,9 @@ import {
   createAnnouncement,
   updateAnnouncement,
   deleteAnnouncement,
-  listAnnouncements,
-} from "@/services/announcementsService";
+  listAnnouncements} from "@/services/announcementsService";
 import { uploadImageToCloudinary } from "@/services/cloudinaryService";
 import { mapFirebaseError } from "@/lib/errors";
-import { useAuth } from "@/contexts/AuthContext";
 
 
 function AnnouncementPhotoUploader({ imageUrl, onChange }) {
@@ -33,8 +31,7 @@ function AnnouncementPhotoUploader({ imageUrl, onChange }) {
       const { url } = await uploadImageToCloudinary(file, {
         folder: "announcements",
         compressionPreset: "announcementImages",
-        onProgress: (pct) => setUploadProgress(pct),
-      });
+        onProgress: (pct) => setUploadProgress(pct)});
       onChange(url);
     } catch (err) {
       setError(mapFirebaseError(err) || "Upload failed");
@@ -101,7 +98,6 @@ function AnnouncementPhotoUploader({ imageUrl, onChange }) {
 
 export default function FoAnnouncementsPage() {
   const location = useLocation();
-  const { trainingMode } = useAuth();
   const [form, setForm] = useState(() => {
     // AI Ops Assistant hands off drafts via router state — prefilled here so
     // the admin reviews/edits before posting. Nothing is auto-published.
@@ -111,8 +107,7 @@ export default function FoAnnouncementsPage() {
         title: String(draft.title ?? "").slice(0, 120),
         description: String(draft.description ?? "").slice(0, 2000),
         date: "",
-        imageUrl: null,
-      };
+        imageUrl: null};
     }
     return { title: "", description: "", date: "", imageUrl: null };
   });
@@ -146,9 +141,9 @@ export default function FoAnnouncementsPage() {
     setError(null);
     try {
       if (editingId) {
-        await updateAnnouncement(editingId, form, { trainingMode });
+        await updateAnnouncement(editingId, form);
       } else {
-        await createAnnouncement(form, { trainingMode });
+        await createAnnouncement(form);
       }
       resetForm();
       await refresh();
@@ -162,7 +157,7 @@ export default function FoAnnouncementsPage() {
   async function onDelete(id) {
     if (!window.confirm("Are you sure you want to delete this announcement?")) return;
     try {
-      await deleteAnnouncement(id, { trainingMode });
+      await deleteAnnouncement(id);
       await refresh();
     } catch {
       setError("Failed to delete announcement.");
@@ -175,8 +170,7 @@ export default function FoAnnouncementsPage() {
       title: item.title || "",
       description: item.description || "",
       date: formatDate(item.date),
-      imageUrl: item.imageUrl || null,
-    });
+      imageUrl: item.imageUrl || null});
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
@@ -196,12 +190,6 @@ export default function FoAnnouncementsPage() {
           </p>
         </div>
       </div>
-
-      {trainingMode ? (
-        <div className="rounded-xl border border-primary/30 bg-primary/10 px-4 py-3 text-sm">
-          Announcements are turned off in training mode. Nothing here reaches the live site.
-        </div>
-      ) : null}
 
       {error ? (
         <div className="rounded-xl border border-destructive/20 bg-destructive/5 p-4 text-sm font-medium text-destructive">

@@ -11,7 +11,7 @@
  *   createdAt   (Timestamp)
  *   updatedAt   (Timestamp)
  *
- * NOTE: In training mode, getCol("reviews", trainingMode) resolves to
+ * NOTE: In training mode, getCol("reviews") resolves to
  * "training_reviews" via db-utils sandboxing.
  */
 
@@ -24,32 +24,29 @@ import {
   query,
   runTransaction,
   serverTimestamp,
-  where,
-} from "firebase/firestore";
+  where} from "firebase/firestore";
 import { db } from "@/firebase/firebase.config";
 import { getCol } from "@/lib/db-utils";
 
 const BASE_COL = "reviews";
 
-function reviewsCollection(trainingMode) {
-  return getCol(BASE_COL, trainingMode);
+function reviewsCollection() {
+  return getCol(BASE_COL);
 }
 
 /**
  * Fetch all reviews for a given room, ordered newest-first.
  *
  * @param {string} roomId
- * @param {{ trainingMode?: boolean|string|null }} options
  * @returns {Promise<Array<{ id: string, [key: string]: any }>>}
  */
-export async function listReviewsForRoom(roomId, { trainingMode = null } = {}) {
+export async function listReviewsForRoom(roomId) {
   if (!roomId) return [];
-  const col = reviewsCollection(trainingMode);
+  const col = reviewsCollection();
   const q = query(
     collection(db, col),
     where("roomId", "==", roomId),
-    orderBy("createdAt", "desc"),
-  );
+    orderBy("createdAt", "desc"));
   const snap = await getDocs(q);
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
@@ -67,8 +64,7 @@ export async function listReviewsForRoom(roomId, { trainingMode = null } = {}) {
  *   guestId: string,
  *   guestName: string,
  *   rating: number,
- *   feedback: string,
- *   trainingMode?: boolean|string|null
+ *   feedback: string
  * }} payload
  * @returns {Promise<{ id: string }>}
  */
@@ -79,9 +75,7 @@ export async function createReview(payload) {
     guestId,
     guestName,
     rating,
-    feedback,
-    trainingMode = null,
-  } = payload;
+    feedback} = payload;
 
   if (!roomId || !guestId) {
     throw new Error("createReview: roomId and guestId are required.");
@@ -99,12 +93,12 @@ export async function createReview(payload) {
   }
 
   // Belt-and-braces: also catch legacy reviews created before deterministic ids.
-  const already = await hasUserReviewedRoom(guestId, roomId, { trainingMode });
+  const already = await hasUserReviewedRoom(guestId, roomId);
   if (already) {
     throw new Error("You have already reviewed this room.");
   }
 
-  const col = reviewsCollection(trainingMode);
+  const col = reviewsCollection();
   const reviewId = `${guestId}_${roomId}`;
   const reviewRef = doc(db, col, reviewId);
 
@@ -121,8 +115,7 @@ export async function createReview(payload) {
       rating: numRating,
       feedback: cleanFeedback,
       createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
+      updatedAt: serverTimestamp()});
   });
 
   return { id: reviewId };
@@ -136,13 +129,12 @@ export async function createReview(payload) {
  *
  * @param {string} guestId
  * @param {string} roomId
- * @param {{ trainingMode?: boolean|string|null }} options
  * @returns {Promise<boolean>}
  */
-export async function hasUserReviewedRoom(guestId, roomId, { trainingMode = null } = {}) {
+export async function hasUserReviewedRoom(guestId, roomId) {
   if (!guestId || !roomId) return false;
 
-  const col = reviewsCollection(trainingMode);
+  const col = reviewsCollection();
   try {
     const snap = await getDoc(doc(db, col, `${guestId}_${roomId}`));
     if (snap.exists()) return true;
@@ -153,8 +145,7 @@ export async function hasUserReviewedRoom(guestId, roomId, { trainingMode = null
   const q = query(
     collection(db, col),
     where("guestId", "==", guestId),
-    where("roomId", "==", roomId),
-  );
+    where("roomId", "==", roomId));
   const snap = await getDocs(q);
   return !snap.empty;
 }

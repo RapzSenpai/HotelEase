@@ -47,11 +47,10 @@ export function generateGatewayRef(method) {
  *
  * @param {Object} params
  * @param {string} params.bookingId
- * @param {string|null} [params.trainingMode]
  * @param {string} [params.userBankRef] - required for Bank Transfer, typed from banking app
  * @returns {Promise<{ ok: boolean, gatewayRef: string, bankRef?: string }>}
  */
-export async function completeSimulatedPayment({ bookingId, trainingMode = null, userBankRef } = {}) {
+export async function completeSimulatedPayment({ bookingId, userBankRef } = {}) {
   if (!bookingId || typeof bookingId !== "string") {
     throw new Error("Invalid bookingId passed to completeSimulatedPayment");
   }
@@ -62,7 +61,7 @@ export async function completeSimulatedPayment({ bookingId, trainingMode = null,
     throw new Error("You must be logged in to complete a payment");
   }
 
-  const col = getCol("bookings", trainingMode);
+  const col = getCol("bookings");
   const bookingRef = doc(db, col, bookingId);
 
   // Transaction: double-clicks / double-tabs serialize on the booking doc —
@@ -95,8 +94,7 @@ export async function completeSimulatedPayment({ bookingId, trainingMode = null,
       gatewayRef: ref,
       paidAt: serverTimestamp(),
       status: "Pending",
-      updatedAt: serverTimestamp(),
-    };
+      updatedAt: serverTimestamp()};
     let storedBankRef = null;
     if (data.paymentMethod === "Bank Transfer") {
       storedBankRef = trimmedBankRef;
@@ -108,9 +106,8 @@ export async function completeSimulatedPayment({ bookingId, trainingMode = null,
 
   // Same FO fan-out notification the proof-upload path sends.
   try {
-    const foUsers = await listFoUsers({ trainingMode }).then((users) =>
-      users.filter((u) => u.id !== currentUser.uid),
-    );
+    const foUsers = await listFoUsers().then((users) =>
+      users.filter((u) => u.id !== currentUser.uid));
 
     await Promise.all(
       foUsers.map((fo) =>
@@ -118,10 +115,7 @@ export async function completeSimulatedPayment({ bookingId, trainingMode = null,
           type: "payment_received",
           title: "Payment Received (Simulated)",
           message: `Simulated ${booking.paymentMethod} payment completed for a booking request`,
-          link: "/fo/bookings",
-        }, { trainingMode }),
-      ),
-    );
+          link: "/fo/bookings"})));
   } catch (e) {
     console.error("Notif error", e);
   }

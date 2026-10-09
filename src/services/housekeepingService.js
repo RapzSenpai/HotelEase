@@ -9,16 +9,15 @@ import {
   runTransaction,
   serverTimestamp,
   updateDoc,
-  where,
-} from "firebase/firestore";
+  where} from "firebase/firestore";
 import { db } from "@/firebase/firebase.config";
 import { getCol } from "@/lib/db-utils";
 import { isValidFoTransition } from "@/lib/room-status-transitions";
 import { listFoUsers } from "./userService";
 import { createNotification } from "./notificationService";
 
-function housekeepingLogsCollection(trainingMode) {
-  return getCol("housekeeping_logs", trainingMode);
+function housekeepingLogsCollection() {
+  return getCol("housekeeping_logs");
 }
 
 export async function updateRoomStatus({
@@ -30,16 +29,14 @@ export async function updateRoomStatus({
   assignedToUserId = null,
   assignedToName = "",
   note = "",
-  photoUrls = [],
-  trainingMode = null,
-}) {
+  photoUrls = []}) {
   if (!roomId || typeof roomId !== "string")
     throw new Error("Invalid roomId passed to updateRoomStatus");
   if (!newStatus || typeof newStatus !== "string")
     throw new Error("Invalid newStatus passed to updateRoomStatus");
 
   return runTransaction(db, async (transaction) => {
-    const roomsCol = getCol("rooms", trainingMode);
+    const roomsCol = getCol("rooms");
     const roomRef = doc(db, roomsCol, roomId);
     const roomSnap = await transaction.get(roomRef);
     if (!roomSnap.exists()) throw new Error("Room not found.");
@@ -55,15 +52,13 @@ export async function updateRoomStatus({
     // Pending Approval -> Available, plus reject/re-clean paths).
     if (fromStatus !== newStatus && !isValidFoTransition(fromStatus, newStatus)) {
       throw new Error(
-        `Invalid room status transition: ${fromStatus} -> ${newStatus}.`,
-      );
+        `Invalid room status transition: ${fromStatus} -> ${newStatus}.`);
     }
 
     const roomUpdate = {
       status: newStatus,
       updatedAt: serverTimestamp(),
-      statusChangedAt: serverTimestamp(),
-    };
+      statusChangedAt: serverTimestamp()};
 
     if (newStatus === "Being Cleaned") {
       roomUpdate.cleaningStartedAt = serverTimestamp();
@@ -98,7 +93,7 @@ export async function updateRoomStatus({
 
     transaction.update(roomRef, roomUpdate);
 
-    const logsCol = housekeepingLogsCollection(trainingMode);
+    const logsCol = housekeepingLogsCollection();
     const logRef = doc(collection(db, logsCol));
     transaction.set(logRef, {
       roomId,
@@ -113,8 +108,7 @@ export async function updateRoomStatus({
       photoUrls: Array.isArray(photoUrls) ? photoUrls : [],
       isMidStayRequest: isMidStay,
       createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
+      updatedAt: serverTimestamp()});
 
     return {
       ok: true,
@@ -122,18 +116,17 @@ export async function updateRoomStatus({
       roomName: roomData.name || roomData.type || "Room",
       newStatus,
       isMidStay,
-      guestIdForNotif,
-    };
+      guestIdForNotif};
   }).then(async (result) => {
     if (result.newStatus === "Dirty / Needs Cleaning") {
       try {
-        const foUsers = await listFoUsers({ trainingMode });
+        const foUsers = await listFoUsers();
         await Promise.all(foUsers.map(fo => createNotification(fo.id, {
           type: "room_dirty",
           title: "Room Needs Cleaning 🧹",
           message: `${result.roomName} is ready for housekeeping.`,
           link: "/fo/housekeeping"
-        }, { trainingMode })));
+        })));
       } catch(e) { console.error("Notif error", e); }
     }
 
@@ -144,15 +137,13 @@ export async function updateRoomStatus({
             type: "housekeeping_in_progress",
             title: "Housekeeping in Progress 🧹",
             message: `Housekeeping staff is currently cleaning your room (${result.roomName}).`,
-            link: "/housekeeping",
-          }, { trainingMode });
+            link: "/housekeeping"});
         } else if (result.newStatus === "Available") {
           await createNotification(result.guestIdForNotif, {
             type: "housekeeping_done",
             title: "Housekeeping Completed ✨",
             message: `Your room (${result.roomName}) has been cleaned! Check your booking to view photos or leave feedback.`,
-            link: "/housekeeping",
-          }, { trainingMode });
+            link: "/housekeeping"});
         }
       } catch (e) {
         console.error("Guest mid-stay notif error", e);
@@ -168,21 +159,19 @@ export async function requestMidStayHousekeeping({
   bookingId,
   guestId,
   guestName,
-  note = "",
-  trainingMode = null,
-}) {
+  note = ""}) {
   if (!roomId) throw new Error("Invalid roomId passed to requestMidStayHousekeeping");
   if (!bookingId) throw new Error("A bookingId is required for a mid-stay housekeeping request.");
 
   return runTransaction(db, async (transaction) => {
-    const roomsCol = getCol("rooms", trainingMode);
+    const roomsCol = getCol("rooms");
     const roomRef = doc(db, roomsCol, roomId);
     const roomSnap = await transaction.get(roomRef);
     if (!roomSnap.exists()) throw new Error("Room not found.");
 
     // The rules enforce this too (rooms update rule) — mirrored here for a
     // clear error message instead of a raw permission-denied.
-    const bookingRef = doc(db, getCol("bookings", trainingMode), bookingId);
+    const bookingRef = doc(db, getCol("bookings"), bookingId);
     const bookingSnap = await transaction.get(bookingRef);
     if (!bookingSnap.exists()) throw new Error("Booking not found.");
     if (bookingSnap.data()?.status !== "Checked In") {
@@ -199,7 +188,7 @@ export async function requestMidStayHousekeeping({
       const midBookingId = roomData.midStayBookingId;
       let midStatus = null;
       if (midBookingId) {
-        const midBookingRef = doc(db, getCol("bookings", trainingMode), midBookingId);
+        const midBookingRef = doc(db, getCol("bookings"), midBookingId);
         const midBookingSnap = await transaction.get(midBookingRef);
         midStatus = midBookingSnap.exists() ? midBookingSnap.data()?.status : null;
       }
@@ -211,18 +200,16 @@ export async function requestMidStayHousekeeping({
           midStayGuestName: deleteField(),
           midStayBookingId: deleteField(),
           midStayRequestedAt: deleteField(),
-          midStayRequestId: deleteField(),
-        });
+          midStayRequestId: deleteField()});
       } else {
         throw new Error(
-          "There is already a housekeeping request in progress for this room. Please wait for it to be completed.",
-        );
+          "There is already a housekeeping request in progress for this room. Please wait for it to be completed.");
       }
     }
 
     // The request log is the origin of this request cycle; its id becomes the
     // requestId stamped on the room and every log entry of the cycle.
-    const logsCol = housekeepingLogsCollection(trainingMode);
+    const logsCol = housekeepingLogsCollection();
     const logRef = doc(collection(db, logsCol));
     const requestId = logRef.id;
 
@@ -236,8 +223,7 @@ export async function requestMidStayHousekeeping({
       midStayRequestId: requestId,
       midStayRequestedAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
-      statusChangedAt: serverTimestamp(),
-    });
+      statusChangedAt: serverTimestamp()});
 
     transaction.set(logRef, {
       roomId,
@@ -252,17 +238,15 @@ export async function requestMidStayHousekeeping({
       note: note ? `[Mid-Stay Request] ${note}` : "[Mid-Stay Request]",
       photoUrls: [],
       createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
+      updatedAt: serverTimestamp()});
 
     return {
       ok: true,
       logId: logRef.id,
-      roomName: roomData.name || roomData.type || "Room",
-    };
+      roomName: roomData.name || roomData.type || "Room"};
   }).then(async (result) => {
     try {
-      const foUsers = await listFoUsers({ trainingMode });
+      const foUsers = await listFoUsers();
       await Promise.all(
         foUsers.map((fo) =>
           createNotification(fo.id, {
@@ -273,10 +257,7 @@ export async function requestMidStayHousekeeping({
             message: `Guest (${guestName}) requested cleaning for ${result.roomName}${
               note ? `: "${note}"` : "."
             }`,
-            link: "/fo/housekeeping",
-          }),
-        ),
-      );
+            link: "/fo/housekeeping"})));
     } catch (e) {
       console.error("Notif error", e);
     }
@@ -296,14 +277,12 @@ export async function cancelMidStayRequest({
   cancelledByRole = "guest",
   cancelledByUserId = null,
   cancelledByName = "",
-  reason = "",
-  trainingMode = null,
-}) {
+  reason = ""}) {
   if (!roomId || !bookingId)
     throw new Error("Invalid roomId/bookingId passed to cancelMidStayRequest");
 
   return runTransaction(db, async (transaction) => {
-    const roomsCol = getCol("rooms", trainingMode);
+    const roomsCol = getCol("rooms");
     const roomRef = doc(db, roomsCol, roomId);
     const roomSnap = await transaction.get(roomRef);
     if (!roomSnap.exists()) throw new Error("Room not found.");
@@ -317,8 +296,7 @@ export async function cancelMidStayRequest({
     }
     if (roomData.status !== "Dirty / Needs Cleaning") {
       throw new Error(
-        "This request can no longer be cancelled — cleaning may already be in progress. Please contact Front Office.",
-      );
+        "This request can no longer be cancelled — cleaning may already be in progress. Please contact Front Office.");
     }
 
     const fromStatus = roomData.status;
@@ -334,10 +312,9 @@ export async function cancelMidStayRequest({
       midStayRequestedAt: deleteField(),
       midStayRequestId: deleteField(),
       updatedAt: serverTimestamp(),
-      statusChangedAt: serverTimestamp(),
-    });
+      statusChangedAt: serverTimestamp()});
 
-    const logsCol = housekeepingLogsCollection(trainingMode);
+    const logsCol = housekeepingLogsCollection();
     const logRef = doc(collection(db, logsCol));
     transaction.set(logRef, {
       roomId,
@@ -352,15 +329,13 @@ export async function cancelMidStayRequest({
       note: reason ? `[Mid-Stay Request Cancelled] ${reason}` : "[Mid-Stay Request Cancelled]",
       photoUrls: [],
       createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
+      updatedAt: serverTimestamp()});
 
     return {
       ok: true,
       logId: logRef.id,
       roomName: roomData.name || roomData.type || "Room",
-      guestIdForNotif: roomData.midStayGuestId || null,
-    };
+      guestIdForNotif: roomData.midStayGuestId || null};
   }).then(async (result) => {
     if (cancelledByRole === "fo" && result.guestIdForNotif) {
       try {
@@ -370,8 +345,7 @@ export async function cancelMidStayRequest({
           message: `Your housekeeping request for ${result.roomName} was cancelled${
             reason ? ` (${reason})` : "."
           }`,
-          link: "/housekeeping",
-        });
+          link: "/housekeeping"});
       } catch (e) {
         console.error("Guest cancel notif error", e);
       }
@@ -386,16 +360,13 @@ export async function cancelMidStayRequest({
  */
 export async function saveHousekeepingPhotos({
   roomId,
-  photoUrls = [],
-  trainingMode = null,
-}) {
+  photoUrls = []}) {
   if (!roomId || typeof roomId !== "string")
     throw new Error("Invalid roomId passed to saveHousekeepingPhotos");
-  const roomsCol = getCol("rooms", trainingMode);
+  const roomsCol = getCol("rooms");
   await updateDoc(doc(db, roomsCol, roomId), {
     photoUrls: Array.isArray(photoUrls) ? photoUrls : [],
-    updatedAt: serverTimestamp(),
-  });
+    updatedAt: serverTimestamp()});
   return { ok: true };
 }
 
@@ -409,30 +380,24 @@ export async function rateHousekeeping({
   logId,
   rating,
   feedback = "",
-  roomName = "",
-  trainingMode = null,
-}) {
+  roomName = ""}) {
   if (!logId) throw new Error("Invalid logId passed to rateHousekeeping");
   const stars = Math.min(5, Math.max(1, Math.round(Number(rating) || 1)));
-  const logsCol = housekeepingLogsCollection(trainingMode);
+  const logsCol = housekeepingLogsCollection();
   await updateDoc(doc(db, logsCol, logId), {
     rating: stars,
     ratingFeedback: String(feedback || "").slice(0, 1000),
-    ratedAt: serverTimestamp(),
-  });
+    ratedAt: serverTimestamp()});
 
   try {
-    const foUsers = await listFoUsers({ trainingMode });
+    const foUsers = await listFoUsers();
     await Promise.all(
       foUsers.map((fo) =>
         createNotification(fo.id, {
           type: "housekeeping_rated",
           title: "Guest Rated Housekeeping ⭐",
           message: `A guest rated the housekeeping for ${roomName || "a room"} ${stars}/5.`,
-          link: "/fo/housekeeping",
-        }),
-      ),
-    );
+          link: "/fo/housekeeping"})));
   } catch (e) {
     console.error("Notif error", e);
   }
@@ -442,26 +407,22 @@ export async function rateHousekeeping({
 export async function assignHousekeepingStaff({
   roomId,
   assignedToUserId,
-  assignedToName = "",
-  trainingMode = null,
-}) {
+  assignedToName = ""}) {
   if (!roomId || typeof roomId !== "string")
     throw new Error("Invalid roomId passed to assignHousekeepingStaff");
 
-  const roomsCol = getCol("rooms", trainingMode);
+  const roomsCol = getCol("rooms");
   const roomRef = doc(db, roomsCol, roomId);
   await updateDoc(roomRef, {
     assignedToUserId: assignedToUserId || null,
     assignedToName: assignedToName || "",
-    updatedAt: serverTimestamp(),
-  });
+    updatedAt: serverTimestamp()});
   return { ok: true };
 }
 
 export async function bulkUpdateRoomStatus({
   roomIds,
   newStatus,
-  trainingMode = null,
   ...options
 }) {
   if (!Array.isArray(roomIds) || roomIds.length === 0) {
@@ -473,11 +434,7 @@ export async function bulkUpdateRoomStatus({
       updateRoomStatus({
         roomId,
         newStatus,
-        trainingMode,
-        ...options,
-      }),
-    ),
-  );
+        ...options})));
 
   const succeeded = [];
   const failed = [];
@@ -494,12 +451,10 @@ export async function bulkUpdateRoomStatus({
 }
 
 export async function listHousekeepingLogsForRoom(
-  roomId,
-  { trainingMode = null } = {},
-) {
+  roomId) {
   if (!roomId || typeof roomId !== "string") return [];
 
-  const logsCol = housekeepingLogsCollection(trainingMode);
+  const logsCol = housekeepingLogsCollection();
 
   // Try ordered query first, fall back to unordered if missing index
   let snap;
@@ -507,18 +462,15 @@ export async function listHousekeepingLogsForRoom(
     const q = query(
       collection(db, logsCol),
       where("roomId", "==", roomId),
-      orderBy("createdAt", "desc"),
-    );
+      orderBy("createdAt", "desc"));
     snap = await getDocs(q);
   } catch (err) {
     console.warn(
       "[housekeepingService] Ordered query failed (missing index?), falling back to unordered:",
-      err?.message,
-    );
+      err?.message);
     const qFallback = query(
       collection(db, logsCol),
-      where("roomId", "==", roomId),
-    );
+      where("roomId", "==", roomId));
     snap = await getDocs(qFallback);
   }
 
@@ -536,20 +488,17 @@ export async function listHousekeepingLogsForRoom(
 
 export function subscribeToHousekeepingLogsForRoom(
   roomId,
-  callback,
-  { trainingMode = null } = {},
-) {
+  callback) {
   if (!roomId || typeof roomId !== "string") {
     callback([]);
     return () => {};
   }
 
-  const logsCol = housekeepingLogsCollection(trainingMode);
+  const logsCol = housekeepingLogsCollection();
   const q = query(
     collection(db, logsCol),
     where("roomId", "==", roomId),
-    orderBy("createdAt", "desc"),
-  );
+    orderBy("createdAt", "desc"));
 
   return onSnapshot(
     q,
@@ -560,19 +509,16 @@ export function subscribeToHousekeepingLogsForRoom(
     (err) => {
       console.warn(
         "[housekeepingService] onSnapshot error, falling back to getDocs:",
-        err?.message,
-      );
+        err?.message);
       // Fallback: try without orderBy
       const qFallback = query(
         collection(db, logsCol),
-        where("roomId", "==", roomId),
-      );
+        where("roomId", "==", roomId));
       getDocs(qFallback)
         .then((fallbackSnap) => {
           const logs = fallbackSnap.docs.map((d) => ({
             id: d.id,
-            ...d.data(),
-          }));
+            ...d.data()}));
           logs.sort((a, b) => {
             const aTime =
               a.createdAt?.toMillis?.() ?? a.createdAt?.seconds ?? 0;
@@ -583,8 +529,7 @@ export function subscribeToHousekeepingLogsForRoom(
           callback(logs);
         })
         .catch(() => callback([]));
-    },
-  );
+    });
 }
 
 /**
@@ -596,26 +541,23 @@ export function subscribeToHousekeepingLogsForRoom(
 export function subscribeToHousekeepingLogsForBooking(
   bookingId,
   callback,
-  { trainingMode = null, roomId = null, guestId = null } = {},
-) {
+  { roomId = null, guestId = null } = {}) {
   if (!bookingId || typeof bookingId !== "string") {
     callback([]);
     return () => {};
   }
 
-  const logsCol = housekeepingLogsCollection(trainingMode);
+  const logsCol = housekeepingLogsCollection();
   const bookingQuery = query(
     collection(db, logsCol),
     where("bookingId", "==", bookingId),
-    orderBy("createdAt", "desc"),
-  );
+    orderBy("createdAt", "desc"));
   const legacyQuery = roomId && guestId
     ? query(
         collection(db, logsCol),
         where("roomId", "==", roomId),
         where("changedByUserId", "==", guestId),
-        where("isMidStayRequest", "==", true),
-      )
+        where("isMidStayRequest", "==", true))
     : null;
 
   const sortLogs = (docs) => docs
@@ -639,14 +581,12 @@ export function subscribeToHousekeepingLogsForBooking(
       getDocs(fallbackQuery)
         .then((fallbackSnap) => { sources.set(source, fallbackSnap.docs); emit(); })
         .catch(() => { sources.set(source, []); emit(); });
-    },
-  );
+    });
   const unsubs = [
     subscribe(
       "booking",
       bookingQuery,
-      query(collection(db, logsCol), where("bookingId", "==", bookingId)),
-    ),
+      query(collection(db, logsCol), where("bookingId", "==", bookingId))),
   ];
   if (legacyQuery) {
     unsubs.push(subscribe("legacy", legacyQuery, legacyQuery));

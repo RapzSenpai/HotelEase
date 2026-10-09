@@ -8,8 +8,7 @@ import {
   runTransaction,
   serverTimestamp,
   Timestamp,
-  where,
-} from "firebase/firestore";
+  where} from "firebase/firestore";
 import { db } from "@/firebase/firebase.config";
 // Shared with availabilityService — see lib/time-utils.js for the local-midnight rule.
 import { toLocalDate as toDate } from "@/lib/time-utils";
@@ -23,8 +22,7 @@ import { calculatePartialPayment, PROOF_REQUIRED_METHODS } from "@/lib/paymentDe
 import {
   bookingsCollection,
   calcNights,
-  releaseAvailabilityMarkers,
-} from "./core";
+  releaseAvailabilityMarkers} from "./core";
 import { getAvailableRoomIds } from "./queries";
 
 /**
@@ -36,15 +34,14 @@ import { getAvailableRoomIds } from "./queries";
 const ROOM_STATUS = {
   RESERVED: "Reserved",
   OCCUPIED: "Occupied",
-  DIRTY: "Dirty / Needs Cleaning",
-};
+  DIRTY: "Dirty / Needs Cleaning"};
 
-export async function approveBooking(bookingId, { trainingMode = null } = {}) {
+export async function approveBooking(bookingId) {
   if (!bookingId || typeof bookingId !== "string") {
     throw new Error("Invalid bookingId passed to approveBooking");
   }
 
-  const bCol = bookingsCollection(trainingMode);
+  const bCol = bookingsCollection();
 
   // Conflict re-check must run OUTSIDE the transaction (queries aren't allowed inside).
   // Block approval if another booking for the same room/dates is already Approved or later.
@@ -62,8 +59,7 @@ export async function approveBooking(bookingId, { trainingMode = null } = {}) {
     const conflictsQuery = query(
       collection(db, bCol),
       where("roomId", "==", preBooking.roomId),
-      where("status", "in", ["Approved", "Checked In"]),
-    );
+      where("status", "in", ["Approved", "Checked In"]));
     const conflictsSnap = await getDocs(conflictsQuery);
     const hasConflict = conflictsSnap.docs.some((conflictDoc) => {
       if (conflictDoc.id === bookingId) return false;
@@ -74,13 +70,12 @@ export async function approveBooking(bookingId, { trainingMode = null } = {}) {
     });
     if (hasConflict) {
       throw new Error(
-        "Cannot approve — another booking for this room already covers these dates.",
-      );
+        "Cannot approve — another booking for this room already covers these dates.");
     }
   }
 
   return runTransaction(db, async (transaction) => {
-    const rCol = getCol("rooms", trainingMode);
+    const rCol = getCol("rooms");
 
     const bookingRef = doc(db, bCol, bookingId);
     const bookingSnap = await transaction.get(bookingRef);
@@ -118,28 +113,23 @@ export async function approveBooking(bookingId, { trainingMode = null } = {}) {
       roomId,
       bookingId,
       checkIn: booking.checkInDate,
-      checkOut: booking.checkOutDate,
-      trainingMode,
-    });
+      checkOut: booking.checkOutDate});
     if (!markerCheck.complete || markerCheck.live.length > 0) {
       if (!markerCheck.complete) {
         throw new Error("Cannot approve — booking availability markers are incomplete.");
       }
       throw new Error(
-        "Cannot approve — another booking for this room already covers these dates.",
-      );
+        "Cannot approve — another booking for this room already covers these dates.");
     }
 
     transaction.update(bookingRef, {
       status: "Approved",
       proofVerifiedAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
+      updatedAt: serverTimestamp()});
 
     transaction.update(roomRef, {
       status: ROOM_STATUS.RESERVED,
-      updatedAt: serverTimestamp(),
-    });
+      updatedAt: serverTimestamp()});
 
     return { ok: true, roomName: roomSnap.data().name || roomSnap.data().type || "Room", guestId: booking.guestId, booking };
   }).then(async (result) => {
@@ -150,9 +140,7 @@ export async function approveBooking(bookingId, { trainingMode = null } = {}) {
         bookingId,
         checkIn: result.booking.checkInDate,
         checkOut: result.booking.checkOutDate,
-        status: "Approved",
-        trainingMode,
-      });
+        status: "Approved"});
     } catch (e) {
       console.warn("Availability marker refresh failed:", e);
     }
@@ -180,9 +168,7 @@ export async function approveBooking(bookingId, { trainingMode = null } = {}) {
             : "Initial payment via proof upload",
           source: isSimulated ? "simulated_gateway" : "guest_proof",
           processedBy: "system",
-          trainingMode,
-          idempotencyKey: `${bookingId}-initial`,
-        });
+          idempotencyKey: `${bookingId}-initial`});
       } catch (e) {
         console.error("Payment recording error:", e);
         // Don't block approval if payment recording fails - log and continue
@@ -195,12 +181,12 @@ export async function approveBooking(bookingId, { trainingMode = null } = {}) {
         title: "Booking Approved! 🎉",
         message: `Your booking for ${result.roomName} has been approved.`,
         link: "/my-bookings"
-      }, { trainingMode });
+      });
     } catch (e) { console.error("Notif error", e); }
 
     // Send booking confirmation email (fire-and-forget)
     try {
-      const guestDoc = await getDoc(doc(db, getCol("users", trainingMode), result.guestId));
+      const guestDoc = await getDoc(doc(db, getCol("users"), result.guestId));
       if (guestDoc.exists()) {
         const guestData = guestDoc.data();
         const toEmail = guestData.email;
@@ -214,16 +200,14 @@ export async function approveBooking(bookingId, { trainingMode = null } = {}) {
 
         const paymentType = result.booking.paymentType || "Full";
 
-        // Training guests have no email address — skip the doomed EmailJS call.
-        if (!trainingMode) sendBookingConfirmation({
+        sendBookingConfirmation({
           toEmail,
           toName,
           roomName: result.roomName,
           checkIn: checkInStr,
           checkOut: checkOutStr,
           bookingId: bookingId,
-          paymentType,
-        });
+          paymentType});
       }
     } catch (e) {
       console.error("Email service error:", e);
@@ -233,14 +217,14 @@ export async function approveBooking(bookingId, { trainingMode = null } = {}) {
   });
 }
 
-export async function checkInBooking(bookingId, { trainingMode = null } = {}) {
+export async function checkInBooking(bookingId) {
   if (!bookingId || typeof bookingId !== "string") {
     throw new Error("Invalid bookingId passed to checkInBooking");
   }
 
   return runTransaction(db, async (transaction) => {
-    const bCol = bookingsCollection(trainingMode);
-    const rCol = getCol("rooms", trainingMode);
+    const bCol = bookingsCollection();
+    const rCol = getCol("rooms");
 
     const bookingRef = doc(db, bCol, bookingId);
     const bookingSnap = await transaction.get(bookingRef);
@@ -261,14 +245,12 @@ export async function checkInBooking(bookingId, { trainingMode = null } = {}) {
 
     transaction.update(bookingRef, {
       status: "Checked In",
-      updatedAt: serverTimestamp(),
-    });
+      updatedAt: serverTimestamp()});
 
     transaction.update(roomRef, {
       status: ROOM_STATUS.OCCUPIED,
       updatedAt: serverTimestamp(),
-      statusChangedAt: serverTimestamp(),
-    });
+      statusChangedAt: serverTimestamp()});
 
     return { ok: true, booking };
   }).then(async (result) => {
@@ -280,9 +262,7 @@ export async function checkInBooking(bookingId, { trainingMode = null } = {}) {
         bookingId,
         checkIn: result.booking.checkInDate,
         checkOut: result.booking.checkOutDate,
-        status: "Checked In",
-        trainingMode,
-      });
+        status: "Checked In"});
     } catch (e) {
       console.warn("Availability marker refresh failed:", e);
     }
@@ -290,14 +270,14 @@ export async function checkInBooking(bookingId, { trainingMode = null } = {}) {
   });
 }
 
-export async function checkOutBooking(bookingId, { trainingMode = null } = {}) {
+export async function checkOutBooking(bookingId) {
   if (!bookingId || typeof bookingId !== "string") {
     throw new Error("Invalid bookingId passed to checkOutBooking");
   }
 
   return runTransaction(db, async (transaction) => {
-    const bCol = bookingsCollection(trainingMode);
-    const rCol = getCol("rooms", trainingMode);
+    const bCol = bookingsCollection();
+    const rCol = getCol("rooms");
 
     const bookingRef = doc(db, bCol, bookingId);
     const bookingSnap = await transaction.get(bookingRef);
@@ -318,19 +298,17 @@ export async function checkOutBooking(bookingId, { trainingMode = null } = {}) {
 
     transaction.update(bookingRef, {
       status: "Checked Out",
-      updatedAt: serverTimestamp(),
-    });
+      updatedAt: serverTimestamp()});
 
     transaction.update(roomRef, {
       status: ROOM_STATUS.DIRTY,
       updatedAt: serverTimestamp(),
-      statusChangedAt: serverTimestamp(),
-    });
+      statusChangedAt: serverTimestamp()});
 
     return { booking: { id: bookingId, ...booking }, ok: true };
   }).then(async (result) => {
     // Free availability markers on check-out so the nights can be re-booked.
-    await releaseAvailabilityMarkers(result.booking, trainingMode);
+    await releaseAvailabilityMarkers(result.booking);
     return { ok: true };
   });
 }
@@ -339,13 +317,13 @@ export async function checkOutBooking(bookingId, { trainingMode = null } = {}) {
  * Front Office action: Extend an active Checked-In booking to a new check-out date.
  * Validates conflicts on the extended nights and writes availability markers.
  */
-export async function extendStayBooking(bookingId, { newCheckOutDate, additionalCost = 0, expectedCheckOutDate = null, trainingMode = null } = {}) {
+export async function extendStayBooking(bookingId, { newCheckOutDate, additionalCost = 0, expectedCheckOutDate = null } = {}) {
   if (!bookingId || !newCheckOutDate) throw new Error("Booking ID and new check-out date are required.");
 
   const newOut = toDate(newCheckOutDate);
   if (!newOut) throw new Error("Invalid new check-out date.");
 
-  const bCol = bookingsCollection(trainingMode);
+  const bCol = bookingsCollection();
   const bookingRef = doc(db, bCol, bookingId);
   const bookingSnap = await getDoc(bookingRef);
   if (!bookingSnap.exists()) throw new Error("Booking not found.");
@@ -367,7 +345,7 @@ export async function extendStayBooking(bookingId, { newCheckOutDate, additional
   // The transaction below re-checks the markers — this is only UX fast-fail.
   const curOutStr = dateKey(currentOut);
   const newOutStr = dateKey(newOut);
-  const blockedRoomIds = await getAvailableRoomIds(curOutStr, newOutStr, { trainingMode });
+  const blockedRoomIds = await getAvailableRoomIds(curOutStr, newOutStr);
   if (blockedRoomIds.has(booking.roomId)) {
     throw new Error("Cannot extend stay: The room is reserved by another booking for the extended dates.");
   }
@@ -396,9 +374,7 @@ export async function extendStayBooking(bookingId, { newCheckOutDate, additional
         bookingId,
         checkIn: toDate(live.checkOutDate),
         checkOut: newOut,
-        status: "Checked In",
-        trainingMode,
-      });
+        status: "Checked In"});
     } catch (e) {
       if (e?.message === MARKER_CONFLICT_MESSAGE) {
         throw new Error("Cannot extend stay: The room is reserved by another booking for the extended dates.");
@@ -415,8 +391,7 @@ export async function extendStayBooking(bookingId, { newCheckOutDate, additional
       baseTotal: increment(cost),
       isExtended: true,
       extendedNights: (live.extendedNights || 0) + calcNights(liveOut, newOut),
-      updatedAt: serverTimestamp(),
-    });
+      updatedAt: serverTimestamp()});
   });
 
   const newTotalNights = calcNights(checkIn, newOut);
@@ -429,8 +404,7 @@ export async function extendStayBooking(bookingId, { newCheckOutDate, additional
         type: "stay_extended",
         title: "Stay Extended",
         message: `Your stay in ${booking.roomName || "your room"} has been extended until ${newOut.toLocaleDateString()}.`,
-        link: "/my-bookings",
-      }, { trainingMode });
+        link: "/my-bookings"});
     } catch (e) {
       console.error("Notif error", e);
     }
@@ -443,13 +417,13 @@ export async function extendStayBooking(bookingId, { newCheckOutDate, additional
  * Front Office action: Add an incidental fee (e.g. Late Checkout / Overstay Fee)
  * to a booking folio before checkout.
  */
-export async function addOverstayFee(bookingId, { feeAmount, feeReason = "Late checkout fee", trainingMode = null } = {}) {
+export async function addOverstayFee(bookingId, { feeAmount, feeReason = "Late checkout fee" } = {}) {
   const fee = Number(feeAmount);
   if (!bookingId || !Number.isFinite(fee) || fee <= 0) {
     throw new Error("Please provide a valid positive fee amount.");
   }
 
-  const bCol = bookingsCollection(trainingMode);
+  const bCol = bookingsCollection();
   const bookingRef = doc(db, bCol, bookingId);
 
   const preSnap = await getDoc(bookingRef);
@@ -474,8 +448,7 @@ export async function addOverstayFee(bookingId, { feeAmount, feeReason = "Late c
       overstayReason: feeReason,
       totalCost: increment(fee),
       subtotal: increment(fee),
-      updatedAt: serverTimestamp(),
-    });
+      updatedAt: serverTimestamp()});
 
     const currentCost = Number(booking.totalCost ?? 0);
     const currentOverstayFee = Number(booking.overstayFee ?? 0);
@@ -483,8 +456,8 @@ export async function addOverstayFee(bookingId, { feeAmount, feeReason = "Late c
   });
 }
 
-export async function checkAndExpireStaleBookings({ trainingMode = null } = {}) {
-  const col = bookingsCollection(trainingMode);
+export async function checkAndExpireStaleBookings() {
+  const col = bookingsCollection();
   const now = new Date();
   
   const q = query(
@@ -512,15 +485,14 @@ export async function checkAndExpireStaleBookings({ trainingMode = null } = {}) 
       transaction.update(ref, {
         status: "Cancelled",
         rejectionReason: "Payment deadline expired",
-        updatedAt: serverTimestamp(),
-      });
+        updatedAt: serverTimestamp()});
       return true;
     });
     if (!cancelled) continue;
 
     // Marker cleanup must not prevent later expired bookings from processing.
     try {
-      await releaseAvailabilityMarkers(booking, trainingMode);
+      await releaseAvailabilityMarkers(booking);
     } catch (e) {
       console.error("Expired booking marker cleanup failed:", e);
     }
@@ -530,8 +502,7 @@ export async function checkAndExpireStaleBookings({ trainingMode = null } = {}) 
         type: "booking_cancelled",
         title: "Booking Cancelled",
         message: `Your booking was cancelled because payment was not submitted before the deadline.`,
-        link: "/my-bookings",
-      }, { trainingMode });
+        link: "/my-bookings"});
     } catch (e) {
       console.error("Notif error", e);
     }

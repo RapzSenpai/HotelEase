@@ -10,8 +10,7 @@ import {
   serverTimestamp,
   updateDoc,
   where,
-  writeBatch,
-} from "firebase/firestore";
+  writeBatch} from "firebase/firestore";
 import { db } from "@/firebase/firebase.config";
 import { getCol } from "@/lib/db-utils";
 
@@ -22,14 +21,13 @@ const ROOMS_COL = "rooms";
  * @param {Object} params
  * @param {string[]} params.roomIds - List of room document IDs
  * @param {string} params.status - New status (e.g. 'Available', 'Out of Order')
- * @param {boolean} [params.trainingMode]
  * @returns {Promise<{ ok: boolean, updated: number }>}
  */
-export async function bulkUpdateRoomStatus({ roomIds = [], status, trainingMode = null } = {}) {
+export async function bulkUpdateRoomStatus({ roomIds = [], status } = {}) {
   if (!status) throw new Error("A target status is required.");
   const ids = (Array.isArray(roomIds) ? roomIds : []).filter((id) => String(id || "").trim());
 
-  const col = getCol(ROOMS_COL, trainingMode);
+  const col = getCol(ROOMS_COL);
   const batch = writeBatch(db);
 
   ids.forEach((id) => {
@@ -37,8 +35,7 @@ export async function bulkUpdateRoomStatus({ roomIds = [], status, trainingMode 
     batch.update(ref, {
       status,
       statusChangedAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
+      updatedAt: serverTimestamp()});
   });
 
   if (ids.length > 0) await batch.commit();
@@ -52,13 +49,12 @@ export async function bulkUpdateRoomStatus({ roomIds = [], status, trainingMode 
  * @param {string} params.roomId
  * @param {string} params.status
  * @param {string} [params.note]
- * @param {boolean} [params.trainingMode]
  * @returns {Promise<{ ok: boolean }>}
  */
-export async function emergencySetRoomStatus({ roomId, status, note = "", trainingMode = null } = {}) {
+export async function emergencySetRoomStatus({ roomId, status, note = "" } = {}) {
   if (!roomId) throw new Error("Room is required.");
   if (!status) throw new Error("A status is required.");
-  const col = getCol(ROOMS_COL, trainingMode);
+  const col = getCol(ROOMS_COL);
   const ref = doc(db, col, roomId);
   await updateDoc(ref, {
     status,
@@ -66,8 +62,7 @@ export async function emergencySetRoomStatus({ roomId, status, note = "", traini
     emergencyNote: note,
     emergencyChangedAt: serverTimestamp(),
     statusChangedAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  });
+    updatedAt: serverTimestamp()});
   return { ok: true };
 }
 
@@ -116,15 +111,14 @@ async function exportWindow(col, { maxRows = EXPORT_MAX_ROWS, excludeId = null }
   return {
     docs: snap.docs.map((d) => ({ id: d.id, ...d.data() })),
     total,
-    truncated: total > snap.docs.length,
-  };
+    truncated: total > snap.docs.length};
 }
 
 /**
  * Fetch rooms for export tooling (capped window). Reads live from Firestore.
  */
-export async function exportRooms({ trainingMode = null, maxRows = EXPORT_MAX_ROWS } = {}) {
-  const { docs, total, truncated } = await exportWindow(getCol(ROOMS_COL, trainingMode), { maxRows });
+export async function exportRooms({ maxRows = EXPORT_MAX_ROWS } = {}) {
+  const { docs, total, truncated } = await exportWindow(getCol(ROOMS_COL), { maxRows });
   return { rows: docs, total, truncated };
 }
 
@@ -133,12 +127,11 @@ export async function exportRooms({ trainingMode = null, maxRows = EXPORT_MAX_RO
  * the cap so it can never displace a real user — or skew the total — at the
  * window boundary.
  */
-export async function exportUsers({ trainingMode = null, maxRows = EXPORT_MAX_ROWS } = {}) {
-  const col = getCol("users", trainingMode);
+export async function exportUsers({ maxRows = EXPORT_MAX_ROWS } = {}) {
+  const col = getCol("users");
   const { docs, total, truncated } = await exportWindow(col, { maxRows, excludeId: "system" });
   return {
     rows: docs,
     total,
-    truncated,
-  };
+    truncated};
 }

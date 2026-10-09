@@ -16,8 +16,7 @@ import {
   TableCell,
   TableHead,
   TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+  TableRow} from "@/components/ui/table";
 import { Select } from "radix-ui";
 import { toast } from "sonner";
 import {
@@ -26,28 +25,22 @@ import {
   DialogDescription,
   DialogFooter,
   DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  DialogTitle} from "@/components/ui/dialog";
 
 const ROLE_OPTIONS = ["guest", "fo", "admin"];
 const FILTER_TABS = [
   { id: "all", label: "All Users" },
   { id: "fo", label: "Front Office" },
   { id: "admin", label: "Admin" },
-  { id: "training", label: "Training Session Users" },
 ];
 
 export default function AdminUserManagementPage() {
-  const { user: currentUser, trainingMode } = useAuth();
+  const { user: currentUser} = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [users, setUsers] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
-  // Backstop: even if this page is reached in training, default to the
-  // sandbox tab so prod users are never the first thing shown.
-  const [activeTab, setActiveTab] = useState(trainingMode ? "training" : "all");
-
-  const isTrainingSource = activeTab === "training";
+  const [activeTab, setActiveTab] = useState("all");
 
   const [roleEdits, setRoleEdits] = useState({});
   const [savingRoleFor, setSavingRoleFor] = useState(null);
@@ -70,8 +63,8 @@ export default function AdminUserManagementPage() {
     });
   }
 
-  // Role tabs are server-filtered so fo/admin windows stay exact; "all" and
-  // "training" read the collection head (client sort + search unchanged).
+  // Role tabs are server-filtered so fo/admin windows stay exact; "all"
+  // reads the collection head (client sort + search unchanged).
   const roleFilter = activeTab === "fo" || activeTab === "admin" ? activeTab : null;
 
   useEffect(() => {
@@ -85,10 +78,10 @@ export default function AdminUserManagementPage() {
     // refreshes are trailing-edge debounced; the immediate call below covers
     // mount/tab changes. The flag drops late results from a previous tab.
     function refreshCounts() {
-      countUsers({ trainingMode: isTrainingSource, role: roleFilter })
+      countUsers()
         .then((v) => { if (!cancelled) setTotalCount(v); })
         .catch(() => { if (!cancelled) setTotalCount(null); });
-      countUsers({ trainingMode: isTrainingSource, role: "admin" })
+      countUsers()
         .then((v) => { if (!cancelled) setAdminCount(v); })
         .catch(() => { if (!cancelled) setAdminCount(null); });
     }
@@ -102,7 +95,6 @@ export default function AdminUserManagementPage() {
     refreshCounts();
 
     const unsub = subscribeToUsers({
-      trainingMode: isTrainingSource,
       limit: pageSize,
       role: roleFilter,
       onData: (data) => {
@@ -114,15 +106,14 @@ export default function AdminUserManagementPage() {
         setError(e?.message || "Failed to load users.");
         toast.error("Failed to load users");
         setLoading(false);
-      },
-    });
+      }});
 
     return () => {
       cancelled = true;
       if (countsTimer) clearTimeout(countsTimer);
       unsub();
     };
-  }, [isTrainingSource, roleFilter, pageSize]);
+  }, [roleFilter, pageSize]);
 
   const filteredUsers = useMemo(() => {
     let result = users;
@@ -143,11 +134,10 @@ export default function AdminUserManagementPage() {
       );
   }, [users, searchQuery, activeTab]);
 
-  // Last-admin shield (prod only): the worker refuses deleting the sole admin
+  // Last-admin shield: the worker refuses deleting the sole admin
   // and rules need a prod admin for user writes — block demote/delete here too.
   // Uses the exact server headcount so the bounded window can't misread it.
   function isSoleProdAdmin(uid) {
-    if (isTrainingSource) return false;
     if (adminCount !== null) {
       if (adminCount > 1) return false;
       const known = users.find((u) => u.id === uid);
@@ -173,14 +163,12 @@ export default function AdminUserManagementPage() {
 
     setSavingRoleFor(uid);
     try {
-      await setUserRole(uid, nextRole, { trainingMode: isTrainingSource });
+      await setUserRole(uid, nextRole);
       auditAction(AUDIT_ACTIONS.USER_ROLE_CHANGE, {
         targetId: uid,
         targetType: "user",
         changes: { role: { from: currentRole, to: nextRole } },
-        description: `Role changed from ${currentRole} to ${nextRole}`,
-        trainingMode: isTrainingSource,
-      });
+        description: `Role changed from ${currentRole} to ${nextRole}`});
       toast.success("User role updated successfully");
     } catch (e) {
       toast.error(e?.message || "Failed to update role");
@@ -203,9 +191,7 @@ export default function AdminUserManagementPage() {
         targetId: uid,
         targetType: "user",
         changes: { email: deletingUser.email, fullName: deletingUser.fullName },
-        description: `Deleted user ${deletingUser.email || deletingUser.fullName || uid}`,
-        trainingMode: isTrainingSource,
-      });
+        description: `Deleted user ${deletingUser.email || deletingUser.fullName || uid}`});
       const holds = Number(result?.cancelledHolds ?? 0);
       const incomplete =
         (result?.incomplete?.holds?.length ?? 0) + (result?.incomplete?.markers?.length ?? 0);
@@ -235,14 +221,12 @@ export default function AdminUserManagementPage() {
       // the login account still exists (client SDK cannot delete Auth accounts).
       toast.error(`Full delete failed: ${e?.message || e}`);
       try {
-        await deleteUser(uid, { trainingMode: isTrainingSource });
+        await deleteUser(uid);
         auditAction(AUDIT_ACTIONS.USER_DELETE, {
           targetId: uid,
           targetType: "user",
           changes: { email: deletingUser.email, fullName: deletingUser.fullName },
-          description: `Deleted user profile ${deletingUser.email || deletingUser.fullName || uid} (Auth account preserved)`,
-          trainingMode: isTrainingSource,
-        });
+        description: `Deleted user profile ${deletingUser.email || deletingUser.fullName || uid} (Auth account preserved)`});
         setUsers((prev) => prev.filter((u) => u.id !== uid));
         setIsDeleteDialogOpen(false);
         setDeletingUser(null);
@@ -255,13 +239,11 @@ export default function AdminUserManagementPage() {
 
   async function handleForceLogout(uid) {
     try {
-      await forceLogoutUser(uid, { trainingMode: isTrainingSource });
+      await forceLogoutUser(uid);
       auditAction(AUDIT_ACTIONS.USER_FORCE_LOGOUT, {
         targetId: uid,
         targetType: "user",
-        description: "Force logged out user",
-        trainingMode: isTrainingSource,
-      });
+        description: "Force logged out user"});
       toast.success("User will be logged out on next activity");
     } catch (e) {
       toast.error(e?.message || "Failed to force logout user");
@@ -383,8 +365,7 @@ export default function AdminUserManagementPage() {
                             onValueChange={(value) =>
                               setRoleEdits((p) => ({
                                 ...p,
-                                [u.id]: value,
-                              }))
+                                [u.id]: value}))
                             }
                           >
                             <Select.Trigger

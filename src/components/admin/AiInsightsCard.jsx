@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useAuth } from "@/contexts/AuthContext";
 import { buildAdminContext, generateAiInsights } from "@/services/insightsService";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -21,11 +20,9 @@ const markdownComponents = {
     </h2>
   ),
   h3: ({ children }) => <h3 className="mt-3 mb-1 text-sm font-semibold">{children}</h3>,
-  hr: () => <hr className="my-3 border-border" />,
-};
+  hr: () => <hr className="my-3 border-border" />};
 
 export default function AiInsightsCard() {
-  const { trainingMode } = useAuth();
   const [status, setStatus] = useState("idle"); // idle | loading | ready | error
   const [report, setReport] = useState("");
   const [error, setError] = useState("");
@@ -40,7 +37,7 @@ export default function AiInsightsCard() {
     setStatus("loading");
     setError("");
     try {
-      const context = await buildAdminContext({ trainingMode });
+      const context = await buildAdminContext();
       const content = await generateAiInsights(context);
       if (!content) throw new Error("The analyst returned an empty response.");
       setReport(content);
@@ -49,7 +46,7 @@ export default function AiInsightsCard() {
       setError(e?.message || "Failed to generate insights.");
       setStatus("error");
     }
-  }, [trainingMode]);
+  }, []);
 
   const handleCopy = async () => {
     try {

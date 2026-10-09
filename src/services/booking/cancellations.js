@@ -14,13 +14,11 @@ import { bookingsCollection, releaseAvailabilityMarkers } from "./core";
 
 export async function rejectBooking(
   bookingId,
-  reason,
-  { trainingMode = null } = {},
-) {
+  reason) {
   if (!bookingId || typeof bookingId !== "string") {
     throw new Error("Invalid bookingId passed to rejectBooking");
   }
-  const col = bookingsCollection(trainingMode);
+  const col = bookingsCollection();
   const ref = doc(db, col, bookingId);
   const booking = await runTransaction(db, async (transaction) => {
     const bookingSnap = await transaction.get(ref);
@@ -32,14 +30,13 @@ export async function rejectBooking(
     transaction.update(ref, {
       status: "Cancelled",
       rejectionReason: reason || "",
-      updatedAt: serverTimestamp(),
-    });
+      updatedAt: serverTimestamp()});
     return { id: bookingId, ...current };
   });
-  await releaseAvailabilityMarkers(booking, trainingMode);
+  await releaseAvailabilityMarkers(booking);
 
   try {
-    const roomSnap = await getDoc(doc(db, getCol("rooms", trainingMode), booking.roomId));
+    const roomSnap = await getDoc(doc(db, getCol("rooms"), booking.roomId));
     const roomName = roomSnap.exists() ? roomSnap.data().name || roomSnap.data().type || "Room" : "Room";
 
     await createNotification(booking.guestId, {
@@ -47,17 +44,17 @@ export async function rejectBooking(
       title: "Booking Update",
       message: `Your booking for ${roomName} was not approved. Reason: ${reason || "Not provided"}`,
       link: `/my-bookings?bookingId=${bookingId}`
-    }, { trainingMode });
+    });
   } catch (e) { console.error("Notif error", e); }
   return { ok: true };
 }
 
-export async function cancelBooking(bookingId, { trainingMode = null } = {}) {
+export async function cancelBooking(bookingId) {
   if (!bookingId || typeof bookingId !== "string") {
     throw new Error("Invalid bookingId passed to cancelBooking");
   }
-  const col = bookingsCollection(trainingMode);
-  const rCol = getCol("rooms", trainingMode);
+  const col = bookingsCollection();
+  const rCol = getCol("rooms");
 
   const { booking, roomName } = await runTransaction(db, async (transaction) => {
     const bookingRef = doc(db, col, bookingId);
@@ -73,7 +70,7 @@ export async function cancelBooking(bookingId, { trainingMode = null } = {}) {
     let userSnap = null;
     let userRef = null;
     if (bookingData.guestId) {
-      const uCol = getCol("users", trainingMode);
+      const uCol = getCol("users");
       userRef = doc(db, uCol, bookingData.guestId);
       userSnap = await transaction.get(userRef);
     }
@@ -104,8 +101,7 @@ export async function cancelBooking(bookingId, { trainingMode = null } = {}) {
       }
       transaction.update(userRef, {
         cancellationCount: count + 1,
-        updatedAt: serverTimestamp(),
-      });
+        updatedAt: serverTimestamp()});
     }
 
     let resolvedRoomName = "Room";
@@ -117,32 +113,29 @@ export async function cancelBooking(bookingId, { trainingMode = null } = {}) {
         transaction.update(roomRef, {
           status: "Dirty / Needs Cleaning",
           updatedAt: serverTimestamp(),
-          statusChangedAt: serverTimestamp(),
-        });
+          statusChangedAt: serverTimestamp()});
       } else if (previousStatus === "Approved") {
         transaction.update(roomRef, {
           status: "Available",
           updatedAt: serverTimestamp(),
-          statusChangedAt: serverTimestamp(),
-        });
+          statusChangedAt: serverTimestamp()});
       }
     }
 
     transaction.update(bookingRef, {
       status: "Cancelled",
-      updatedAt: serverTimestamp(),
-    });
+      updatedAt: serverTimestamp()});
 
     return { booking: { id: bookingId, ...bookingData }, roomName: resolvedRoomName };
   });
 
-  await releaseAvailabilityMarkers(booking, trainingMode);
+  await releaseAvailabilityMarkers(booking);
 
   try {
     const checkInStr = booking.checkInDate?.toDate
       ? booking.checkInDate.toDate().toLocaleDateString()
       : "unknown date";
-    const foUsers = await listFoUsers({ trainingMode }).then((users) => users);
+    const foUsers = await listFoUsers().then((users) => users);
 
       await Promise.all(
         foUsers.map((fo) =>
@@ -150,10 +143,7 @@ export async function cancelBooking(bookingId, { trainingMode = null } = {}) {
             type: "booking_cancelled",
             title: "Booking Cancelled",
             message: `Booking for ${roomName} on ${checkInStr} has been cancelled.`,
-            link: `/fo/bookings?bookingId=${bookingId}`,
-          }, { trainingMode }),
-        ),
-      );
+            link: `/fo/bookings?bookingId=${bookingId}`})));
   } catch (e) {
     console.error("Notif error", e);
   }
@@ -161,11 +151,11 @@ export async function cancelBooking(bookingId, { trainingMode = null } = {}) {
   return { ok: true };
 }
 
-export async function requestCancellation(bookingId, guestId, reason, { trainingMode = null } = {}) {
+export async function requestCancellation(bookingId, guestId, reason) {
   if (!bookingId || !reason) throw new Error("Missing booking or reason.");
 
   return runTransaction(db, async (transaction) => {
-    const col = bookingsCollection(trainingMode);
+    const col = bookingsCollection();
     const bookingRef = doc(db, col, bookingId);
     const bookingSnap = await transaction.get(bookingRef);
     if (!bookingSnap.exists()) throw new Error("Booking not found.");
@@ -174,7 +164,7 @@ export async function requestCancellation(bookingId, guestId, reason, { training
     if (booking.guestId !== guestId) throw new Error("Unauthorized.");
     if (booking.status !== "Approved") throw new Error("Only Approved bookings can request cancellation.");
 
-    const uCol = getCol("users", trainingMode);
+    const uCol = getCol("users");
     const userRef = doc(db, uCol, guestId);
     const userSnap = await transaction.get(userRef);
 
@@ -190,28 +180,28 @@ export async function requestCancellation(bookingId, guestId, reason, { training
       cancellationReason: reason,
       cancellationRequestedAt: serverTimestamp(),
       updatedAt: serverTimestamp()
-    }, { trainingMode });
+    });
 
     return { ok: true, roomName: "Room" }; 
   }).then(async () => {
     try {
-      const foUsers = await listFoUsers({ trainingMode });
+      const foUsers = await listFoUsers();
       await Promise.all(foUsers.map(fo => createNotification(fo.id, {
         type: "cancellation_requested",
         title: "Cancellation Requested",
         message: `A guest has requested to cancel their booking. Reason: ${reason}`,
         link: `/fo/cancellations?tab=requests&bookingId=${bookingId}`
-      }, { trainingMode })));
+      })));
     } catch (e) { console.error("Notif error", e); }
     return { ok: true };
   });
 }
 
-export async function approveCancellation(bookingId, { trainingMode = null } = {}) {
+export async function approveCancellation(bookingId) {
   if (!bookingId) throw new Error("Invalid bookingId");
 
-  const bCol = bookingsCollection(trainingMode);
-  const rCol = getCol("rooms", trainingMode);
+  const bCol = bookingsCollection();
+  const rCol = getCol("rooms");
 
   const { booking, roomName } = await runTransaction(db, async (transaction) => {
     const bookingRef = doc(db, bCol, bookingId);
@@ -223,7 +213,7 @@ export async function approveCancellation(bookingId, { trainingMode = null } = {
       throw new Error("Booking is not pending cancellation.");
     }
 
-    const uCol = getCol("users", trainingMode);
+    const uCol = getCol("users");
     const userRef = doc(db, uCol, bookingData.guestId);
     const userSnap = await transaction.get(userRef);
 
@@ -241,8 +231,7 @@ export async function approveCancellation(bookingId, { trainingMode = null } = {
       }
       transaction.update(userRef, {
         cancellationCount: count + 1,
-        updatedAt: serverTimestamp(),
-      });
+        updatedAt: serverTimestamp()});
     }
 
     let resolvedRoomName = "Room";
@@ -251,27 +240,24 @@ export async function approveCancellation(bookingId, { trainingMode = null } = {
       transaction.update(roomRef, {
         status: "Available",
         updatedAt: serverTimestamp(),
-        statusChangedAt: serverTimestamp(),
-      });
+        statusChangedAt: serverTimestamp()});
     }
 
     transaction.update(bookingRef, {
       status: "Cancelled",
-      updatedAt: serverTimestamp(),
-    }, { trainingMode });
+      updatedAt: serverTimestamp()});
 
     return { booking: { id: bookingId, ...bookingData }, roomName: resolvedRoomName };
   });
 
-  await releaseAvailabilityMarkers(booking, trainingMode);
+  await releaseAvailabilityMarkers(booking);
 
   try {
       await createNotification(booking.guestId, {
         type: "cancellation_approved",
         title: "Cancellation Approved",
         message: `Your cancellation request for ${roomName} has been approved.`,
-        link: `/my-bookings?bookingId=${bookingId}`,
-      }, { trainingMode });
+        link: `/my-bookings?bookingId=${bookingId}`});
   } catch (e) {
     console.error("Notif error", e);
   }
@@ -279,11 +265,11 @@ export async function approveCancellation(bookingId, { trainingMode = null } = {
   return { ok: true };
 }
 
-export async function rejectCancellation(bookingId, rejectionReason, { trainingMode = null } = {}) {
+export async function rejectCancellation(bookingId, rejectionReason) {
   if (!bookingId) throw new Error("Invalid bookingId");
 
-  const bCol = bookingsCollection(trainingMode);
-  const rCol = getCol("rooms", trainingMode);
+  const bCol = bookingsCollection();
+  const rCol = getCol("rooms");
 
   const { booking, roomName } = await runTransaction(db, async (transaction) => {
     const bookingRef = doc(db, bCol, bookingId);
@@ -310,8 +296,7 @@ export async function rejectCancellation(bookingId, rejectionReason, { trainingM
     transaction.update(bookingRef, {
       status: "Approved",
       rejectionReason: rejectionReason || "",
-      updatedAt: serverTimestamp(),
-    });
+      updatedAt: serverTimestamp()});
 
     return { booking: bookingData, roomName: resolvedRoomName };
   });
@@ -321,8 +306,7 @@ export async function rejectCancellation(bookingId, rejectionReason, { trainingM
         type: "cancellation_rejected",
         title: "Cancellation Rejected",
         message: `Your cancellation request for ${roomName} was rejected. Reason: ${rejectionReason}`,
-        link: `/my-bookings?bookingId=${bookingId}`,
-      }, { trainingMode });
+        link: `/my-bookings?bookingId=${bookingId}`});
   } catch (e) {
     console.error("Notif error", e);
   }

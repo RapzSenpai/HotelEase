@@ -1,6 +1,5 @@
 import {
   collection,
-  deleteDoc,
   doc,
   getDocs,
   query,
@@ -8,8 +7,7 @@ import {
   serverTimestamp,
   Timestamp,
   updateDoc,
-  where,
-} from "firebase/firestore";
+  where} from "firebase/firestore";
 import { db } from "@/firebase/firebase.config";
 // Shared with availabilityService — see lib/time-utils.js for the local-midnight rule.
 import { toLocalDate as toDate } from "@/lib/time-utils";
@@ -20,8 +18,7 @@ import {
   claimBookingMarked,
   getBlockedRoomIds,
   MARKER_CONFLICT_MESSAGE,
-  nightKeys,
-} from "../availabilityService";
+  nightKeys} from "../availabilityService";
 import { getRoomCapacity } from "@/lib/roomCapacity";
 import { bookingsCollection, calcNights } from "./core";
 
@@ -32,7 +29,6 @@ import { bookingsCollection, calcNights } from "./core";
  */
 
 export async function createBooking(payload) {
-  const trainingMode = payload?.trainingMode ?? null;
   const checkIn = toDate(payload.checkInDate);
   const checkOut = toDate(payload.checkOutDate);
 
@@ -50,21 +46,20 @@ export async function createBooking(payload) {
 
   if (!guestId || !roomId) throw new Error("Missing booking details.");
 
-  const BOOKINGS_COL = bookingsCollection(trainingMode);
+  const BOOKINGS_COL = bookingsCollection();
 
   const MAX_ACTIVE_BOOKINGS_PER_GUEST = 3;
   const guestBookingsQuery = query(
     collection(db, BOOKINGS_COL),
     where("guestId", "==", guestId),
-    where("status", "in", ["Awaiting Payment", "Pending", "Approved"]),
-  );
+    where("status", "in", ["Awaiting Payment", "Pending", "Approved"]));
   // Two independent reads, one round trip: the guest's active bookings and the
   // night markers (the conflict check must run OUTSIDE the transaction;
   // PII-free markers in both modes, since rules deny trainee guests any
   // collection-wide training_bookings read).
   const [guestBookingsSnap, blockedRoomIds] = await Promise.all([
     getDocs(guestBookingsQuery),
-    getBlockedRoomIds(checkIn, checkOut, { trainingMode }),
+    getBlockedRoomIds(checkIn, checkOut),
   ]);
   if (guestBookingsSnap.size >= MAX_ACTIVE_BOOKINGS_PER_GUEST) {
     throw new Error("You have reached the maximum number of active bookings. Cancel or complete an existing booking before making a new one.");
@@ -72,12 +67,11 @@ export async function createBooking(payload) {
 
   if (blockedRoomIds.has(roomId)) {
     throw new Error(
-      "Those dates overlap an existing booking. Please choose different dates.",
-    );
+      "Those dates overlap an existing booking. Please choose different dates.");
   }
 
   return runTransaction(db, async (transaction) => {
-    const rCol = getCol("rooms", trainingMode);
+    const rCol = getCol("rooms");
     const roomRef = doc(db, rCol, roomId);
     const roomSnap = await transaction.get(roomRef);
     if (!roomSnap.exists()) throw new Error("Selected room no longer exists.");
@@ -134,8 +128,7 @@ export async function createBooking(payload) {
       arrivalTime: payload.arrivalTime ?? "I don't know",
       payment: {
         method: paymentMethod,
-        deposit: 0,
-      },
+        deposit: 0},
       paymentProofUrl: null,
       paymentType: payload.paymentType || null,
       paymentMethod: paymentMethod,
@@ -152,12 +145,11 @@ export async function createBooking(payload) {
       refundProcessedAt: null,
       refundProcessedBy: null,
       createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    };
+      updatedAt: serverTimestamp()};
 
     transaction.set(bookingRef, bookingData);
     transaction.set(
-      doc(db, getCol("booking_notification_jobs", trainingMode), bookingRef.id),
+      doc(db, getCol("booking_notification_jobs"), bookingRef.id),
       {
         bookingId: bookingRef.id,
         guestId,
@@ -171,9 +163,7 @@ export async function createBooking(payload) {
         attempts: 0,
         nextAttemptAt: Timestamp.fromDate(new Date()),
         createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      },
-    );
+        updatedAt: serverTimestamp()});
 
     return { id: bookingRef.id, roomName: roomData.name || roomData.type || "Room", status: initialStatus };
   }).then(async (result) => {
@@ -181,8 +171,8 @@ export async function createBooking(payload) {
     try {
       await claimBookingMarked({
         bookingId: result.id,
-        trainingMode: trainingMode === true || trainingMode === "training",
-      });
+        // Worker API still requires the flag until Task 14 simplifies it.
+        trainingMode: false});
     } catch (e) {
       if (e?.status !== 409 || e?.message !== MARKER_CONFLICT_MESSAGE) {
         throw e;
@@ -191,27 +181,19 @@ export async function createBooking(payload) {
       // markers (a markerless hold looks free and reopens the double-booking
       // hole). Pending losers cancel directly; Awaiting Payment losers can't
       // self-cancel per rules, so they expire via the sweep — they hold no
-      // markers, so the room stays bookable either way. Training losers are
-      // deleted outright (sandbox rules let owners delete) so the dry run
-      // leaves no ghost holds behind.
+      // markers, so the room stays bookable either way.
       try {
-        if (trainingMode) {
-          await deleteDoc(doc(db, BOOKINGS_COL, result.id));
-        } else {
-          await updateDoc(doc(db, BOOKINGS_COL, result.id), {
-            status: "Cancelled",
-            rejectionReason: e?.message === MARKER_CONFLICT_MESSAGE
-              ? "Dates taken by an earlier booking."
-              : "Availability claim failed.",
-            updatedAt: serverTimestamp(),
-          });
-        }
+        await updateDoc(doc(db, BOOKINGS_COL, result.id), {
+          status: "Cancelled",
+          rejectionReason: e?.message === MARKER_CONFLICT_MESSAGE
+            ? "Dates taken by an earlier booking."
+            : "Availability claim failed.",
+          updatedAt: serverTimestamp()});
       } catch (compensationError) {
         console.error("Booking compensation failed after availability claim failure:", compensationError);
         throw new Error(
           e?.message || "Availability claim failed.",
-          { cause: compensationError },
-        );
+          { cause: compensationError });
       }
       throw e;
     }

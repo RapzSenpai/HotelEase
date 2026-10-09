@@ -108,7 +108,7 @@ function groupNotifications(notifs) {
 const EMPTY_NOTIFICATIONS = [];
 
 export default function NotificationsPage() {
-  const { user, role, trainingMode } = useAuth();
+  const { user, role} = useAuth();
   const homePath = getLogoHomePath(role);
   const navigate = useNavigate();
   const [notifications, setNotifications] = useState([]);
@@ -116,7 +116,7 @@ export default function NotificationsPage() {
   // P2 scalability: bounded inbox window (retention cron keeps growth slow,
   // but the page must never assume the inbox is small).
   const [pageSize, setPageSize] = useState(100);
-  const subscriptionKey = `${user?.uid ?? ""}:${trainingMode}`;
+  const subscriptionKey = `${user?.uid ?? ""}:live`;
   const [activeSubscriptionKey, setActiveSubscriptionKey] = useState(subscriptionKey);
   const subscriptionIsCurrent = activeSubscriptionKey === subscriptionKey;
 
@@ -138,7 +138,7 @@ export default function NotificationsPage() {
     setLoading(true);
 
     const q = query(
-      collection(db, getCol("notifications", trainingMode), user.uid, "items"),
+      collection(db, getCol("notifications"), user.uid, "items"),
       orderBy("createdAt", "desc"),
       limit(pageSize)
     );
@@ -158,7 +158,7 @@ export default function NotificationsPage() {
     );
 
     return () => unsub();
-  }, [user?.uid, trainingMode, subscriptionKey, pageSize]);
+  }, [user?.uid, subscriptionKey, pageSize]);
 
   const visibleNotifications = subscriptionIsCurrent ? notifications : EMPTY_NOTIFICATIONS;
   const { Today, Yesterday, Earlier } = useMemo(() => groupNotifications(visibleNotifications), [visibleNotifications]);
@@ -166,7 +166,7 @@ export default function NotificationsPage() {
 
   const handleNotifClick = async (notif) => {
     if (!notif.isRead) {
-      await markAsRead(user.uid, notif.id, { trainingMode });
+      await markAsRead(user.uid, notif.id);
     }
     if (notif.link) {
       navigate(notif.link);
@@ -175,7 +175,7 @@ export default function NotificationsPage() {
 
   const handleMarkAllRead = async () => {
     if (unreadCount === 0) return;
-    await markAllAsRead(user.uid, { trainingMode });
+    await markAllAsRead(user.uid);
   };
 
   if (!user) return null;

@@ -10,7 +10,7 @@ import { bookingsCollection } from "./core";
  * and flips "Awaiting Payment" to "Pending", then tells the front office.
  * Moved from bookingsService without changes.
  */
-export async function uploadPaymentProof(bookingId, file, paymentType, paymentMethod, { trainingMode = null } = {}) {
+export async function uploadPaymentProof(bookingId, file, paymentType, paymentMethod) {
   if (!bookingId || typeof bookingId !== "string") {
     throw new Error("Invalid bookingId passed to uploadPaymentProof");
   }
@@ -29,7 +29,7 @@ export async function uploadPaymentProof(bookingId, file, paymentType, paymentMe
     throw new Error("You must be logged in to upload payment proof");
   }
 
-  const col = bookingsCollection(trainingMode);
+  const col = bookingsCollection();
   const bookingRef = doc(db, col, bookingId);
 
   // Fast-path pre-check so an obviously stale booking never pays for an
@@ -69,12 +69,11 @@ export async function uploadPaymentProof(bookingId, file, paymentType, paymentMe
       paymentMethod: paymentMethod,
       proofUploadedAt: serverTimestamp(),
       status: "Pending",
-      updatedAt: serverTimestamp(),
-    });
+      updatedAt: serverTimestamp()});
   });
 
   try {
-    const foUsers = await listFoUsers({ trainingMode }).then(users =>
+    const foUsers = await listFoUsers().then(users =>
       users.filter(u => u.id !== currentUser.uid)
     );
 
@@ -83,7 +82,7 @@ export async function uploadPaymentProof(bookingId, file, paymentType, paymentMe
       title: "Payment Proof Uploaded",
       message: `Payment proof has been uploaded for a booking request`,
       link: "/fo/bookings"
-    }, { trainingMode })));
+    })));
   } catch (e) {
     console.error("Notif error", e);
   }

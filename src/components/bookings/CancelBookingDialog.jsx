@@ -7,8 +7,7 @@ import {
   DialogDescription,
   DialogFooter,
   DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  DialogTitle} from "@/components/ui/dialog";
 import { XCircle, CheckCircle2 } from "lucide-react";
 import { cancelBooking, requestCancellation } from "@/services/bookingsService";
 import { listPaymentsForBooking } from "@/services/paymentsService";
@@ -39,9 +38,7 @@ export default function CancelBookingDialog({
   room,
   status,
   userProfile,
-  trainingMode,
-  onCancelled,
-}) {
+  onCancelled}) {
   const [step, setStep] = useState("reason");
   const [cancelling, setCancelling] = useState(false);
   const [cancellationReason, setCancellationReason] = useState("");
@@ -71,7 +68,7 @@ export default function CancelBookingDialog({
   // Paid total from live payment records (same source FO uses), then the
   // policy's expected refund for the guest's own confirmation step.
   async function paidTotalFor(bookingId) {
-    const recs = await listPaymentsForBooking(bookingId, { trainingMode });
+    const recs = await listPaymentsForBooking(bookingId);
     return recs.reduce((sum, p) => sum + Number(p.amount ?? 0), 0);
   }
 
@@ -84,17 +81,17 @@ export default function CancelBookingDialog({
     setCancelling(true);
     try {
       if (status === "Approved") {
-        await requestCancellation(booking.id, booking.guestId, cancellationReason, { trainingMode });
+        await requestCancellation(booking.id, booking.guestId, cancellationReason);
       } else {
         // Direct cancel consumes one immediately (server increments the count).
-        await cancelBooking(booking.id, { trainingMode });
+        await cancelBooking(booking.id);
       }
       // Remaining count is re-read from the profile AFTER the write, so the
       // toast never reports a stale pre-click number. Request path consumes
       // nothing yet (FO approval does) — the fresh count already reflects that.
       let remaining = cancelRemaining;
       try {
-        const fresh = await getUserDoc(booking.guestId, { preferTraining: trainingMode });
+        const fresh = await getUserDoc(booking.guestId);
         const actual = Number(fresh?.cancellationCount);
         if (Number.isFinite(actual)) remaining = Math.max(0, 3 - actual);
       } catch {
@@ -123,9 +120,7 @@ export default function CancelBookingDialog({
             rateType: booking.rateType || "Standard",
             cancelTime: new Date(),
             deadline: deadlineFor(booking),
-            oneNightRate: oneNightFor(booking),
-          }),
-        });
+            oneNightRate: oneNightFor(booking)})});
         if (notice) {
           setRefundStep(notice);
           setStep("refund");
@@ -144,8 +139,7 @@ export default function CancelBookingDialog({
   }
 
   const refundChannel = refundMethodCopy(
-    booking?.refundMethod || defaultRefundMethod([booking?.paymentMethod]),
-  );
+    booking?.refundMethod || defaultRefundMethod([booking?.paymentMethod]));
   const refundRequested = refundStep?.mode === "requested";
 
   return (

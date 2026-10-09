@@ -20,9 +20,9 @@ import { getCol } from "@/lib/db-utils";
 /**
  * Creates a notification for a specific user.
  */
-export async function createNotification(userId, { type, title, message, link }, { trainingMode = null } = {}) {
+export async function createNotification(userId, { type, title, message, link }) {
   if (!userId) return;
-  const notifRef = doc(collection(db, getCol("notifications", trainingMode), userId, "items"));
+  const notifRef = doc(collection(db, getCol("notifications"), userId, "items"));
   await setDoc(notifRef, {
     id: notifRef.id,
     type,
@@ -43,7 +43,7 @@ const FANOUT_CHUNK_SIZE = 500;
  * aborting the whole fan-out. Note: billed writes are unchanged (Firestore
  * bills per document); true write reduction needs a pull model (P2).
  */
-export async function createNotificationsBulk(recipients, { trainingMode = null } = {}) {
+export async function createNotificationsBulk(recipients) {
   const list = (recipients || []).filter((r) => r?.userId);
   let sent = 0;
   const errors = [];
@@ -51,7 +51,7 @@ export async function createNotificationsBulk(recipients, { trainingMode = null 
     const chunk = list.slice(i, i + FANOUT_CHUNK_SIZE);
     const batch = writeBatch(db);
     chunk.forEach(({ userId, type, title, message, link }) => {
-      const notifRef = doc(collection(db, getCol("notifications", trainingMode), userId, "items"));
+      const notifRef = doc(collection(db, getCol("notifications"), userId, "items"));
       batch.set(notifRef, {
         id: notifRef.id,
         type,
@@ -59,8 +59,7 @@ export async function createNotificationsBulk(recipients, { trainingMode = null 
         message,
         link: link || "/",
         isRead: false,
-        createdAt: serverTimestamp(),
-      });
+        createdAt: serverTimestamp()});
     });
     try {
       await batch.commit();
@@ -76,9 +75,9 @@ export async function createNotificationsBulk(recipients, { trainingMode = null 
 /**
  * Marks a specific notification as read.
  */
-export async function markAsRead(userId, notifId, { trainingMode = null } = {}) {
+export async function markAsRead(userId, notifId) {
   if (!userId || !notifId) return;
-  const notifRef = doc(db, getCol("notifications", trainingMode), userId, "items", notifId);
+  const notifRef = doc(db, getCol("notifications"), userId, "items", notifId);
   await updateDoc(notifRef, { isRead: true });
 }
 
@@ -87,12 +86,12 @@ export async function markAsRead(userId, notifId, { trainingMode = null } = {}) 
  * rule (opening the page a notification links to) and by toast View clicks.
  * Returns how many were queued so callers can stay silent on a no-op.
  */
-export async function markNotificationsRead(userId, notifIds, { trainingMode = null } = {}) {
+export async function markNotificationsRead(userId, notifIds) {
   const ids = [...new Set((notifIds || []).filter(Boolean))];
   if (!userId || ids.length === 0) return 0;
   const batch = writeBatch(db);
   ids.forEach((id) => {
-    batch.update(doc(db, getCol("notifications", trainingMode), userId, "items", id), { isRead: true });
+    batch.update(doc(db, getCol("notifications"), userId, "items", id), { isRead: true });
   });
   await batch.commit();
   return ids.length;
@@ -101,10 +100,10 @@ export async function markNotificationsRead(userId, notifIds, { trainingMode = n
 /**
  * Marks all unread notifications as read.
  */
-export async function markAllAsRead(userId, { trainingMode = null } = {}) {
+export async function markAllAsRead(userId) {
   if (!userId) return;
   const q = query(
-    collection(db, getCol("notifications", trainingMode), userId, "items"),
+    collection(db, getCol("notifications"), userId, "items"),
     where("isRead", "==", false)
   );
   
@@ -122,11 +121,11 @@ export async function markAllAsRead(userId, { trainingMode = null } = {}) {
 /**
  * Subscribes to the latest 20 notifications for a user.
  */
-export function subscribeToNotifications(userId, callback, { trainingMode = null } = {}) {
+export function subscribeToNotifications(userId, callback) {
   if (!userId) return () => {};
 
   const q = query(
-    collection(db, getCol("notifications", trainingMode), userId, "items"),
+    collection(db, getCol("notifications"), userId, "items"),
     orderBy("createdAt", "desc"),
     limit(20)
   );

@@ -9,8 +9,7 @@ import {
   CalendarDays,
   BedDouble,
   Receipt,
-  XCircle,
-} from "lucide-react";
+  XCircle} from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { mapFirebaseError } from "@/lib/errors";
 import { roomLabel } from "@/lib/room-label";
@@ -29,8 +28,7 @@ const STATUS_VARIANT = {
   "Cancellation Requested": "warning",
   "Checked In": "success",
   "Checked Out": "muted",
-  Cancelled: "danger",
-};
+  Cancelled: "danger"};
 
 /**
  * One booking in the guest's "My Bookings" list: a collapsed summary row that
@@ -41,7 +39,7 @@ const STATUS_VARIANT = {
  * the payment records and the receipt download — while the detail, payment and
  * cancel markup live in the sibling components above.
  */
-export default function BookingCard({ booking, room, trainingMode, userProfile, onCancelled, onRequestCancel, autoExpand = false }) {
+export default function BookingCard({ booking, room, userProfile, onCancelled, onRequestCancel, autoExpand = false }) {
   const [expanded, setExpanded] = useState(!!autoExpand);
   const [payments, setPayments] = useState([]);
   const [paymentsLoading, setPaymentsLoading] = useState(false);
@@ -71,7 +69,7 @@ export default function BookingCard({ booking, room, trainingMode, userProfile, 
     if (!paymentsFetched) {
       setPaymentsLoading(true);
       try {
-        const data = await listPaymentsForBooking(booking.id, { trainingMode });
+        const data = await listPaymentsForBooking(booking.id);
         setPayments(data);
       } catch {
         setPayments([]);
@@ -86,7 +84,7 @@ export default function BookingCard({ booking, room, trainingMode, userProfile, 
     if (!refundFetched && status === "Cancelled" && booking.refundStatus === "Paid") {
       setRefundFetched(true);
       try {
-        const refunds = await getRefundsForBooking(booking.id, { trainingMode });
+        const refunds = await getRefundsForBooking(booking.id);
         const paid = refunds.find((r) => r.status === "Paid") || refunds[0] || null;
         setRefundRefNo(paid?.referenceNumber || null);
       } catch {
@@ -137,8 +135,7 @@ export default function BookingCard({ booking, room, trainingMode, userProfile, 
     if (rs === "Paid") {
       return {
         tone: "text-success",
-        text: `Refund${amtStr} sent ${refundMethodCopy(booking.refundMethod)}.${refundRefNo ? ` Ref: ${refundRefNo}` : ""}`,
-      };
+        text: `Refund${amtStr} sent ${refundMethodCopy(booking.refundMethod)}.${refundRefNo ? ` Ref: ${refundRefNo}` : ""}`};
     }
     if (rs === "Rejected") {
       return { tone: "text-destructive", text: "The refund request wasn't approved — contact the front office if you have questions." };
@@ -190,8 +187,7 @@ export default function BookingCard({ booking, room, trainingMode, userProfile, 
       reference: paymentRef,
       simulated: receiptPayment.source === "simulated_gateway" || booking.paymentGateway === "simulated",
       paymentDate: receiptPayment.createdAt?.toDate?.() || new Date(),
-      processedBy: receiptPayment.processedBy || "Front Office Staff",
-    });
+      processedBy: receiptPayment.processedBy || "Front Office Staff"});
   };
 
   async function handlePaymentProofUpload(e) {
@@ -204,7 +200,7 @@ export default function BookingCard({ booking, room, trainingMode, userProfile, 
     setUploadingProof(true);
     try {
       // Use booking's stored paymentMethod and paymentType, not local state
-      await uploadPaymentProof(booking.id, paymentFile, booking.paymentType || "Full", booking.paymentMethod, { trainingMode });
+      await uploadPaymentProof(booking.id, paymentFile, booking.paymentType || "Full", booking.paymentMethod);
       toast.success("Payment proof uploaded successfully!");
       setPaymentFile(null);
       onCancelled?.();

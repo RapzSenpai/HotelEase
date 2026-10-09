@@ -9,8 +9,7 @@ import {
   DropdownMenuContent,
   DropdownMenuGroup,
   DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+  DropdownMenuTrigger} from "@/components/ui/dropdown-menu";
 import { Heart, Calendar as CalendarIcon, Search, X, CheckCircle2, XCircle, ChevronDown } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { getAvailableRooms, checkAndExpireStaleBookings } from "@/services/bookingsService";
@@ -126,8 +125,7 @@ const RoomCard = memo(function RoomCard({
   checkedAvailable,
   /** Whether availability has been run at all */
   availabilityChecked,
-  featured = false,
-}) {
+  featured = false}) {
   const photos = Array.isArray(room.photos) ? room.photos : [];
   const firstPhoto = photos.length > 0 ? photos[0] : null;
   const imageHeightClass = featured ? "h-full" : MASONRY_IMAGE_HEIGHTS[layoutVariant % 3];
@@ -135,8 +133,7 @@ const RoomCard = memo(function RoomCard({
 
   const formattedRate = useMemo(
     () => formatRate(room.ratePerNight ?? room.rate ?? room.price),
-    [room.ratePerNight, room.rate, room.price],
-  );
+    [room.ratePerNight, room.rate, room.price]);
 
   const subtitle = room.type || null;
   const descriptionSnippet =
@@ -279,7 +276,7 @@ const getLocalDateString = (date = new Date()) => {
 };
 
 export default function RoomsPage() {
-  const { user, role, trainingMode } = useAuth();
+  const { user, role} = useAuth();
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -343,7 +340,7 @@ export default function RoomsPage() {
     setAvailabilityLoading(true);
     setAvailabilityError(null);
     try {
-      const available = await getAvailableRooms(checkIn, checkOut, { trainingMode });
+      const available = await getAvailableRooms(checkIn, checkOut);
       const ids = new Set(available.map((r) => r.id));
       setAvailableRoomIds(ids);
       setAvailabilityChecked(true);
@@ -353,7 +350,7 @@ export default function RoomsPage() {
     } finally {
       setAvailabilityLoading(false);
     }
-  }, [checkIn, checkOut, trainingMode]);
+  }, [checkIn, checkOut]);
 
   const filterKey = `${selectedType}|${priceSort}|${checkIn}|${checkOut}|${availabilityChecked}`;
 
@@ -365,7 +362,7 @@ export default function RoomsPage() {
     // bookings collection, which guests aren't allowed to do in either mode;
     // training FO/admin roles arrive via the profile so this covers training)
     if (role === "fo" || role === "admin") {
-      checkAndExpireStaleBookings({ trainingMode }).catch((e) => {
+      checkAndExpireStaleBookings().catch((e) => {
         console.error("Failed to check stale bookings:", e);
       });
     }
@@ -380,20 +377,17 @@ export default function RoomsPage() {
             ? null
             : err.code === "permission-denied"
               ? "You don't have access to these rooms. If you just joined a training session, ask your instructor for a new code and rejoin."
-              : "Could not load rooms. Check your connection and try again.",
-        );
+              : "Could not load rooms. Check your connection and try again.");
         if (!settled) {
           settled = true;
           setLoading(false);
         }
-      },
-      { trainingMode }
-    );
+      });
 
     return () => {
       if (typeof unsubscribe === "function") unsubscribe();
     };
-  }, [trainingMode, role]);
+  }, [ role]);
 
   useEffect(() => {
     if (!user || role !== "guest") {
@@ -412,8 +406,7 @@ export default function RoomsPage() {
 
   const activeRooms = useMemo(
     () => rooms.filter((r) => r.isActive !== false),
-    [rooms],
-  );
+    [rooms]);
 
   const filteredRooms = useMemo(() => {
     let result = activeRooms.filter((r) => {
@@ -428,12 +421,10 @@ export default function RoomsPage() {
 
     if (priceSort === "Low to High")
       result = [...result].sort(
-        (a, b) => (Number(a.ratePerNight) || 0) - (Number(b.ratePerNight) || 0),
-      );
+        (a, b) => (Number(a.ratePerNight) || 0) - (Number(b.ratePerNight) || 0));
     if (priceSort === "High to Low")
       result = [...result].sort(
-        (a, b) => (Number(b.ratePerNight) || 0) - (Number(a.ratePerNight) || 0),
-      );
+        (a, b) => (Number(b.ratePerNight) || 0) - (Number(a.ratePerNight) || 0));
     return result;
   }, [activeRooms, selectedType, priceSort, availabilityChecked, availableRoomIds]);
 
@@ -458,8 +449,7 @@ export default function RoomsPage() {
 
   const favoriteRoomIds = useMemo(
     () => new Set(favorites.map((f) => f.roomId)),
-    [favorites],
-  );
+    [favorites]);
 
   const filtersAreDefault =
     selectedType === "All Types" &&

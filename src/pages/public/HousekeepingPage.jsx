@@ -13,7 +13,7 @@ import { SkeletonCard } from "@/components/ui/skeleton";
 import { BedDouble, CalendarDays, SprayCan } from "lucide-react";
 
 export default function HousekeepingPage() {
-  const { user, profile, trainingMode } = useAuth();
+  const { user, profile} = useAuth();
 
   const [bookings, setBookings] = useState([]);
   const [roomsMap, setRoomsMap] = useState({});
@@ -34,8 +34,8 @@ export default function HousekeepingPage() {
         setLoading(true);
         setError(null);
         const [bookingData, roomData] = await Promise.all([
-          listBookingsForUser(user.uid, { trainingMode }),
-          listRooms({ trainingMode }),
+          listBookingsForUser(user.uid),
+          listRooms(),
         ]);
         if (!isMounted) return;
 
@@ -56,7 +56,7 @@ export default function HousekeepingPage() {
     return () => {
       isMounted = false;
     };
-  }, [user?.uid, trainingMode]);
+  }, [user?.uid]);
 
   const activeStays = useMemo(() => {
     return bookings.filter((b) => b.status === "Checked In");
@@ -172,7 +172,6 @@ export default function HousekeepingPage() {
               <GuestHousekeepingCard
                 booking={stay}
                 room={room}
-                trainingMode={trainingMode}
                 userProfile={profile}
               />
             </div>

@@ -10,12 +10,10 @@ import {
   approveBooking,
   rejectBooking,
   checkAndExpireStaleBookings,
-  getOverdueDays,
-} from "@/services/bookingsService";
+  getOverdueDays} from "@/services/bookingsService";
 import { listPaymentsForBooking } from "@/services/paymentsService";
 import { listRooms } from "@/services/roomsService";
 import { getUserDoc } from "@/services/userService";
-import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -26,8 +24,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
+  DialogDescription} from "@/components/ui/dialog";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -49,8 +46,7 @@ const STATUS_VARIANT = {
   Approved: "info",
   "Checked In": "success",
   "Checked Out": "muted",
-  Cancelled: "danger",
-};
+  Cancelled: "danger"};
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -90,8 +86,7 @@ function getDeadlineInfo(booking) {
     urgent: !expired && ms < 12 * 3600000,
     text: expired
       ? "Payment expired — auto-cancel pending"
-      : `Pay by ${d.toLocaleString()} · expires in ${h}h ${m}m`,
-  };
+      : `Pay by ${d.toLocaleString()} · expires in ${h}h ${m}m`};
 }
 
 // ─── Proof cell (thumbnail + max-w-3xl viewer, reused in table + dialog) ─────
@@ -119,7 +114,7 @@ function ProofViewer({ booking, open, onOpenChange }) {
 
 // ─── Details dialog (max-w-2xl): breakdown + payment history + proof ─────────
 
-export function BookingDetailsDialog({ booking, roomLabel, guestName, open, onOpenChange, trainingMode }) {
+export function BookingDetailsDialog({ booking, roomLabel, guestName, open, onOpenChange}) {
   const [payments, setPayments] = useState([]);
   const [paymentsLoading, setPaymentsLoading] = useState(false);
   const [paymentsLoadedFor, setPaymentsLoadedFor] = useState(null);
@@ -132,7 +127,7 @@ export function BookingDetailsDialog({ booking, roomLabel, guestName, open, onOp
     setPayments([]);
     setPaymentsLoadedFor(null);
     setPaymentsLoading(true);
-    listPaymentsForBooking(booking.id, { trainingMode })
+    listPaymentsForBooking(booking.id)
       .then((rows) => {
         if (!cancelled) {
           setPayments(rows);
@@ -147,7 +142,7 @@ export function BookingDetailsDialog({ booking, roomLabel, guestName, open, onOp
       })
       .finally(() => { if (!cancelled) setPaymentsLoading(false); });
     return () => { cancelled = true; };
-  }, [open, booking?.id, trainingMode]);
+  }, [open, booking?.id]);
 
   if (!booking) return null;
   const recordsTotal = getPaid(payments);
@@ -323,8 +318,7 @@ function FoBookingCard({
   onCancelReject,
   onRejectReasonChange,
   onSubmitReject,
-  onSeeDetails,
-}) {
+  onSeeDetails}) {
   const navigate = useNavigate();
   const [expanded, setExpanded] = useState(false);
   const [proofOpen, setProofOpen] = useState(false);
@@ -690,8 +684,7 @@ function BookingsList({
   onRejectReasonChange,
   onSubmitReject,
   onSeeDetails,
-  compact = false,
-}) {
+  compact = false}) {
   const Card = compact ? HistoryRow : FoBookingCard;
   return (
     <div className="space-y-3">
@@ -727,7 +720,6 @@ function BookingsList({
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function FoBookingsPage() {
-  const { trainingMode } = useAuth();
 
   const [bookings, setBookings] = useState([]);
   const [roomsMap, setRoomsMap] = useState({});
@@ -742,8 +734,7 @@ export default function FoBookingsPage() {
   const [detailsBookingId, setDetailsBookingId] = useState(null);
   const detailsBooking = useMemo(
     () => bookings.find((b) => b.id === detailsBookingId) ?? null,
-    [bookings, detailsBookingId],
-  );
+    [bookings, detailsBookingId]);
   useEffect(() => {
     if (detailsBookingId && !bookings.some((b) => b.id === detailsBookingId)) {
       setDetailsBookingId(null);
@@ -793,8 +784,7 @@ export default function FoBookingsPage() {
         fromDate: today,
         toDate: new Date(today.getTime() + days * 86400000 - 1),
         label: `the next ${days} days`,
-        active: true,
-      };
+        active: true};
     }
     if (datePreset === "custom" && (customFrom || customTo)) {
       const fromDate = customFrom ? dayStart(new Date(`${customFrom}T00:00:00`)) : null;
@@ -825,7 +815,7 @@ export default function FoBookingsPage() {
     setRoomsLoaded(false);
     async function loadResources() {
       try {
-        const rooms = await listRooms({ trainingMode });
+        const rooms = await listRooms();
 
         if (!isMounted) return;
         const rMap = {};
@@ -841,7 +831,7 @@ export default function FoBookingsPage() {
     }
     loadResources();
     return () => { isMounted = false; };
-  }, [trainingMode]);
+  }, []);
 
   // Guest-name cache clears only on training-mode switch — tab changes,
   // date changes and "Show more" reuse already-resolved names.
@@ -849,7 +839,7 @@ export default function FoBookingsPage() {
     guestsGenerationRef.current += 1;
     guestsMapRef.current = {};
     setGuestsMap({});
-  }, [trainingMode]);
+  }, []);
 
   // Resolve display names for guests visible in the current window.
   async function ensureGuestNames(list) {
@@ -860,13 +850,12 @@ export default function FoBookingsPage() {
     const entries = await Promise.all(
       missing.map(async (id) => {
         try {
-          const d = await getUserDoc(id, { preferTraining: trainingMode });
+          const d = await getUserDoc(id);
           return [id, d?.fullName || d?.email || ""];
         } catch {
           return [id, ""];
         }
-      }),
-    );
+      }));
     if (generation !== guestsGenerationRef.current) return;
     entries.forEach(([id, name]) => {
       guestsMapRef.current[id] = name;
@@ -887,7 +876,7 @@ export default function FoBookingsPage() {
         const request = (countRequestSeqRef.current.tabs[tab] || 0) + 1;
         countRequestSeqRef.current.tabs[tab] = request;
         try {
-          const count = await countBookingsByStatus(tab === "All" ? null : tab, { trainingMode });
+          const count = await countBookingsByStatus(tab === "All" ? null : tab);
           if (!cancelled && countRequestSeqRef.current.tabs[tab] === request) {
             setTabCounts((prev) => ({ ...prev, [tab]: count }));
           }
@@ -908,9 +897,7 @@ export default function FoBookingsPage() {
         const n = await countBookingsPage({
           status: status === "All" ? null : status,
           fromDate: bounds.fromDate,
-          toDate: bounds.toDate,
-          trainingMode,
-        });
+          toDate: bounds.toDate});
         if (!cancelled && countRequestSeqRef.current.range === request) setRangeCount(n);
       } catch (err) {
         console.error("[FoBookingsPage] range count failed (index?):", err);
@@ -918,7 +905,7 @@ export default function FoBookingsPage() {
       }
     }
     // Check for stale bookings (lazy-expiry)
-    checkAndExpireStaleBookings({ trainingMode }).catch((e) => {
+    checkAndExpireStaleBookings().catch((e) => {
       console.error("Failed to check stale bookings:", e);
     });
 
@@ -944,45 +931,38 @@ export default function FoBookingsPage() {
         status: activeTab === "All" ? null : activeTab,
         pageSize,
         fromDate: dateBounds.invalid ? null : dateBounds.fromDate,
-        toDate: dateBounds.invalid ? null : dateBounds.toDate,
-        trainingMode,
-      },
+        toDate: dateBounds.invalid ? null : dateBounds.toDate},
       (data) => {
         if (cancelled) return;
         setBookings(data);
         setLoading(false);
         ensureGuestNames(data);
         refreshCountsSoon();
-      },
-    );
+      });
     return () => {
       cancelled = true;
       if (countsTimer) clearTimeout(countsTimer);
       unsub();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [trainingMode, activeTab, pageSize, dateBounds]);
+  }, [ activeTab, pageSize, dateBounds]);
 
 
   // ── Filtered list ──
   const filtered = bookings.filter(
-    (b) => (activeTab === "All" || b.status === activeTab) && matchesSearch(b),
-  );
+    (b) => (activeTab === "All" || b.status === activeTab) && matchesSearch(b));
 
   // ── Active vs Past split (for "All" tab) ──
   const activeBookings = useMemo(
     () => bookings.filter((b) => ACTIVE_STATUSES.has(b.status) && matchesSearch(b)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [bookings, searchQuery, guestsMap, roomsMap],
-  );
+    [bookings, searchQuery, guestsMap, roomsMap]);
   const pastBookings = useMemo(
     () =>
       bookings.filter(
-        (b) => !ACTIVE_STATUSES.has(b.status) && matchesSearch(b),
-      ),
+        (b) => !ACTIVE_STATUSES.has(b.status) && matchesSearch(b)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [bookings, searchQuery, guestsMap, roomsMap],
-  );
+    [bookings, searchQuery, guestsMap, roomsMap]);
 
   // ── Tab badge counts (server-side, exact without loading docs) ──
   function countForTab(tab) {
@@ -1009,7 +989,7 @@ export default function FoBookingsPage() {
   async function handleApprove(bookingId) {
     setActionLoading(bookingId);
     try {
-      await approveBooking(bookingId, { trainingMode });
+      await approveBooking(bookingId);
       toast.success("Booking approved successfully!");
     } catch (err) {
       toast.error(err?.message || "Failed to approve booking.");
@@ -1035,7 +1015,7 @@ export default function FoBookingsPage() {
     const { bookingId, reason } = rejecting;
     setActionLoading(bookingId);
     try {
-      await rejectBooking(bookingId, reason, { trainingMode });
+      await rejectBooking(bookingId, reason);
       toast.success("Booking rejected.");
       setRejecting(null);
     } catch (err) {
@@ -1056,8 +1036,7 @@ export default function FoBookingsPage() {
     onCancelReject: handleCancelReject,
     onRejectReasonChange: handleRejectReasonChange,
     onSubmitReject: handleSubmitReject,
-    onSeeDetails: setDetailsBookingId,
-  };
+    onSeeDetails: setDetailsBookingId};
 
   // ─────────────────────────────────────────────────────────────────────────────
 
@@ -1257,7 +1236,6 @@ export default function FoBookingsPage() {
         guestName={detailsBooking ? guestsMap[detailsBooking.guestId] : ""}
         open={!!detailsBooking}
         onOpenChange={(v) => { if (!v) setDetailsBookingId(null); }}
-        trainingMode={trainingMode}
       />
     </div>
   );

@@ -5,8 +5,7 @@ import {
   CardContent,
   CardDescription,
   CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+  CardTitle} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -14,13 +13,10 @@ import {
   CheckCircle2,
   Loader2,
   RefreshCw,
-  Wrench,
-} from "lucide-react";
+  Wrench} from "lucide-react";
 import {
   loadAvailabilityDiff,
-  repairAvailability,
-} from "@/services/availabilityReconciliation";
-import { useAuth } from "@/contexts/AuthContext";
+  repairAvailability} from "@/services/availabilityReconciliation";
 
 const PREVIEW_LIMIT = 25;
 
@@ -58,7 +54,6 @@ function DriftList({ title, description, items, render, tone }) {
 }
 
 export default function AdminAvailabilityPage() {
-  const { trainingMode } = useAuth();
   const [diff, setDiff] = useState(null);
   const [diffMode, setDiffMode] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -66,26 +61,24 @@ export default function AdminAvailabilityPage() {
   const [error, setError] = useState(null);
   const loadRequestRef = useRef(0);
 
-  // Explicit mode so a training session never diffs or repairs prod markers.
   // Superseded loads are discarded: only the latest request may store its
   // diff, and repair runs only when the stored diff matches the live mode.
   const load = useCallback(async () => {
-    const mode = trainingMode;
     const requestId = ++loadRequestRef.current;
     setLoading(true);
     setError(null);
     try {
-      const result = await loadAvailabilityDiff({ trainingMode: mode });
+      const result = await loadAvailabilityDiff();
       if (loadRequestRef.current !== requestId) return;
       setDiff(result);
-      setDiffMode(mode);
+      setDiffMode("prod");
     } catch (e) {
       if (loadRequestRef.current !== requestId) return;
       setError(e?.message || "Failed to load availability data.");
     } finally {
       if (loadRequestRef.current === requestId) setLoading(false);
     }
-  }, [trainingMode]);
+  }, []);
 
   useEffect(() => {
     load();
@@ -95,7 +88,7 @@ export default function AdminAvailabilityPage() {
   const missing = diff?.missingMarkers ?? [];
   const issueCount = orphans.length + missing.length;
 
-  const diffStale = diffMode !== null && diffMode !== trainingMode;
+  const diffStale = diffMode !== null && diffMode !== "prod";
 
   async function handleRepair() {
     if (diffStale) {
@@ -105,10 +98,9 @@ export default function AdminAvailabilityPage() {
     }
     setRepairing(true);
     try {
-      const result = await repairAvailability({ orphanMarkers: orphans, missingMarkers: missing, trainingMode });
+      const result = await repairAvailability({ orphanMarkers: orphans, missingMarkers: missing});
       toast.success(
-        `Cleaned up ${result.removed} orphan night(s) and restored ${result.restored} missing night(s).`,
-      );
+        `Cleaned up ${result.removed} orphan night(s) and restored ${result.restored} missing night(s).`);
       await load();
     } catch (e) {
       toast.error(e?.message || "Repair failed.");

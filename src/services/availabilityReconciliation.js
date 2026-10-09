@@ -5,8 +5,7 @@ import {
   ACTIVE_STATUSES,
   markersCollection,
   nightKeys,
-  setBookingMarked,
-} from "./availabilityService";
+  setBookingMarked} from "./availabilityService";
 
 /**
  * Bookings whose nights MUST be blocked by a marker. "Cancellation Requested"
@@ -42,8 +41,7 @@ export function diffAvailability(bookings = [], markers = []) {
   });
   const orphanSet = new Set(orphanMarkers);
   const existingKeys = new Set(
-    markers.filter((m) => !orphanSet.has(m)).map((m) => markerKey(m.roomId, m.date)),
-  );
+    markers.filter((m) => !orphanSet.has(m)).map((m) => markerKey(m.roomId, m.date)));
 
   // Nights that an active hold is missing a marker for.
   const missingMarkers = [];
@@ -57,8 +55,7 @@ export function diffAvailability(bookings = [], markers = []) {
         bookingId: booking.id,
         status: booking.status,
         checkIn: booking.checkInDate,
-        checkOut: booking.checkOutDate,
-      });
+        checkOut: booking.checkOutDate});
     }
   }
 
@@ -70,24 +67,22 @@ export function diffAvailability(bookings = [], markers = []) {
  * ponytail: reads whole collections — fine at this scale, revisit if a hotel
  * ever accumulates tens of thousands of bookings.
  */
-export async function loadAvailabilityDiff({ trainingMode = null } = {}) {
+export async function loadAvailabilityDiff() {
   const [bookingsSnap, markersSnap] = await Promise.all([
-    getDocs(collection(db, getCol("bookings", trainingMode))),
-    getDocs(collection(db, markersCollection(trainingMode))),
+    getDocs(collection(db, getCol("bookings"))),
+    getDocs(collection(db, markersCollection())),
   ]);
 
   return diffAvailability(
     bookingsSnap.docs.map((d) => ({ id: d.id, ...d.data() })),
-    markersSnap.docs.map((d) => ({ id: d.id, ...d.data() })),
-  );
+    markersSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
 }
 
 /** Delete orphan markers, then re-block every night the active holds are missing. */
-export async function repairAvailability({ orphanMarkers = [], missingMarkers = [], trainingMode = null } = {}) {
-  const markerCol = markersCollection(trainingMode);
+export async function repairAvailability({ orphanMarkers = [], missingMarkers = [] } = {}) {
+  const markerCol = markersCollection();
   await Promise.all(
-    orphanMarkers.map((m) => deleteDoc(doc(db, markerCol, m.id))),
-  );
+    orphanMarkers.map((m) => deleteDoc(doc(db, markerCol, m.id))));
 
   // Repair only the missing dates so markers belonging to other bookings survive.
   const byBooking = new Map();
@@ -96,8 +91,7 @@ export async function repairAvailability({ orphanMarkers = [], missingMarkers = 
       byBooking.set(miss.bookingId, {
         roomId: miss.roomId,
         status: miss.status,
-        dates: [],
-      });
+        dates: []});
     }
     byBooking.get(miss.bookingId).dates.push(miss.date);
   }
@@ -107,11 +101,7 @@ export async function repairAvailability({ orphanMarkers = [], missingMarkers = 
         roomId: b.roomId,
         dates: b.dates,
         bookingId,
-        status: b.status,
-        trainingMode,
-      }),
-    ),
-  );
+        status: b.status})));
 
   return { removed: orphanMarkers.length, restored: missingMarkers.length };
 }

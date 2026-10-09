@@ -7,8 +7,7 @@ import {
   runTransaction,
   serverTimestamp,
   setDoc,
-  where,
-} from "firebase/firestore";
+  where} from "firebase/firestore";
 import { auth, db } from "@/firebase/firebase.config";
 // Shared with bookingsService — see lib/time-utils.js for the local-midnight rule.
 import { toLocalDate as toDate } from "@/lib/time-utils";
@@ -35,8 +34,8 @@ const A_COL = "room_availability";
 const TRAINING_A_COL = "training_availability";
 
 /** Marker collection for the given mode. */
-export function markersCollection(trainingMode) {
-  return trainingMode ? TRAINING_A_COL : A_COL;
+export function markersCollection() {
+  return A_COL;
 }
 
 // Statuses that count as "this marks the room occupied for that night".
@@ -84,8 +83,8 @@ export function nightKeys(checkInLike, checkOutLike) {
 }
 
 /** Block a booking's nights (call after a booking is created). */
-export async function setBookingMarked({ roomId, bookingId, checkIn, checkOut, dates, status, trainingMode = null }) {
-  const col = markersCollection(trainingMode);
+export async function setBookingMarked({ roomId, bookingId, checkIn, checkOut, dates, status }) {
+  const col = markersCollection();
   const markerDates = dates || nightKeys(checkIn, checkOut);
   await Promise.all(
     markerDates.map((date) =>
@@ -96,11 +95,7 @@ export async function setBookingMarked({ roomId, bookingId, checkIn, checkOut, d
           date,
           bookingId,
           status,
-          updatedAt: serverTimestamp(),
-        },
-      ),
-    ),
-  );
+          updatedAt: serverTimestamp()})));
 }
 
 export async function claimBookingMarkedInTx(transaction, {
@@ -108,10 +103,8 @@ export async function claimBookingMarkedInTx(transaction, {
   bookingId,
   checkIn,
   checkOut,
-  status,
-  trainingMode = null,
-}) {
-  const col = markersCollection(trainingMode);
+  status}) {
+  const col = markersCollection();
   const dates = nightKeys(checkIn, checkOut);
   if (!roomId || !bookingId || dates.length === 0) {
     throw new Error("Missing booking details.");
@@ -136,8 +129,7 @@ export async function claimBookingMarkedInTx(transaction, {
       date,
       bookingId,
       status,
-      updatedAt: serverTimestamp(),
-    });
+      updatedAt: serverTimestamp()});
   });
   return { claimed: dates.length };
 }
@@ -146,7 +138,7 @@ export async function claimBookingMarkedInTx(transaction, {
  * Ask the trusted Worker to atomically claim a booking's nights and queue its
  * notification job. Marker data is loaded and validated by the Worker.
  */
-export async function claimBookingMarked({ bookingId, trainingMode = null }) {
+export async function claimBookingMarked({ bookingId }) {
   const user = auth.currentUser;
   if (!user) throw new Error("Please sign in before claiming booking availability.");
 
@@ -158,20 +150,17 @@ export async function claimBookingMarked({ bookingId, trainingMode = null }) {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "X-HE-AUTH": `Bearer ${token}`,
-    },
+      "X-HE-AUTH": `Bearer ${token}`},
     body: JSON.stringify({
       bookingId,
-      trainingMode: trainingMode === true || trainingMode === "training",
-    }),
-  });
+      // Worker API still requires the flag until Task 14 simplifies it.
+      trainingMode: false})});
 
   const result = await response.json().catch(() => ({}));
   if (!response.ok) {
     const error = new Error(
       result?.error ||
-      (response.status === 409 ? MARKER_CONFLICT_MESSAGE : `Booking availability claim failed (${response.status}).`),
-    );
+      (response.status === 409 ? MARKER_CONFLICT_MESSAGE : `Booking availability claim failed (${response.status}).`));
     error.status = response.status;
     throw error;
   }
@@ -186,8 +175,8 @@ export async function claimBookingMarked({ bookingId, trainingMode = null }) {
  * two overlapping bookings approved at once serialize on the booking docs,
  * and the loser sees the winner's live markers here and aborts.
  */
-export async function readBookingMarkedInTx(transaction, { roomId, bookingId, checkIn, checkOut, trainingMode = null }) {
-  const col = markersCollection(trainingMode);
+export async function readBookingMarkedInTx(transaction, { roomId, bookingId, checkIn, checkOut }) {
+  const col = markersCollection();
   const dates = nightKeys(checkIn, checkOut);
   const live = [];
   for (const date of dates) {
@@ -202,9 +191,9 @@ export async function readBookingMarkedInTx(transaction, { roomId, bookingId, ch
 }
 
 /** Release a booking's nights (cancelled / rejected / checked out / expired). */
-export async function clearBookingMarked({ roomId, bookingId, dates, trainingMode = null }) {
+export async function clearBookingMarked({ roomId, bookingId, dates }) {
   if (!roomId || !bookingId || !Array.isArray(dates) || dates.length === 0) return;
-  const col = markersCollection(trainingMode);
+  const col = markersCollection();
   await runTransaction(db, async (transaction) => {
     const markerRefs = dates.map((date) => doc(db, col, `${roomId}_${date}`));
     const markerSnaps = [];
@@ -220,7 +209,7 @@ export async function clearBookingMarked({ roomId, bookingId, dates, trainingMod
 }
 
 /** Set of room IDs fully or partially blocked within [checkInStr, checkOutStr]. */
-export async function getBlockedRoomIds(checkInLike, checkOutLike, { trainingMode = null } = {}) {
+export async function getBlockedRoomIds(checkInLike, checkOutLike) {
   const keyIn = dateKey(checkInLike);
   const keyOut = dateKey(checkOutLike);
   if (!keyIn || !keyOut) return new Set();
@@ -228,17 +217,16 @@ export async function getBlockedRoomIds(checkInLike, checkOutLike, { trainingMod
   // Markers are PII-free, so guests may read them in both modes. Reading
   // bookings directly would deny trainees with the guest role per rules.
   const q = query(
-    collection(db, markersCollection(trainingMode)),
+    collection(db, markersCollection()),
     where("date", ">=", keyIn),
-    where("date", "<", keyOut),
-  );
+    where("date", "<", keyOut));
   const snap = await getDocs(q);
   return new Set(snap.docs.map((d) => d.data().roomId));
 }
 
 /** All blocked dates for a single room (used by the guest booking calendar). */
-export async function getRoomAvailabilityCards(roomId, { trainingMode = null } = {}) {
-  const q = query(collection(db, markersCollection(trainingMode)), where("roomId", "==", roomId));
+export async function getRoomAvailabilityCards(roomId) {
+  const q = query(collection(db, markersCollection()), where("roomId", "==", roomId));
   const snap = await getDocs(q);
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
@@ -248,8 +236,8 @@ export async function getRoomAvailabilityCards(roomId, { trainingMode = null } =
  * calendar). Guests can read room_availability, so this stays accurate when
  * other guests book or staff approve/cancel while the page is open.
  */
-export function subscribeRoomAvailabilityCards(roomId, callback, { trainingMode = null } = {}) {
-  const q = query(collection(db, markersCollection(trainingMode)), where("roomId", "==", roomId));
+export function subscribeRoomAvailabilityCards(roomId, callback) {
+  const q = query(collection(db, markersCollection()), where("roomId", "==", roomId));
   return onSnapshot(
     q,
     (snap) => {
@@ -258,6 +246,5 @@ export function subscribeRoomAvailabilityCards(roomId, callback, { trainingMode 
     (error) => {
       console.error("[availabilityService] subscribeRoomAvailabilityCards error:", error);
       callback([]);
-    },
-  );
+    });
 }

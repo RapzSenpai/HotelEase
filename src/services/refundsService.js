@@ -9,15 +9,14 @@ import {
   query,
   runTransaction,
   serverTimestamp,
-  where,
-} from "firebase/firestore";
+  where} from "firebase/firestore";
 import { db } from "@/firebase/firebase.config";
 import { getCol } from "@/lib/db-utils";
 import { listPaymentsForBooking } from "./paymentsService";
 import { createNotification } from "./notificationService";
 
-export function refundsCollection(trainingMode) {
-  return getCol("refunds", trainingMode);
+export function refundsCollection() {
+  return getCol("refunds");
 }
 
 function toMillis(t) {
@@ -53,8 +52,7 @@ export function computeRefund({ paid, rateType = "Standard", cancelTime, deadlin
     return {
       fee: p,
       refund: 0,
-      reason: "Non-refundable rate — no refund unless the front office overrides it.",
-    };
+      reason: "Non-refundable rate — no refund unless the front office overrides it."};
   }
   // Override path: FO sets a manual amount <= paid in requestRefund; the
   // suggestion below falls back to Standard timing and says so.
@@ -75,23 +73,22 @@ export function computeRefund({ paid, rateType = "Standard", cancelTime, deadlin
   return { fee, refund, reason };
 }
 
-export async function getRefund(refundId, { trainingMode = null } = {}) {
+export async function getRefund(refundId) {
   if (!refundId || typeof refundId !== "string") return null;
-  const snap = await getDoc(doc(db, refundsCollection(trainingMode), refundId));
+  const snap = await getDoc(doc(db, refundsCollection(), refundId));
   if (!snap.exists()) return null;
   return { id: snap.id, ...snap.data() };
 }
 
-export async function getRefundsForBooking(bookingId, { trainingMode = null } = {}) {
+export async function getRefundsForBooking(bookingId) {
   if (!bookingId || typeof bookingId !== "string") return [];
   const snap = await getDocs(
-    query(collection(db, refundsCollection(trainingMode)), where("bookingId", "==", bookingId)),
-  );
+    query(collection(db, refundsCollection()), where("bookingId", "==", bookingId)));
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
 
-export async function listRefunds({ status = null, trainingMode = null } = {}) {
-  const col = refundsCollection(trainingMode);
+export async function listRefunds({ status = null } = {}) {
+  const col = refundsCollection();
   const q = status
     ? query(collection(db, col), where("status", "==", status), orderBy("createdAt", "desc"))
     : query(collection(db, col), orderBy("createdAt", "desc"));
@@ -99,8 +96,8 @@ export async function listRefunds({ status = null, trainingMode = null } = {}) {
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
 
-export function subscribeToRefunds(callback, { status = null, pageSize = 50, trainingMode = null } = {}) {
-  const col = refundsCollection(trainingMode);
+export function subscribeToRefunds(callback, { status = null, pageSize = 50 } = {}) {
+  const col = refundsCollection();
   const q = status
     ? query(collection(db, col), where("status", "==", status), orderBy("createdAt", "desc"), limit(pageSize))
     : query(collection(db, col), orderBy("createdAt", "desc"), limit(pageSize));
@@ -110,12 +107,11 @@ export function subscribeToRefunds(callback, { status = null, pageSize = 50, tra
     (error) => {
       console.error("[refundsService] subscribeToRefunds error:", error);
       callback([]);
-    },
-  );
+    });
 }
 
-async function sumPaid(bookingId, trainingMode) {
-  const recs = await listPaymentsForBooking(bookingId, { trainingMode });
+async function sumPaid(bookingId) {
+  const recs = await listPaymentsForBooking(bookingId);
   return recs.reduce((s, p) => s + Number(p.amount ?? 0), 0);
 }
 
@@ -194,8 +190,7 @@ export function validateRefundReference({ method, referenceNumber = "", note = "
   if (!refundMethodNeedsReference(m) && !ref && !cleanNote) {
     return {
       ok: false,
-      error: `Add a reference or a note (OR no. / who received the cash) so this ${m} refund stays auditable.`,
-    };
+      error: `Add a reference or a note (OR no. / who received the cash) so this ${m} refund stays auditable.`};
   }
   return { ok: true, method: m, referenceNumber: ref || null, note: cleanNote || null };
 }
@@ -212,13 +207,13 @@ export function isRefundRequestBlocked(status) {
 // Guest bell write — shared by all four refund transitions. Returns a result
 // instead of swallowing failures so the FO sees whether the guest was told.
 // Money writes already committed before this runs; this never throws.
-async function notifyGuest(guestId, payload, { trainingMode = null, context = "" } = {}) {
+async function notifyGuest(guestId, payload, { context = "" } = {}) {
   if (!guestId) {
     console.error(`[refundsService] notification skipped (${context}): booking has no guestId.`);
     return { notified: false, reason: "missing-guest" };
   }
   try {
-    await createNotification(guestId, payload, { trainingMode });
+    await createNotification(guestId, payload);
     return { notified: true };
   } catch (e) {
     console.error(`[refundsService] notification failed (${context}):`, e);
@@ -229,13 +224,13 @@ async function notifyGuest(guestId, payload, { trainingMode = null, context = ""
 /**
  * Step 1: create a Pending refund. No money moves. Enforces refund <= paid.
  */
-export async function requestRefund({ bookingId, amount, fee = 0, method = "GCash", reason = "", trainingMode = null } = {}) {
+export async function requestRefund({ bookingId, amount, fee = 0, method = "GCash", reason = "" } = {}) {
   if (!bookingId || typeof bookingId !== "string") throw new Error("Invalid bookingId.");
   const m = assertRefundMethod(method);
   const amt = Number(amount ?? 0);
   if (!Number.isFinite(amt) || amt <= 0) throw new Error("Refund amount must be positive.");
-  const paid = await sumPaid(bookingId, trainingMode);
-  const refunds = await getRefundsForBooking(bookingId, { trainingMode });
+  const paid = await sumPaid(bookingId);
+  const refunds = await getRefundsForBooking(bookingId);
   const alreadyRefunded = refunds
     .filter((refund) => refund.status === "Paid")
     .reduce((sum, refund) => sum + Number(refund.amount ?? 0), 0);
@@ -243,8 +238,8 @@ export async function requestRefund({ bookingId, amount, fee = 0, method = "GCas
   if (amt > refundable + 0.01) {
     throw new Error(`Refund ₱${amt.toLocaleString()} exceeds refundable balance ₱${refundable.toLocaleString()}.`);
   }
-  const rCol = refundsCollection(trainingMode);
-  const bCol = getCol("bookings", trainingMode);
+  const rCol = refundsCollection();
+  const bCol = getCol("bookings");
   const refundRef = doc(collection(db, rCol));
   const notify = await runTransaction(db, async (transaction) => {
     const bookingRef = doc(db, bCol, bookingId);
@@ -266,19 +261,16 @@ export async function requestRefund({ bookingId, amount, fee = 0, method = "GCas
       createdAt: serverTimestamp(),
       processedAt: null,
       processedBy: null,
-      updatedAt: serverTimestamp(),
-    });
+      updatedAt: serverTimestamp()});
     transaction.update(bookingRef, {
       refundStatus: "Pending",
       refundAmount: amt,
       refundMethod: m,
       refundReason: String(reason ?? ""),
-      updatedAt: serverTimestamp(),
-    });
+      updatedAt: serverTimestamp()});
     return {
       guestId: booking?.guestId || null,
-      amount: amt,
-    };
+      amount: amt};
   });
   // Guest bell — mirrors approve/paid notifs so the card's Pending line
   // also reaches notifications. Runs after the money write; failures are
@@ -288,18 +280,17 @@ export async function requestRefund({ bookingId, amount, fee = 0, method = "GCas
     type: "refund_requested",
     title: "Refund Requested",
     message: `Your refund of ₱${Number(notifyAmt ?? 0).toLocaleString()} has been requested and is waiting for Front Office approval. It will be sent ${refundMethodCopy(m)}.`,
-    link: `/my-bookings?bookingId=${bookingId}`,
-  }, { trainingMode, context: `requestRefund booking ${bookingId}` });
+    link: `/my-bookings?bookingId=${bookingId}`}, { context: `requestRefund booking ${bookingId}` });
   return { id: refundRef.id, ok: true, ...notif };
 }
 
 /**
  * Step 2a: approve a Pending refund. Still no money moves.
  */
-export async function approveRefund(refundId, { processedBy = null, trainingMode = null } = {}) {
+export async function approveRefund(refundId, { processedBy = null } = {}) {
   if (!refundId || typeof refundId !== "string") throw new Error("Invalid refundId.");
-  const rCol = refundsCollection(trainingMode);
-  const bCol = getCol("bookings", trainingMode);
+  const rCol = refundsCollection();
+  const bCol = getCol("bookings");
   const notify = await runTransaction(db, async (transaction) => {
     // Firestore requires every read before every write — both gets first.
     const refundRef = doc(db, rCol, refundId);
@@ -313,21 +304,18 @@ export async function approveRefund(refundId, { processedBy = null, trainingMode
     transaction.update(refundRef, {
       status: "Approved",
       processedBy: processedBy ?? null,
-      updatedAt: serverTimestamp(),
-    });
+      updatedAt: serverTimestamp()});
     if (bookingSnap.exists()) {
       transaction.update(bookingRef, {
         refundStatus: "Approved",
         refundProcessedBy: processedBy ?? null,
-        updatedAt: serverTimestamp(),
-      });
+        updatedAt: serverTimestamp()});
     }
     return {
       guestId: bookingSnap.exists() ? bookingSnap.data()?.guestId || null : null,
       amount: Number(refund.amount ?? 0),
       method: refund.method || null,
-      bookingId: refund.bookingId || null,
-    };
+      bookingId: refund.bookingId || null};
   });
   // Guest bell after the money write; failures reported, never thrown.
   const { guestId, amount, method, bookingId } = notify || {};
@@ -335,8 +323,7 @@ export async function approveRefund(refundId, { processedBy = null, trainingMode
     type: "refund_approved",
     title: "Refund Approved",
     message: `Your refund of ₱${amount.toLocaleString()} has been approved and will be sent ${refundMethodCopy(method)} shortly.`,
-    link: bookingId ? `/my-bookings?bookingId=${bookingId}` : "/my-bookings",
-  }, { trainingMode, context: `approveRefund ${refundId}` });
+    link: bookingId ? `/my-bookings?bookingId=${bookingId}` : "/my-bookings"}, { context: `approveRefund ${refundId}` });
   return { ok: true, ...notif };
 }
 
@@ -347,10 +334,10 @@ export async function approveRefund(refundId, { processedBy = null, trainingMode
  * Pre-tx paid guard: refund <= paid is validated BEFORE the tx commits,
  * so an overpay race never leaves a Paid write behind (no query inside tx).
  */
-export async function markRefundPaid(refundId, { referenceNumber = "", note = "", processedBy = null, trainingMode = null } = {}) {
+export async function markRefundPaid(refundId, { referenceNumber = "", note = "", processedBy = null } = {}) {
   if (!refundId || typeof refundId !== "string") throw new Error("Invalid refundId.");
-  const rCol = refundsCollection(trainingMode);
-  const bCol = getCol("bookings", trainingMode);
+  const rCol = refundsCollection();
+  const bCol = getCol("bookings");
   const preSnap = await getDoc(doc(db, rCol, refundId));
   if (!preSnap.exists()) throw new Error("Refund not found.");
   const pre = preSnap.data();
@@ -359,7 +346,7 @@ export async function markRefundPaid(refundId, { referenceNumber = "", note = ""
   if (!check.ok) throw new Error(check.error);
   const ref = check.referenceNumber;
   if (!pre.bookingId) throw new Error("Refund missing booking.");
-  const prePaid = await sumPaid(pre.bookingId, trainingMode);
+  const prePaid = await sumPaid(pre.bookingId);
   if (Number(pre.amount ?? 0) > prePaid + 0.01) throw new Error("Refund exceeds paid amount.");
   const notify = await runTransaction(db, async (transaction) => {
     const refundRef = doc(db, rCol, refundId);
@@ -378,39 +365,35 @@ export async function markRefundPaid(refundId, { referenceNumber = "", note = ""
       referenceNote: check.note,
       processedAt: serverTimestamp(),
       processedBy: processedBy ?? null,
-      updatedAt: serverTimestamp(),
-    });
+      updatedAt: serverTimestamp()});
     if (bookingSnap.exists()) {
       transaction.update(bookingRef, {
         refundStatus: "Paid",
         refundProcessedAt: serverTimestamp(),
         refundProcessedBy: processedBy ?? null,
-        updatedAt: serverTimestamp(),
-      });
+        updatedAt: serverTimestamp()});
     }
     return {
       guestId: bookingSnap.exists() ? bookingSnap.data()?.guestId || null : null,
       amount: Number(refund.amount ?? 0),
       method: refund.method || null,
-      bookingId: refund.bookingId || null,
-    };
+      bookingId: refund.bookingId || null};
   });
   const { guestId, amount, method, bookingId } = notify || {};
   const notif = await notifyGuest(guestId, {
     type: "refund_paid",
     title: "Refund Sent",
     message: `Your refund of ₱${amount.toLocaleString()} has been sent ${refundMethodCopy(method)}.${ref ? ` Ref: ${ref}` : ""}`,
-    link: bookingId ? `/my-bookings?bookingId=${bookingId}` : "/my-bookings",
-  }, { trainingMode, context: `markRefundPaid ${refundId}` });
+    link: bookingId ? `/my-bookings?bookingId=${bookingId}` : "/my-bookings"}, { context: `markRefundPaid ${refundId}` });
   return { ok: true, ...notif };
 }
 
-export async function rejectRefund(refundId, reason, { processedBy = null, trainingMode = null } = {}) {
+export async function rejectRefund(refundId, reason, { processedBy = null } = {}) {
   if (!refundId || typeof refundId !== "string") throw new Error("Invalid refundId.");
   const r = String(reason ?? "").trim();
   if (!r) throw new Error("Rejection reason is required.");
-  const rCol = refundsCollection(trainingMode);
-  const bCol = getCol("bookings", trainingMode);
+  const rCol = refundsCollection();
+  const bCol = getCol("bookings");
   const notify = await runTransaction(db, async (transaction) => {
     const refundRef = doc(db, rCol, refundId);
     const refundSnap = await transaction.get(refundRef);
@@ -424,27 +407,23 @@ export async function rejectRefund(refundId, reason, { processedBy = null, train
       status: "Rejected",
       rejectReason: r,
       processedBy: processedBy ?? null,
-      updatedAt: serverTimestamp(),
-    });
+      updatedAt: serverTimestamp()});
     if (bookingSnap.exists()) {
       transaction.update(bookingRef, {
         refundStatus: "Rejected",
         refundProcessedBy: processedBy ?? null,
-        updatedAt: serverTimestamp(),
-      });
+        updatedAt: serverTimestamp()});
     }
     return {
       guestId: bookingSnap.exists() ? bookingSnap.data()?.guestId || null : null,
       amount: Number(refund.amount ?? 0),
-      bookingId: refund.bookingId || null,
-    };
+      bookingId: refund.bookingId || null};
   });
   const { guestId, amount, bookingId } = notify || {};
   const notif = await notifyGuest(guestId, {
     type: "refund_rejected",
     title: "Refund Update",
     message: `Your refund request of ₱${amount.toLocaleString()} wasn't approved. Reason: ${r}`,
-    link: bookingId ? `/my-bookings?bookingId=${bookingId}` : "/my-bookings",
-  }, { trainingMode, context: `rejectRefund ${refundId}` });
+    link: bookingId ? `/my-bookings?bookingId=${bookingId}` : "/my-bookings"}, { context: `rejectRefund ${refundId}` });
   return { ok: true, ...notif };
 }

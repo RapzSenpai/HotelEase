@@ -18,13 +18,11 @@ vi.mock("firebase/firestore", () => ({
   serverTimestamp: vi.fn(),
   setDoc: vi.fn(),
   updateDoc: vi.fn(),
-  where: vi.fn(),
-}));
+  where: vi.fn()}));
 vi.mock("@/services/paymentsService", () => ({
   listPaymentsForBooking: vi.fn((bookingId) => new Promise((resolve, reject) => {
     requests.push({ bookingId, resolve, reject });
-  })),
-}));
+  }))}));
 vi.mock("@/services/bookingsService", () => ({
   BOOKINGS_PAGE_SIZE: 20,
   subscribeToBookingsPage: vi.fn(),
@@ -33,8 +31,7 @@ vi.mock("@/services/bookingsService", () => ({
   approveBooking: vi.fn(),
   rejectBooking: vi.fn(),
   checkAndExpireStaleBookings: vi.fn(),
-  getOverdueDays: vi.fn(),
-}));
+  getOverdueDays: vi.fn()}));
 vi.mock("@/services/roomsService", () => ({ listRooms: vi.fn() }));
 vi.mock("@/services/userService", () => ({ getUserDoc: vi.fn() }));
 vi.mock("@/components/ui/dialog", () => ({
@@ -42,8 +39,7 @@ vi.mock("@/components/ui/dialog", () => ({
   DialogContent: ({ children }) => createElement("div", null, children),
   DialogHeader: ({ children }) => createElement("div", null, children),
   DialogTitle: ({ children }) => createElement("h2", null, children),
-  DialogDescription: ({ children }) => createElement("p", null, children),
-}));
+  DialogDescription: ({ children }) => createElement("p", null, children)}));
 
 const { BookingDetailsDialog } = await import("@/pages/fo/FoBookingsPage");
 
@@ -57,8 +53,7 @@ function booking(id) {
     totalCost: 1000,
     paymentMethod: "GCash",
     checkInDate: new Date("2026-10-01"),
-    checkOutDate: new Date("2026-10-02"),
-  };
+    checkOutDate: new Date("2026-10-02")};
 }
 
 async function render(bookingData, open = true) {
@@ -73,9 +68,7 @@ async function render(bookingData, open = true) {
       roomLabel: "Deluxe Suite",
       guestName: "Guest",
       open,
-      onOpenChange: () => {},
-      trainingMode: false,
-    }));
+      onOpenChange: () => {}}));
   });
 }
 

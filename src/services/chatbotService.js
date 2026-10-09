@@ -51,25 +51,20 @@ function formatRoomsLines(rooms) {
  * @param {string} userMessage
  * @param {Array<{ role: 'user' | 'assistant', content: string }>} conversationHistory - last 6 turns max (caller slices)
  * @param {string | null} roomsContext - pre-built rooms text, or null to fetch via roomsService
- * @param {{ trainingMode?: boolean | null }} [options]
  * @returns {Promise<string>}
  */
 export async function sendMessage(
   userMessage,
   conversationHistory = [],
-  roomsContext = null,
-  options = {},
-) {
+  roomsContext = null) {
   if (!GROQ_PROXY_URL) {
     return UNAVAILABLE;
   }
 
-  const { trainingMode = null } = options;
-
   let roomsBlock = roomsContext;
   if (roomsBlock == null || roomsBlock === "") {
     try {
-      const rooms = await listRooms({ trainingMode });
+      const rooms = await listRooms();
       roomsBlock = formatRoomsLines(rooms);
     } catch (e) {
       console.error("chatbotService: failed to load rooms", e);
@@ -79,43 +74,35 @@ export async function sendMessage(
 
   const historyMessages = conversationHistory.slice(-6).map((turn) => ({
     role: turn.role === "user" ? "user" : "assistant",
-    content: turn.content,
-  }));
+    content: turn.content}));
 
   try {
     const response = await fetch(GROQ_PROXY_URL, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        ...(await getAiAuthHeaders()),
-      },
+        ...(await getAiAuthHeaders())},
       body: JSON.stringify({
         messages: [
           {
             role: "system",
-            content: SYSTEM_PROMPT + roomsBlock,
-          },
+            content: SYSTEM_PROMPT + roomsBlock},
           ...historyMessages,
           {
             role: "user",
-            content: userMessage,
-          },
-        ],
-      }),
-    });
+            content: userMessage},
+        ]})});
 
     if (!response.ok) {
       const errData = await response.json().catch(() => ({}));
       const codeMap = { 401: "AUTH_REQUIRED", 402: "DAILY_CAP", 429: "RATE_LIMIT" };
       console.error(
         `chatbotService: Groq proxy returned ${response.status}`,
-        errData?.error || "",
-      );
+        errData?.error || "");
       throw new AiRequestError(
         errData?.error || `AI request failed (${response.status})`,
         errData?.code || codeMap[response.status] || "UPSTREAM",
-        response.status,
-      );
+        response.status);
     }
 
     const data = await response.json();

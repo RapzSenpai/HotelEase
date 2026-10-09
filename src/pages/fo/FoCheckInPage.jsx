@@ -7,8 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   checkInBooking,
-  listBookingsByStatuses,
-} from "@/services/bookingsService";
+  listBookingsByStatuses} from "@/services/bookingsService";
 import { listPaymentsForBooking } from "@/services/paymentsService";
 import { listRooms } from "@/services/roomsService";
 import { getUserDoc } from "@/services/userService";
@@ -91,7 +90,7 @@ export default function FoCheckInPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const roomIdParam = searchParams.get("roomId");
-  const { trainingMode, profile } = useAuth();
+  const { profile } = useAuth();
 
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -119,13 +118,12 @@ export default function FoCheckInPage() {
     const entries = await Promise.all(
       missing.map(async (id) => {
         try {
-          const d = await getUserDoc(id, { preferTraining: trainingMode });
+          const d = await getUserDoc(id);
           return [id, d?.fullName || d?.email || ""];
         } catch {
           return [id, ""];
         }
-      }),
-    );
+      }));
     if (gen !== guestsGenRef.current) return;
     entries.forEach(([id, name]) => {
       guestsMapRef.current[id] = name;
@@ -151,8 +149,8 @@ export default function FoCheckInPage() {
         setGuestsMap({});
 
         const [roomData, bookingData] = await Promise.all([
-          listRooms({ trainingMode }),
-          listBookingsByStatuses(["Approved"], { trainingMode }),
+          listRooms(),
+          listBookingsByStatuses(["Approved"]),
         ]);
 
         if (!isMounted) return;
@@ -192,10 +190,9 @@ export default function FoCheckInPage() {
     return () => {
       isMounted = false;
     };
-    // ensureGuestNames is a stable per-render helper over refs; trainingMode
-    // is already a dep.
+    // ensureGuestNames is a stable per-render helper over refs.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roomIdParam, trainingMode, showAllApproved]);
+  }, [roomIdParam, showAllApproved]);
 
   const roomById = useMemo(() => {
     const map = new Map();
@@ -208,8 +205,7 @@ export default function FoCheckInPage() {
       selectedBookingId
         ? (bookings.find((b) => b.id === selectedBookingId) ?? null)
         : null,
-    [selectedBookingId, bookings],
-  );
+    [selectedBookingId, bookings]);
 
   // Live payment records for the selected booking — single money source,
   // mirrors FoCheckOutPage. Never booking.payment.deposit.
@@ -227,12 +223,10 @@ export default function FoCheckInPage() {
       setPaymentsError(null);
       setPaymentsLoadedFor(null);
       try {
-        const data = await listPaymentsForBooking(selectedBookingId, {
-          trainingMode,
-        });
+        const data = await listPaymentsForBooking(selectedBookingId);
         if (!isMounted) return;
         setPayments(data);
-        setPaymentsLoadedFor(`${trainingMode ?? ""}:${selectedBookingId}`);
+        setPaymentsLoadedFor(`live:${selectedBookingId}`);
       } catch (err) {
         if (!isMounted) return;
         console.error("[FoCheckInPage] loadPayments failed:", err);
@@ -247,16 +241,15 @@ export default function FoCheckInPage() {
     return () => {
       isMounted = false;
     };
-  }, [selectedBookingId, trainingMode]);
+  }, [selectedBookingId]);
 
   const paymentLookupKey = selectedBookingId
-    ? `${trainingMode ?? ""}:${selectedBookingId}`
+    ? `live:${selectedBookingId}`
     : null;
 
   const selectedPaid = useMemo(
     () => payments.reduce((sum, p) => sum + Number(p.amount ?? 0), 0),
-    [payments],
-  );
+    [payments]);
 
   const selectedBalance = useMemo(() => {
     if (
@@ -286,7 +279,7 @@ export default function FoCheckInPage() {
       }
       setSubmitting(true);
       setError(null);
-      await checkInBooking(bookingId, { trainingMode });
+      await checkInBooking(bookingId);
       trackEvent(GA_EVENTS.CHECK_IN, { booking_id: bookingId });
 
       // Issue a Check-In Slip / Guest Registration to the guest (non-blocking).
@@ -313,21 +306,17 @@ export default function FoCheckInPage() {
           amountPaid: paid,
           balance: Math.max(0, total - paid),
           paymentMethod: b.paymentMethod || b.payment?.method || "N/A",
-          processedBy: profile?.fullName || profile?.email || "Front Office Staff",
-        });
+          processedBy: profile?.fullName || profile?.email || "Front Office Staff"});
         toast.success("Check-In Slip downloaded.");
       } catch (slipErr) {
         console.error("Failed to generate check-in slip:", slipErr);
         toast.error("Failed to generate Check-In Slip.");
       }
       toast.success("Guest checked in.");
-      const data = await listBookingsByStatuses(["Approved"], {
-        trainingMode,
-      });
+      const data = await listBookingsByStatuses(["Approved"]);
       const now = new Date();
       const windowEnd = new Date(
-        now.getTime() + CHECK_IN_WINDOW_HOURS * 60 * 60 * 1000,
-      );
+        now.getTime() + CHECK_IN_WINDOW_HOURS * 60 * 60 * 1000);
       let filtered = data;
       if (!showAllApproved) {
         filtered = data.filter((item) => {
@@ -345,8 +334,7 @@ export default function FoCheckInPage() {
       setSelectedBookingId((prev) =>
         filtered.some((item) => item.id === prev)
           ? prev
-          : (filtered[0]?.id ?? null),
-      );
+          : (filtered[0]?.id ?? null));
     } catch (e) {
       setError(e?.message || "Check-in failed.");
     } finally {
@@ -513,8 +501,7 @@ export default function FoCheckInPage() {
                           >
                             PHP{" "}
                             {Number(
-                              room?.ratePerNight ?? 0,
-                            ).toLocaleString()}
+                              room?.ratePerNight ?? 0).toLocaleString()}
                             <span className="font-normal text-[10px] ml-1 opacity-70">
                               /night
                             </span>

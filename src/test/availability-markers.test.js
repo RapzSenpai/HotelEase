@@ -11,7 +11,7 @@ vi.mock("firebase/firestore", () => ({
   query: (ref) => ({ __q: ref?.__col }),
   where: () => ({ __where: true }),
   orderBy: () => ({ __orderBy: true }),
-  getDocs: async () => ({ docs: [] }),
+  getDocs: async () => ({ docs: [], size: 0 }),
   onSnapshot: () => () => {},
   runTransaction: async () => ({}),
   serverTimestamp: () => ({ __ts: true }),
@@ -27,21 +27,15 @@ beforeEach(() => {
   seen.collections.length = 0;
 });
 
-describe("training availability reads", () => {
-  it("getBlockedRoomIds reads training_availability in training mode", async () => {
-    await getBlockedRoomIds("2026-10-01", "2026-10-03", { trainingMode: true });
-    expect(seen.collections).toContain("training_availability");
-  });
-
-  it("getBlockedRoomIds reads room_availability outside training", async () => {
-    await getBlockedRoomIds("2026-10-01", "2026-10-03", {});
+describe("availability reads", () => {
+  it("getBlockedRoomIds reads room_availability", async () => {
+    await getBlockedRoomIds("2026-10-01", "2026-10-03");
     expect(seen.collections).toContain("room_availability");
-    expect(seen.collections).not.toContain("training_availability");
   });
 
-  it("getAvailableRoomIds never scans training_bookings in training mode", async () => {
-    await getAvailableRoomIds("2026-10-01", "2026-10-03", { trainingMode: true });
-    expect(seen.collections).not.toContain("training_bookings");
-    expect(seen.collections).toContain("training_availability");
+  it("getAvailableRoomIds reads room_availability and never training collections", async () => {
+    await getAvailableRoomIds("2026-10-01", "2026-10-03");
+    expect(seen.collections).toContain("room_availability");
+    expect(seen.collections.some((c) => c.startsWith("training_"))).toBe(false);
   });
 });

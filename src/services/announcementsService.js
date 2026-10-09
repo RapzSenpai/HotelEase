@@ -14,8 +14,7 @@ import {
   Timestamp,
   setDoc,
   updateDoc,
-  deleteDoc,
-} from "firebase/firestore";
+  deleteDoc} from "firebase/firestore";
 import { db } from "@/firebase/firebase.config";
 import { uploadImageToCloudinary } from "./cloudinaryService";
 import { listGuests } from "./userService";
@@ -52,21 +51,7 @@ export async function listAnnouncements({ limitCount = 6 } = {}) {
  * @param {string} payload.date - YYYY-MM-DD
  * @param {File=} payload.imageFile - optional
  */
-// Announcements are production-only. The training sandbox is gone, so the
-// mode always resolves to production and this guard never fires.
-function blockTrainingWrites(trainingMode) {
-  // Match getCol: an omitted mode falls back to the training override.
-  let mode = trainingMode;
-  if (mode === null || mode === undefined) {
-    mode = false;
-  }
-  if (mode === true || mode === "training") {
-    throw new Error("Announcements are turned off in training mode.");
-  }
-}
-
-export async function createAnnouncement(payload, { trainingMode = null } = {}) {
-  blockTrainingWrites(trainingMode);
+export async function createAnnouncement(payload) {
   const title = String(payload?.title ?? "").trim();
   const description = String(payload?.description ?? "").trim();
   const date = parseDateToTimestamp(payload?.date);
@@ -80,8 +65,7 @@ export async function createAnnouncement(payload, { trainingMode = null } = {}) 
   let imageUrl = payload?.imageUrl || null;
   if (!imageUrl && payload?.imageFile) {
     const { url } = await uploadImageToCloudinary(payload.imageFile, {
-      compressionPreset: "announcementImages",
-    });
+      compressionPreset: "announcementImages"});
     imageUrl = url;
   }
 
@@ -92,44 +76,37 @@ export async function createAnnouncement(payload, { trainingMode = null } = {}) 
     imageUrl,
     status: "Published",
     createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  });
+    updatedAt: serverTimestamp()});
 
   try {
     // Notify all guests — batched commits instead of N individual writes.
     // Same recipient set as before (role === "guest"), same payload.
-    const guestUsers = await listGuests({ trainingMode });
+    const guestUsers = await listGuests();
     const result = await createNotificationsBulk(
       guestUsers.map((guest) => ({
         userId: guest.id,
         type: "announcement",
         title: "New Announcement 📢",
         message: title,
-        link: "/",
-      })),
-      { trainingMode },
-    );
+        link: "/"})));
     // Partial fan-out must not pass silently: the announcement itself is
     // already created, so report (don't throw) — staff can resend if needed.
     if (result.failed > 0) {
       console.error(
         `[announcements] fan-out partial failure: ${result.failed}/${guestUsers.length} notifications failed.`,
-        result.errors,
-      );
+        result.errors);
     }
   } catch(e) { console.error("Notif error", e); }
 
   return { id: docRef.id };
 }
 
-export async function updateAnnouncement(id, payload, { trainingMode = null } = {}) {
-  blockTrainingWrites(trainingMode);
+export async function updateAnnouncement(id, payload) {
   if (!id) throw new Error("Announcement ID is required.");
   const docRef = doc(db, ANNOUNCEMENTS_COL, id);
   
   const updateData = {
-    updatedAt: serverTimestamp(),
-  };
+    updatedAt: serverTimestamp()};
   
   if (payload.title !== undefined) updateData.title = String(payload.title).trim();
   if (payload.description !== undefined) updateData.description = String(payload.description).trim();
@@ -143,8 +120,7 @@ export async function updateAnnouncement(id, payload, { trainingMode = null } = 
   return { ok: true };
 }
 
-export async function deleteAnnouncement(id, { trainingMode = null } = {}) {
-  blockTrainingWrites(trainingMode);
+export async function deleteAnnouncement(id) {
   if (!id) throw new Error("Announcement ID is required.");
   const docRef = doc(db, ANNOUNCEMENTS_COL, id);
   await deleteDoc(docRef);

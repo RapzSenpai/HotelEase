@@ -5,8 +5,7 @@ import {
   subscribeToNotifications,
   markAsRead,
   markAllAsRead,
-  markNotificationsRead,
-} from "@/services/notificationService";
+  markNotificationsRead} from "@/services/notificationService";
 // Global inbox → toast bridge. Mounted here because the bell is the one
 // notification surface every signed-in role renders on every page.
 import { useNotificationToasts } from "@/hooks/useNotificationToasts";
@@ -14,8 +13,7 @@ import { unreadNotificationIdsForVisit } from "@/lib/notification-links";
 import {
   Popover,
   PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+  PopoverTrigger} from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { Bell, Check, X, CalendarCheck, CalendarX, CheckCircle, Navigation, Info, BellRing, Sparkles, MessageSquareMore, Receipt, Wallet, Undo2 } from "lucide-react";
 
@@ -75,7 +73,7 @@ function timeSince(dateLike) {
 }
 
 export default function NotificationBell() {
-  const { user, trainingMode } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [notifications, setNotifications] = useState([]);
   const [isOpen, setIsOpen] = useState(false);
@@ -89,16 +87,16 @@ export default function NotificationBell() {
     if (!user?.uid) return;
     const unsub = subscribeToNotifications(user.uid, (data) => {
       setNotifications(data);
-    }, { trainingMode });
+    });
     return () => unsub();
-  }, [user?.uid, trainingMode]);
+  }, [user?.uid]);
 
   // New notifications pop a toast (see TOASTABLE_TYPES for the noise policy).
-  useNotificationToasts({ userId: user?.uid, trainingMode });
+  useNotificationToasts({ userId: user?.uid});
 
   useEffect(() => {
     ackedRef.current = new Set();
-  }, [user?.uid, trainingMode]);
+  }, [user?.uid]);
 
   // Visit ack: opening the page a notification points at counts as reading it
   // — type-agnostic, driven by the link. Links carrying a bookingId only ack
@@ -113,7 +111,6 @@ export default function NotificationBell() {
       user.uid,
       location.pathname,
       location.search,
-      trainingMode,
     ]);
     if (visitAckRef.current.key !== visitKey) {
       const bookingId = new URLSearchParams(location.search).get("bookingId");
@@ -121,24 +118,22 @@ export default function NotificationBell() {
         key: visitKey,
         ids: unreadNotificationIdsForVisit(notifications, {
           pathname: location.pathname,
-          bookingId,
-        }),
-      };
+          bookingId})};
     }
 
     const ids = visitAckRef.current.ids.filter((id) => !ackedRef.current.has(id));
     if (ids.length === 0) return;
     for (const id of ids) ackedRef.current.add(id);
-    markNotificationsRead(user.uid, ids, { trainingMode }).catch(() => {
+    markNotificationsRead(user.uid, ids).catch(() => {
       for (const id of ids) ackedRef.current.delete(id);
     });
-  }, [user?.uid, notifications, location.pathname, location.search, trainingMode]);
+  }, [user?.uid, notifications, location.pathname, location.search]);
 
   const unreadCount = notifications.filter((n) => !n.isRead).length;
 
   const handleNotifClick = async (notif) => {
     if (!notif.isRead) {
-      await markAsRead(user.uid, notif.id, { trainingMode });
+      await markAsRead(user.uid, notif.id);
     }
     setIsOpen(false);
     if (notif.link) {
@@ -148,7 +143,7 @@ export default function NotificationBell() {
 
   const handleMarkAllRead = async () => {
     if (unreadCount === 0) return;
-    await markAllAsRead(user.uid, { trainingMode });
+    await markAllAsRead(user.uid);
   };
 
   if (!user) return null;

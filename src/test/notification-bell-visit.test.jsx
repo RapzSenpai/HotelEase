@@ -10,26 +10,21 @@ const mocks = vi.hoisted(() => ({
   markAsRead: vi.fn(),
   markAllAsRead: vi.fn(),
   markNotificationsRead: vi.fn(),
-  onSnapshot: null,
-}));
+  onSnapshot: null}));
 
 vi.mock("@/contexts/AuthContext", () => ({
-  useAuth: () => ({ user: { uid: "guest-1" }, trainingMode: false }),
-}));
+  useAuth: () => ({ user: { uid: "guest-1" } })}));
 vi.mock("@/services/notificationService", () => ({
   subscribeToNotifications: (...args) => mocks.subscribe(...args),
   markAsRead: (...args) => mocks.markAsRead(...args),
   markAllAsRead: (...args) => mocks.markAllAsRead(...args),
-  markNotificationsRead: (...args) => mocks.markNotificationsRead(...args),
-}));
+  markNotificationsRead: (...args) => mocks.markNotificationsRead(...args)}));
 vi.mock("@/hooks/useNotificationToasts", () => ({
-  useNotificationToasts: vi.fn(),
-}));
+  useNotificationToasts: vi.fn()}));
 vi.mock("@/components/ui/popover", () => ({
   Popover: ({ children }) => children,
   PopoverContent: ({ children }) => children,
-  PopoverTrigger: ({ children }) => children,
-}));
+  PopoverTrigger: ({ children }) => children}));
 
 const { default: NotificationBell } = await import("@/components/notifications/NotificationBell");
 
@@ -61,9 +56,7 @@ describe("NotificationBell visit acknowledgement", () => {
         createElement(
           MemoryRouter,
           { initialEntries: ["/my-bookings?bookingId=booking-1"] },
-          createElement(NotificationBell),
-        ),
-      );
+          createElement(NotificationBell)));
     });
     await act(async () => {
       mocks.onSnapshot([
@@ -71,8 +64,7 @@ describe("NotificationBell visit acknowledgement", () => {
           id: "late-notification",
           link: "/my-bookings?bookingId=booking-1",
           isRead: false,
-          title: "Booking update",
-        },
+          title: "Booking update"},
       ]);
     });
 

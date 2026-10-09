@@ -21,8 +21,7 @@ export function getBrowserPerformanceSnapshot() {
     largestContentfulPaint: null,
     apiLatency: null,
     jsErrors: null,
-    supportsPerfApi: typeof performance !== "undefined",
-  };
+    supportsPerfApi: typeof performance !== "undefined"};
 
   if (typeof performance === "undefined") return snapshot;
 
@@ -91,8 +90,7 @@ export function recordLatencySample(name, ms, ok = true) {
       name,
       ms: Math.round(ms),
       ok,
-      at: Date.now(),
-    });
+      at: Date.now()});
     if (samples.length > MAX_SAMPLES) samples.splice(0, samples.length - MAX_SAMPLES);
     localStorage.setItem(SAMPLES_KEY, JSON.stringify(samples));
   } catch {
@@ -121,7 +119,6 @@ export function readSamples() {
  * @param {string} name
  * @param {Function} fn - async function to measure
  * @param {Object} [options]
- * @param {boolean} options.trainingMode
  * @returns {Promise<*>}
  */
 export async function measureOperation(name, fn) {
@@ -166,8 +163,7 @@ export function summarizeSamples() {
       errors: op.errors,
       avgMs: Math.round(op.totalMs / op.count),
       minMs: Math.round(op.min),
-      maxMs: Math.round(op.max),
-    };
+      maxMs: Math.round(op.max)};
   }
 
   const total = samples.length;
@@ -177,8 +173,7 @@ export function summarizeSamples() {
     total,
     errors,
     errorRate: total ? Math.round((errors / total) * 1000) / 10 : 0,
-    lastUpdated: samples[samples.length - 1].at,
-  };
+    lastUpdated: samples[samples.length - 1].at};
 }
 
 /**
@@ -219,11 +214,10 @@ export function computePerformanceScore(metrics, summary) {
  * doc (admins/FO can read it) and reports reachability + round-trip latency.
  * @param {Function} callback - receives { connected: boolean, latency: number|null }
  * @param {Object} options
- * @param {boolean} options.trainingMode
  * @returns {() => void} Unsubscribe
  */
-export function subscribeToConnectivity(callback, { trainingMode = false } = {}) {
-  const col = getCol("system_health", trainingMode);
+export function subscribeToConnectivity(callback) {
+  const col = getCol("system_health");
   const ref = doc(db, col, "metrics");
 
   return onSnapshot(
@@ -238,11 +232,10 @@ export function subscribeToConnectivity(callback, { trainingMode = false } = {})
 
 /**
  * One-shot Firestore connectivity + latency probe.
- * @param {boolean} [trainingMode]
  * @returns {Promise<{ connected: boolean, latency: number|null }>}
  */
-export async function probeConnectivity({ trainingMode = false } = {}) {
-  const col = getCol("system_health", trainingMode);
+export async function probeConnectivity() {
+  const col = getCol("system_health");
   const ref = doc(db, col, "metrics");
   const start = performance.now();
   try {

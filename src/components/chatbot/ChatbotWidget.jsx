@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { NavLink } from "react-router-dom";
 import { MessageCircle, X, Sparkles, ChevronRight, Copy, Check, ArrowUp, RotateCcw } from "lucide-react";
-import { useAuth } from "@/contexts/AuthContext";
 import { sendMessage } from "@/services/chatbotService";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -32,8 +31,7 @@ const FOLLOW_UP_MAP = {
   check: [
     { label: "Late check-out", followUp: "Is late check-out available?" },
     { label: "Early check-in", followUp: "Can I check in early?" },
-  ],
-};
+  ]};
 
 function detectFollowUpCategory(text) {
   const lower = text.toLowerCase();
@@ -93,8 +91,7 @@ const markdownComponents = {
       {children}
     </blockquote>
   ),
-  hr: () => <hr className="my-3 border-border" />,
-};
+  hr: () => <hr className="my-3 border-border" />};
 
 function ActionBar({ content, onRegenerate }) {
   const [copied, setCopied] = useState(false);
@@ -146,7 +143,6 @@ function EmptyState() {
 }
 
 export default function ChatbotWidget({ positionClass = "bottom-6 right-6" }) {
-  const { trainingMode } = useAuth();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
@@ -169,8 +165,7 @@ export default function ChatbotWidget({ positionClass = "bottom-6 right-6" }) {
         id: "welcome",
         role: "assistant",
         content: "Hello! Welcome to HotelEase. I'm your virtual concierge — here to help you find the perfect room, assist with reservations, and answer any questions about your stay.",
-        at: new Date(),
-      },
+        at: new Date()},
     ]);
     setShowQuickReplies(true);
     setCapped(false);
@@ -190,14 +185,12 @@ export default function ChatbotWidget({ positionClass = "bottom-6 right-6" }) {
         .slice(-6)
         .map((m) => ({
           role: m.role === "user" ? "user" : "assistant",
-          content: m.content,
-        }));
+          content: m.content}));
 
       if (isRegenerate) {
         setMessages((prev) => {
           const withoutLastAssistant = prev.filter(
-            (m) => !(m.role === "assistant" && m.id !== "welcome"),
-          );
+            (m) => !(m.role === "assistant" && m.id !== "welcome"));
           return [...withoutLastAssistant];
         });
       } else {
@@ -205,8 +198,7 @@ export default function ChatbotWidget({ positionClass = "bottom-6 right-6" }) {
           id: `u-${Date.now()}`,
           role: "user",
           content: trimmed.slice(0, 300),
-          at: new Date(),
-        };
+          at: new Date()};
         setShowQuickReplies(false);
         setMessages((prev) => [...prev, userMsg]);
         setInput("");
@@ -215,15 +207,14 @@ export default function ChatbotWidget({ positionClass = "bottom-6 right-6" }) {
       setLoading(true);
 
       try {
-        const reply = await sendMessage(trimmed, historyForApi, null, { trainingMode });
+        const reply = await sendMessage(trimmed, historyForApi, null);
         setMessages((prev) => [
           ...prev,
           {
             id: `a-${Date.now()}`,
             role: "assistant",
             content: reply,
-            at: new Date(),
-          },
+            at: new Date()},
         ]);
       } catch (e) {
         if (e?.code === "DAILY_CAP") {
@@ -234,8 +225,7 @@ export default function ChatbotWidget({ positionClass = "bottom-6 right-6" }) {
               id: `c-${Date.now()}`,
               role: "assistant",
               content: "You've used your free AI messages for today. Sign in to keep chatting — your history stays right here.",
-              at: new Date(),
-            },
+              at: new Date()},
           ]);
         } else {
           setMessages((prev) => [
@@ -244,16 +234,14 @@ export default function ChatbotWidget({ positionClass = "bottom-6 right-6" }) {
               id: `e-${Date.now()}`,
               role: "assistant",
               content: e?.message || UNAVAILABLE_TEXT,
-              at: new Date(),
-            },
+              at: new Date()},
           ]);
         }
       } finally {
         setLoading(false);
       }
     },
-    [loading, messages, trainingMode],
-  );
+    [loading, messages]);
 
   const handleRegenerate = useCallback(() => {
     const lastUserMsg = [...messages].reverse().find((m) => m.role === "user");

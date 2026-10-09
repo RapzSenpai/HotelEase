@@ -9,8 +9,7 @@ import {
   query,
   serverTimestamp,
   updateDoc,
-  setDoc,
-} from "firebase/firestore";
+  setDoc} from "firebase/firestore";
 import emailjs from "@emailjs/browser";
 import { db } from "@/firebase/firebase.config";
 import { listFoUsers } from "@/services/userService";
@@ -40,13 +39,12 @@ async function sendReplyEmail({ toEmail, name, subject, replyMessage }) {
     to_name: name,
     subject: `Re: ${subject}`,
     eyebrow: "Support Reply",
-    bodyHTML: buildReplyBody(subject, replyMessage),
-  };
+    bodyHTML: buildReplyBody(subject, replyMessage)};
 
   await emailjs.send(serviceId, templateId, templateParams, publicKey);
 }
 
-export async function submitMessage({ name, email, subject, message, guestId = null, honeypot = "", trainingMode = null }) {
+export async function submitMessage({ name, email, subject, message, guestId = null, honeypot = "" }) {
   // Bot trap: fake success so automated senders don't learn the field name.
   if (String(honeypot || "").trim()) return { id: null };
 
@@ -68,7 +66,7 @@ export async function submitMessage({ name, email, subject, message, guestId = n
   // Cooldown key follows the resolved collection (not the raw flag) so it
   // can never disagree with where the message is actually stored.
   const sentKey =
-    getCol(MESSAGES_COL, trainingMode) !== MESSAGES_COL
+    getCol(MESSAGES_COL) !== MESSAGES_COL
       ? `${LAST_SENT_KEY}_training`
       : LAST_SENT_KEY;
   try {
@@ -82,7 +80,7 @@ export async function submitMessage({ name, email, subject, message, guestId = n
     // ignore storage errors
   }
 
-  const ref = doc(collection(db, getCol(MESSAGES_COL, trainingMode)));
+  const ref = doc(collection(db, getCol(MESSAGES_COL)));
   await setDoc(ref, {
     id: ref.id,
     name: cleanName,
@@ -93,23 +91,19 @@ export async function submitMessage({ name, email, subject, message, guestId = n
     guestId: guestId || null,
     createdAt: serverTimestamp(),
     repliedAt: null,
-    replyMessage: null,
-  });
+    replyMessage: null});
 
   try {
     try { localStorage.setItem(sentKey, String(Date.now())); } catch { /* ignore */ }
     // Guest-safe: only read FO-role users (guests must not list other guests).
-    const foUsers = await listFoUsers({ trainingMode });
+    const foUsers = await listFoUsers();
     await Promise.all(
       foUsers.map((fo) =>
         createNotification(fo.id, {
           type: "support_message",
           title: "New Support Message 💬",
           message: `${cleanName} sent a message: ${cleanSubject}`,
-          link: "/fo/messages",
-        }, { trainingMode }),
-      ),
-    );
+          link: "/fo/messages"})));
   } catch (e) {
     console.error("Failed to fan out FO support notifications:", e);
   }
@@ -121,15 +115,15 @@ export async function submitMessage({ name, email, subject, message, guestId = n
 // 500 is far above any real inbox — the cap only guards pathological growth.
 export const MESSAGES_PAGE_SIZE = 500;
 
-export async function getAllMessages({ trainingMode = null, limitCount = MESSAGES_PAGE_SIZE } = {}) {
-  const col = getCol(MESSAGES_COL, trainingMode);
+export async function getAllMessages({ limitCount = MESSAGES_PAGE_SIZE } = {}) {
+  const col = getCol(MESSAGES_COL);
   const q = query(collection(db, col), orderBy("createdAt", "desc"), limit(limitCount));
   const snap = await getDocs(q);
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
 
-export function subscribeToMessages(callback, { trainingMode = null, limitCount = MESSAGES_PAGE_SIZE } = {}) {
-  const col = getCol(MESSAGES_COL, trainingMode);
+export function subscribeToMessages(callback, { limitCount = MESSAGES_PAGE_SIZE } = {}) {
+  const col = getCol(MESSAGES_COL);
   const q = query(collection(db, col), orderBy("createdAt", "desc"), limit(limitCount));
   return onSnapshot(
     q,
@@ -143,20 +137,19 @@ export function subscribeToMessages(callback, { trainingMode = null, limitCount 
   );
 }
 
-export async function markAsRead(messageId, { trainingMode = null } = {}) {
+export async function markAsRead(messageId) {
   if (!messageId) throw new Error("Message ID is required.");
-  await updateDoc(doc(db, getCol(MESSAGES_COL, trainingMode), messageId), {
-    status: "read",
-  });
+  await updateDoc(doc(db, getCol(MESSAGES_COL), messageId), {
+    status: "read"});
   return { ok: true };
 }
 
-export async function replyToMessage(messageId, replyMessage, { trainingMode = null } = {}) {
+export async function replyToMessage(messageId, replyMessage) {
   if (!messageId) throw new Error("Message ID is required.");
   const cleanReply = String(replyMessage || "").trim();
   if (!cleanReply) throw new Error("Reply message is required.");
 
-  const col = getCol(MESSAGES_COL, trainingMode);
+  const col = getCol(MESSAGES_COL);
   const targetSnap = await getDoc(doc(db, col, messageId));
   if (!targetSnap.exists()) throw new Error("Message not found.");
   const target = { id: targetSnap.id, ...targetSnap.data() };
@@ -164,8 +157,7 @@ export async function replyToMessage(messageId, replyMessage, { trainingMode = n
   await updateDoc(doc(db, col, messageId), {
     status: "replied",
     replyMessage: cleanReply,
-    repliedAt: serverTimestamp(),
-  });
+    repliedAt: serverTimestamp()});
 
   // Training replies stay in the sandbox — never send real email for them.
   if (col !== MESSAGES_COL) {
@@ -177,15 +169,13 @@ export async function replyToMessage(messageId, replyMessage, { trainingMode = n
       toEmail: target.email,
       name: target.name,
       subject: target.subject,
-      replyMessage: cleanReply,
-    });
+      replyMessage: cleanReply});
     return { ok: true, emailSent: true };
   } catch (error) {
     console.error("Support reply email failed:", error);
     return {
       ok: true,
       emailSent: false,
-      reason: error?.message || "Email service is unavailable.",
-    };
+      reason: error?.message || "Email service is unavailable."};
   }
 }

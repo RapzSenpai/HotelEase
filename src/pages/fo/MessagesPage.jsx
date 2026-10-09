@@ -11,22 +11,18 @@ import {
   DialogContent,
   DialogDescription,
   DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  DialogTitle} from "@/components/ui/dialog";
 import {
   Table,
   TableBody,
   TableCell,
   TableHead,
   TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+  TableRow} from "@/components/ui/table";
 import {
   markAsRead,
   replyToMessage,
-  subscribeToMessages,
-} from "@/services/messageService";
-import { useAuth } from "@/contexts/AuthContext";
+  subscribeToMessages} from "@/services/messageService";
 import { useEffect } from "react";
 
 
@@ -37,7 +33,6 @@ function statusBadge(status) {
 }
 
 export default function MessagesPage() {
-  const { trainingMode } = useAuth();
   const [messages, setMessages] = useState([]);
   const [activeFilter, setActiveFilter] = useState("all");
   const [selected, setSelected] = useState(null);
@@ -45,16 +40,13 @@ export default function MessagesPage() {
   const [sending, setSending] = useState(false);
 
   useEffect(() => {
-    const unsub = subscribeToMessages((data) => setMessages(data), {
-      trainingMode,
-    });
+    const unsub = subscribeToMessages((data) => setMessages(data));
     return () => unsub();
-  }, [trainingMode]);
+  }, []);
 
   const unreadCount = useMemo(
     () => messages.filter((m) => m.status === "unread").length,
-    [messages],
-  );
+    [messages]);
 
   const filteredMessages = useMemo(() => {
     if (activeFilter === "unread") return messages.filter((m) => m.status === "unread");
@@ -64,7 +56,7 @@ export default function MessagesPage() {
 
   async function handleMarkRead(id) {
     try {
-      await markAsRead(id, { trainingMode });
+      await markAsRead(id);
       toast.success("Message marked as read.");
     } catch (e) {
       toast.error(e?.message || "Failed to mark as read.");
@@ -79,13 +71,9 @@ export default function MessagesPage() {
     }
     setSending(true);
     try {
-      const result = await replyToMessage(selected.id, replyText.trim(), {
-        trainingMode,
-      });
+      const result = await replyToMessage(selected.id, replyText.trim());
       if (result?.emailSent) {
         toast.success("Reply sent successfully.");
-      } else if (trainingMode) {
-        toast.success("Reply saved in the training sandbox. No email sent.");
       } else {
         toast.success("Reply saved. Email delivery is not available right now.");
       }
@@ -106,12 +94,6 @@ export default function MessagesPage() {
           <p className="text-sm text-foreground/60">Review, respond, and track guest support inquiries.</p>
         </div>
       </div>
-      {trainingMode ? (
-        <div className="rounded-xl border border-primary/30 bg-primary/10 px-4 py-3 text-sm">
-          Training inbox. Messages here stay in the sandbox, and replies send no email.
-        </div>
-      ) : null}
-
       <div className="flex flex-wrap gap-2 border-b border-border pb-3">
         {[
           { label: "All", value: "all" },

@@ -3,7 +3,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { getAdminAnalyticsSummary } from "@/services/analyticsService";
 import { subscribeToActiveUsersByRole } from "@/services/activityService";
-import { useAuth } from "@/contexts/AuthContext";
 import AiInsightsCard from "@/components/admin/AiInsightsCard";
 import AdminBriefingCard from "@/components/admin/AdminBriefingCard";
 import { 
@@ -33,31 +32,30 @@ export default function AdminAnalyticsPage() {
   const [error, setError] = useState(null);
   const [summary, setSummary] = useState(null);
   const [activeUsers, setActiveUsers] = useState({ total: 0, guest: 0, fo: 0, admin: 0 });
-  const { trainingMode } = useAuth();
 
   const refresh = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const data = await getAdminAnalyticsSummary({ trainingMode });
+      const data = await getAdminAnalyticsSummary();
       setSummary(data);
     } catch (e) {
       setError(e?.message || "Failed to load analytics.");
     } finally {
       setLoading(false);
     }
-  }, [trainingMode]);
+  }, []);
 
   useEffect(() => {
     refresh();
   }, [refresh]);
 
   useEffect(() => {
-    const unsubscribe = subscribeToActiveUsersByRole({ trainingMode }, (breakdown) => {
+    const unsubscribe = subscribeToActiveUsersByRole((breakdown) => {
       setActiveUsers(breakdown);
     });
     return unsubscribe;
-  }, [trainingMode]);
+  }, []);
 
   const occupancyData = summary ? [
     { name: "Occupied", value: summary.occupancyNights },
@@ -279,7 +277,7 @@ export default function AdminAnalyticsPage() {
           </Card>
 
           {/* Ops Briefing + AI Insights */}
-          <AdminBriefingCard trainingMode={trainingMode} />
+          <AdminBriefingCard />
           <AiInsightsCard />
         </div>
       )}

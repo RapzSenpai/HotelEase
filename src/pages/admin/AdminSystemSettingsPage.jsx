@@ -9,25 +9,17 @@ import {
   CardHeader,
   CardTitle,
   CardDescription,
-  CardContent,
-} from "@/components/ui/card";
+  CardContent} from "@/components/ui/card";
 import {
   getMaintenanceStatus,
-  setMaintenanceStatus,
-} from "@/services/maintenanceService";
+  setMaintenanceStatus} from "@/services/maintenanceService";
 import { auditAction, AUDIT_ACTIONS } from "@/services/auditService";
-import { useAuth } from "@/contexts/AuthContext";
 import {
   AlertTriangle,
   Clock,
-  CalendarDays,
-} from "lucide-react";
+  CalendarDays} from "lucide-react";
 
 export default function AdminSystemSettingsPage() {
-  // Session sandbox flag — Maintenance Mode has no training variant (it is
-  // global by design), so it must be locked while a training session is active.
-  const { trainingMode: sessionTrainingMode } = useAuth();
-
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -76,8 +68,7 @@ export default function AdminSystemSettingsPage() {
         enabled: !maintenanceEnabled,
         message: maintenanceMessage,
         startTime: maintenanceStartTime || null,
-        endTime: maintenanceEndTime || null,
-      });
+        endTime: maintenanceEndTime || null});
       // Reload to confirm the save worked
       const maint = await getMaintenanceStatus();
       setMaintenanceEnabled(maint.enabled);
@@ -87,9 +78,7 @@ export default function AdminSystemSettingsPage() {
       auditAction(AUDIT_ACTIONS.MAINTENANCE_MODE_TOGGLE, {
         targetType: "system",
         changes: { enabled: maint.enabled },
-        description: `Maintenance mode ${maint.enabled ? "enabled" : "disabled"}`,
-        trainingMode: sessionTrainingMode,
-      });
+        description: `Maintenance mode ${maint.enabled ? "enabled" : "disabled"}`});
     } catch (e) {
       setError(e?.message || "Failed to update maintenance status.");
       // Revert to actual server state on error
@@ -111,8 +100,7 @@ export default function AdminSystemSettingsPage() {
         enabled: maintenanceEnabled,
         message: maintenanceMessage,
         startTime: maintenanceStartTime || null,
-        endTime: maintenanceEndTime || null,
-      });
+        endTime: maintenanceEndTime || null});
       // Reload to confirm the save worked
       const maint = await getMaintenanceStatus();
       setMaintenanceEnabled(maint.enabled);
@@ -122,9 +110,7 @@ export default function AdminSystemSettingsPage() {
       auditAction(AUDIT_ACTIONS.MAINTENANCE_MODE_TOGGLE, {
         targetType: "system",
         changes: { enabled: maint.enabled, message: maint.message },
-        description: `Maintenance settings saved (${maint.enabled ? "enabled" : "disabled"})`,
-        trainingMode: sessionTrainingMode,
-      });
+        description: `Maintenance settings saved (${maint.enabled ? "enabled" : "disabled"})`});
     } catch (e) {
       setError(e?.message || "Failed to update maintenance status.");
       // Revert to actual server state on error
@@ -200,7 +186,7 @@ export default function AdminSystemSettingsPage() {
               <Switch
                 checked={maintenanceEnabled}
                 onCheckedChange={() => onToggleMaintenance()}
-                disabled={loading || maintenanceSaving || sessionTrainingMode}
+                disabled={loading || maintenanceSaving}
                 aria-label="Toggle maintenance mode"
               />
             </div>
@@ -208,16 +194,6 @@ export default function AdminSystemSettingsPage() {
         </CardHeader>
 
         <CardContent className="space-y-4">
-          {sessionTrainingMode && (
-            <div className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/5 p-3 text-xs text-foreground/80">
-              <AlertTriangle className="h-4 w-4 shrink-0 text-warning mt-0.5" />
-              <p>
-                Maintenance Mode is <span className="font-semibold">global</span> and affects the
-                production site even while training mode is active — it cannot be changed during a
-                training session. Exit training mode to manage it.
-              </p>
-            </div>
-          )}
           {maintenanceEnabled && (
             <span className="inline-flex items-center gap-1.5 text-xs font-medium text-destructive">
               <Clock className="h-3.5 w-3.5" />
@@ -277,7 +253,7 @@ export default function AdminSystemSettingsPage() {
             <div className="flex justify-end">
               <Button
                 onClick={onSaveMaintenance}
-                disabled={loading || maintenanceSaving || sessionTrainingMode}
+                disabled={loading || maintenanceSaving}
                 className="w-full sm:w-auto"
               >
                 {maintenanceSaving ? "Saving..." : "Save Maintenance Settings"}

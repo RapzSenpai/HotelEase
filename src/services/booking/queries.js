@@ -9,8 +9,7 @@ import {
   orderBy,
   query,
   Timestamp,
-  where,
-} from "firebase/firestore";
+  where} from "firebase/firestore";
 import { db } from "@/firebase/firebase.config";
 // Shared with availabilityService — see lib/time-utils.js for the local-midnight rule.
 import { toLocalDate as toDate } from "@/lib/time-utils";
@@ -23,24 +22,22 @@ import { bookingsCollection } from "./core";
  * are free for these dates". Split out of bookingsService without changes.
  */
 
-export async function listBookingsForUser(uid, { trainingMode = null } = {}) {
-  const col = bookingsCollection(trainingMode);
+export async function listBookingsForUser(uid) {
+  const col = bookingsCollection();
   const q = query(
     collection(db, col),
     where("guestId", "==", uid),
-    orderBy("checkInDate", "desc"),
-  );
+    orderBy("checkInDate", "desc"));
   const snap = await getDocs(q);
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
 
-export function subscribeToUserBookings(uid, callback, { trainingMode = null } = {}) {
-  const col = bookingsCollection(trainingMode);
+export function subscribeToUserBookings(uid, callback) {
+  const col = bookingsCollection();
   const q = query(
     collection(db, col),
     where("guestId", "==", uid),
-    orderBy("checkInDate", "desc"),
-  );
+    orderBy("checkInDate", "desc"));
   return onSnapshot(
     q,
     (snap) => {
@@ -50,27 +47,23 @@ export function subscribeToUserBookings(uid, callback, { trainingMode = null } =
     (error) => {
       console.error("[bookingsService] subscribeToUserBookings error:", error);
       callback([]);
-    },
-  );
+    });
 }
 
 export async function listBookingsForRoom(
-  roomId,
-  { trainingMode = null } = {},
-) {
-  const col = bookingsCollection(trainingMode);
+  roomId) {
+  const col = bookingsCollection();
   const q = query(
     collection(db, col),
     where("roomId", "==", roomId),
-    orderBy("checkInDate", "asc"),
-  );
+    orderBy("checkInDate", "asc"));
   const snap = await getDocs(q);
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
 
-export async function getBooking(bookingId, { trainingMode = null } = {}) {
+export async function getBooking(bookingId) {
   if (!bookingId || typeof bookingId !== "string") return null;
-  const col = bookingsCollection(trainingMode);
+  const col = bookingsCollection();
   const ref = doc(db, col, bookingId);
   const snap = await getDoc(ref);
   if (!snap.exists()) return null;
@@ -78,16 +71,13 @@ export async function getBooking(bookingId, { trainingMode = null } = {}) {
 }
 
 export async function listBookingsByStatuses(
-  statuses,
-  { trainingMode = null } = {},
-) {
+  statuses) {
   if (!Array.isArray(statuses) || statuses.length === 0) return [];
-  const col = bookingsCollection(trainingMode);
+  const col = bookingsCollection();
   const q = query(
     collection(db, col),
     where("status", "in", statuses),
-    orderBy("checkInDate", "desc"),
-  );
+    orderBy("checkInDate", "desc"));
   const snap = await getDocs(q);
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
@@ -136,15 +126,13 @@ function bookingsPageQuery(col, { status = null, pageSize = BOOKINGS_PAGE_SIZE, 
     ...(fromDate ? [where("checkInDate", ">=", Timestamp.fromDate(fromDate))] : []),
     ...(toDate ? [where("checkInDate", "<=", Timestamp.fromDate(toDate))] : []),
     orderBy(field, dir),
-    limit(pageSize),
-  );
+    limit(pageSize));
 }
 
 export function subscribeToBookingsPage(
-  { status = null, pageSize = BOOKINGS_PAGE_SIZE, fromDate = null, toDate = null, orderField = null, orderDir = null, trainingMode = null } = {},
-  callback,
-) {
-  const col = bookingsCollection(trainingMode);
+  { status = null, pageSize = BOOKINGS_PAGE_SIZE, fromDate = null, toDate = null, orderField = null, orderDir = null } = {},
+  callback) {
+  const col = bookingsCollection();
   const q = bookingsPageQuery(col, { status, pageSize, fromDate, toDate, orderField, orderDir });
   return onSnapshot(
     q,
@@ -154,21 +142,18 @@ export function subscribeToBookingsPage(
     (error) => {
       console.error("[bookingsService] subscribeToBookingsPage error:", error);
       callback([]);
-    },
-  );
+    });
 }
 
 // Exact in-range total for the "N in range" caption (count, not docs).
 export async function countBookingsPage(
-  { status = null, fromDate = null, toDate = null, trainingMode = null } = {},
-) {
-  const col = bookingsCollection(trainingMode);
+  { status = null, fromDate = null, toDate = null } = {}) {
+  const col = bookingsCollection();
   const q = query(
     collection(db, col),
     ...(status ? [where("status", "==", status)] : []),
     ...(fromDate ? [where("checkInDate", ">=", Timestamp.fromDate(fromDate))] : []),
-    ...(toDate ? [where("checkInDate", "<=", Timestamp.fromDate(toDate))] : []),
-  );
+    ...(toDate ? [where("checkInDate", "<=", Timestamp.fromDate(toDate))] : []));
   return (await getCountFromServer(q)).data().count;
 }
 
@@ -176,30 +161,27 @@ export async function countBookingsPage(
 // matching doc exists, so limit(1) keeps the live read to a single doc.
 // The due-checkouts bound mirrors countCheckOutsDue (same composite index).
 export function subscribeToHasBookings(
-  { status = null, checkOutBefore = null, trainingMode = null } = {},
-  callback,
-) {
-  const col = bookingsCollection(trainingMode);
+  { status = null, checkOutBefore = null } = {},
+  callback) {
+  const col = bookingsCollection();
   const q = query(
     collection(db, col),
     ...(status ? [where("status", "==", status)] : []),
     ...(checkOutBefore ? [where("checkOutDate", "<", Timestamp.fromDate(checkOutBefore))] : []),
-    limit(1),
-  );
+    limit(1));
   return onSnapshot(
     q,
     (snap) => callback(!snap.empty),
     (error) => {
       console.error("[bookingsService] subscribeToHasBookings error:", error);
       callback(false);
-    },
-  );
+    });
 }
 
 // Server-side doc counts for tab badges — cheap (count() bills per 1000
 // index entries, not per doc read) so badges stay exact without loading docs.
-export async function countBookingsByStatus(status, { trainingMode = null } = {}) {
-  const col = bookingsCollection(trainingMode);
+export async function countBookingsByStatus(status) {
+  const col = bookingsCollection();
   const q = status
     ? query(collection(db, col), where("status", "==", status))
     : query(collection(db, col));
@@ -227,46 +209,40 @@ function startOfTomorrow() {
   return Timestamp.fromDate(d);
 }
 
-export async function countCheckInsToday({ trainingMode = null } = {}) {
-  const col = bookingsCollection(trainingMode);
+export async function countCheckInsToday() {
+  const col = bookingsCollection();
   const q = query(
     collection(db, col),
     where("status", "in", ["Checked In", "Checked Out"]),
-    where("updatedAt", ">=", startOfToday()),
-  );
+    where("updatedAt", ">=", startOfToday()));
   return (await getCountFromServer(q)).data().count;
 }
 
-export async function countCheckOutsDue({ trainingMode = null } = {}) {
-  const col = bookingsCollection(trainingMode);
+export async function countCheckOutsDue() {
+  const col = bookingsCollection();
   const q = query(
     collection(db, col),
     where("status", "==", "Checked In"),
-    where("checkOutDate", "<", startOfTomorrow()),
-  );
+    where("checkOutDate", "<", startOfTomorrow()));
   return (await getCountFromServer(q)).data().count;
 }
 
-export async function countOverdueCheckOuts({ trainingMode = null } = {}) {
-  const col = bookingsCollection(trainingMode);
+export async function countOverdueCheckOuts() {
+  const col = bookingsCollection();
   const q = query(
     collection(db, col),
     where("status", "==", "Checked In"),
-    where("checkOutDate", "<", Timestamp.fromDate(new Date())),
-  );
+    where("checkOutDate", "<", Timestamp.fromDate(new Date())));
   return (await getCountFromServer(q)).data().count;
 }
 
 export function subscribeToPendingBookingRequests(
-  callback,
-  { trainingMode = null } = {},
-) {
-  const col = bookingsCollection(trainingMode);
+  callback) {
+  const col = bookingsCollection();
   const q = query(
     collection(db, col),
     where("status", "==", "Pending"),
-    orderBy("createdAt", "desc"),
-  );
+    orderBy("createdAt", "desc"));
   return onSnapshot(
     q,
     (snap) => {
@@ -287,10 +263,9 @@ export function subscribeToPendingBookingRequests(
  *
  * @param {string} checkInStr YYYY-MM-DD
  * @param {string} checkOutStr YYYY-MM-DD
- * @param {{ trainingMode?: boolean }} options
  * @returns {Promise<Set<string>>} Set of conflicting room IDs
  */
-export async function getAvailableRoomIds(checkInStr, checkOutStr, { trainingMode = null } = {}) {
+export async function getAvailableRoomIds(checkInStr, checkOutStr) {
   const checkIn = toDate(checkInStr);
   const checkOut = toDate(checkOutStr);
   if (!checkIn || !checkOut || checkOut <= checkIn) return new Set();
@@ -298,7 +273,7 @@ export async function getAvailableRoomIds(checkInStr, checkOutStr, { trainingMod
   // PII-free markers in both modes. Guests cannot read other guests'
   // bookings, so markers are the only safe source — the old training branch
   // queried training_bookings directly and rules denied every trainee guest.
-  return getBlockedRoomIds(checkInStr, checkOutStr, { trainingMode });
+  return getBlockedRoomIds(checkInStr, checkOutStr);
 }
 
 /**
@@ -308,17 +283,16 @@ export async function getAvailableRoomIds(checkInStr, checkOutStr, { trainingMod
  *
  * @param {string} checkInStr  YYYY-MM-DD
  * @param {string} checkOutStr YYYY-MM-DD
- * @param {{ trainingMode?: boolean }} options
  * @returns {Promise<Array>} Array of room objects available for those dates
  */
-export async function getAvailableRooms(checkInStr, checkOutStr, { trainingMode = null } = {}) {
+export async function getAvailableRooms(checkInStr, checkOutStr) {
   const checkIn = toDate(checkInStr);
   const checkOut = toDate(checkOutStr);
   if (!checkIn || !checkOut || checkOut <= checkIn) return [];
 
   const [conflictingIds, allRooms] = await Promise.all([
-    getAvailableRoomIds(checkInStr, checkOutStr, { trainingMode }),
-    listRooms({ trainingMode }),
+    getAvailableRoomIds(checkInStr, checkOutStr),
+    listRooms(),
   ]);
 
   return allRooms.filter(

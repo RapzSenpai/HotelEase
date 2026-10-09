@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Select } from "radix-ui";
 import { toast } from "sonner";
-import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -13,8 +12,7 @@ import {
   CardTitle,
   CardDescription,
   CardContent,
-  CardFooter,
-} from "@/components/ui/card";
+  CardFooter} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   Layers,
@@ -23,8 +21,7 @@ import {
   Download,
   Loader2,
   CheckCircle2,
-  ChevronDown,
-} from "lucide-react";
+  ChevronDown} from "lucide-react";
 import { subscribeToRooms } from "@/services/roomsService";
 import {
   EXPORT_MAX_ROWS,
@@ -32,8 +29,7 @@ import {
   emergencySetRoomStatus,
   downloadDataCSV,
   exportRooms,
-  exportUsers,
-} from "@/services/bulkOperationsService";
+  exportUsers} from "@/services/bulkOperationsService";
 import { createAnnouncement } from "@/services/announcementsService";
 import { auditAction, AUDIT_ACTIONS } from "@/services/auditService";
 
@@ -54,8 +50,7 @@ const STATUS_COLORS = {
   "Being Cleaned": "bg-primary/10 text-primary border-primary/20",
   "Pending Approval": "bg-purple-100 text-purple-600 border-purple-200",
   "Out of Order": "bg-destructive/10 text-destructive border-destructive/20",
-  "Dirty / Needs Cleaning": "bg-orange-100 text-orange-600 border-orange-200",
-};
+  "Dirty / Needs Cleaning": "bg-orange-100 text-orange-600 border-orange-200"};
 
 function StatusBadge({ status }) {
   return (
@@ -66,7 +61,6 @@ function StatusBadge({ status }) {
 }
 
 export default function AdminOperationsPage() {
-  const { trainingMode } = useAuth();
   const [rooms, setRooms] = useState([]);
   const [loadingRooms, setLoadingRooms] = useState(true);
 
@@ -98,11 +92,9 @@ export default function AdminOperationsPage() {
       (data) => {
         setRooms(data);
         setLoadingRooms(false);
-      },
-      { trainingMode }
-    );
+      });
     return () => unsub();
-  }, [trainingMode]);
+  }, []);
 
   const activeRooms = useMemo(
     () => rooms.filter((r) => r.isActive !== false),
@@ -135,16 +127,12 @@ export default function AdminOperationsPage() {
     try {
       const res = await bulkUpdateRoomStatus({
         roomIds: selectedIds,
-        status: bulkStatus,
-        trainingMode,
-      });
+        status: bulkStatus});
       toast.success(`${res.updated} room(s) updated to "${bulkStatus}"`);
       auditAction(AUDIT_ACTIONS.ROOM_STATUS_CHANGE, {
         targetType: "room",
         changes: { count: res.updated, status: bulkStatus, roomIds: selectedIds },
-        description: `Bulk updated ${res.updated} room(s) to ${bulkStatus}`,
-        trainingMode,
-      });
+        description: `Bulk updated ${res.updated} room(s) to ${bulkStatus}`});
       setSelectedIds([]);
     } catch (e) {
       toast.error(e?.message || "Bulk update failed");
@@ -164,17 +152,13 @@ export default function AdminOperationsPage() {
       await emergencySetRoomStatus({
         roomId: emergencyRoomId,
         status: emergencyStatus,
-        note: emergencyNote,
-        trainingMode,
-      });
+        note: emergencyNote});
       toast.success(`Emergency override applied to ${room?.roomNumber || "room"}`);
       auditAction(AUDIT_ACTIONS.ROOM_STATUS_CHANGE, {
         targetId: emergencyRoomId,
         targetType: "room",
         changes: { status: emergencyStatus, note: emergencyNote, emergency: true },
-        description: `Emergency override: ${room?.roomNumber || emergencyRoomId} → ${emergencyStatus}`,
-        trainingMode,
-      });
+        description: `Emergency override: ${room?.roomNumber || emergencyRoomId} → ${emergencyStatus}`});
       setEmergencyNote("");
     } catch (e) {
       toast.error(e?.message || "Emergency override failed");
@@ -193,15 +177,12 @@ export default function AdminOperationsPage() {
       await createAnnouncement({
         title: announcementTitle.trim(),
         description: announcementBody.trim(),
-        date: announcementDate,
-      }, { trainingMode });
+        date: announcementDate});
       toast.success("Announcement published to all guests");
       auditAction(AUDIT_ACTIONS.ANNOUNCEMENT_CREATE, {
         targetType: "announcement",
         changes: { title: announcementTitle.trim() },
-        description: `System announcement published: ${announcementTitle.trim()}`,
-        trainingMode,
-      });
+        description: `System announcement published: ${announcementTitle.trim()}`});
       setAnnouncementTitle("");
       setAnnouncementBody("");
     } catch (e) {
@@ -226,7 +207,7 @@ export default function AdminOperationsPage() {
     setExportBusy(kind);
     try {
       if (kind === "rooms") {
-        const { rows, total, truncated } = await exportRooms({ trainingMode });
+        const { rows, total, truncated } = await exportRooms();
         const mapped = rows.map((r) => ({
           Room: r.roomNumber ?? "",
           Name: r.name ?? "",
@@ -234,20 +215,18 @@ export default function AdminOperationsPage() {
           Status: r.status ?? "",
           "Rate/Night": r.ratePerNight ?? "",
           Floor: r.floor ?? "",
-          Active: r.isActive === false ? "No" : "Yes",
-        }));
+          Active: r.isActive === false ? "No" : "Yes"}));
         if (!mapped.length) throw new Error("No rooms to export");
         toastExportResult(kind, mapped, total, truncated);
       } else if (kind === "users") {
-        const { rows, total, truncated } = await exportUsers({ trainingMode });
+        const { rows, total, truncated } = await exportUsers();
         const mapped = rows.map((u) => ({
           Email: u.email ?? "",
           Name: u.fullName ?? "",
           Role: u.role ?? "",
           Phone: u.phone ?? "",
           Online: u.isOnline ? "Yes" : "No",
-          "Last Seen": u.lastSeenAt?.toDate?.().toISOString() ?? u.lastSeenAt ?? "",
-        }));
+          "Last Seen": u.lastSeenAt?.toDate?.().toISOString() ?? u.lastSeenAt ?? ""}));
         if (!mapped.length) throw new Error("No users to export");
         toastExportResult(kind, mapped, total, truncated);
       }
@@ -267,11 +246,7 @@ export default function AdminOperationsPage() {
         </p>
       </div>
 
-      {trainingMode && (
-        <div className="rounded-xl border border-warning/40 bg-warning/10 px-4 py-3 text-sm text-warning">
-          Training mode is active — these actions write to the training sandbox.
-        </div>
-      )}      <div className="grid gap-6 lg:grid-cols-2 items-start">
+      <div className="grid gap-6 lg:grid-cols-2 items-start">
         {/* ── LEFT COLUMN ── */}
         <div className="space-y-6">
           {/* ── Bulk Room Status ── */}
@@ -542,9 +517,6 @@ export default function AdminOperationsPage() {
               </CardTitle>
               <CardDescription>
                 Publish a broadcast notification to all registered guest accounts.
-                {trainingMode
-                  ? " Turned off in training mode — announcements only go live."
-                  : null}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -584,7 +556,7 @@ export default function AdminOperationsPage() {
               <Button
                 className="w-full h-9 text-xs gap-2"
                 onClick={onPublishAnnouncement}
-                disabled={announcementBusy || trainingMode}
+                disabled={announcementBusy}
               >
                 {announcementBusy ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />

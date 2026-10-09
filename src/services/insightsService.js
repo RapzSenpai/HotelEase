@@ -25,15 +25,15 @@ const OCCUPANCY_STATUSES = ["Approved", "Checked In", "Checked Out"];
 
 let contextCache = null; // { key, fetchedAt, data }
 
-function col(name, trainingMode) {
-  return collection(db, getCol(name, trainingMode));
+function col(name) {
+  return collection(db, getCol(name));
 }
 
-async function fetchAll(name, trainingMode) {
+async function fetchAll(name) {
   // Unbounded reads are intentional: dataset sizes here are small (single
   // hotel), and several metrics need cross-period scans anyway. Sorting is
   // done client-side to avoid composite index requirements.
-  const snap = await getDocs(col(name, trainingMode));
+  const snap = await getDocs(col(name));
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
 
@@ -110,8 +110,7 @@ function summarizeBookings(bookings, roomsById, fromMs, toMs) {
       type: room?.type || "—",
       bookings: 0,
       nights: 0,
-      estRevenue: 0,
-    };
+      estRevenue: 0};
     entry.bookings += 1;
     entry.nights += nights;
     entry.estRevenue += Number(b.totalCost ?? 0);
@@ -129,24 +128,21 @@ function summarizeBookings(bookings, roomsById, fromMs, toMs) {
       topReasons: Object.fromEntries(
         Object.entries(cancellationReasons)
           .sort((a, b) => b[1] - a[1])
-          .slice(0, 5),
-      ),
-    },
+          .slice(0, 5))},
     occupancyNights,
     avgLeadDays: leadDaysCount > 0 ? round1(leadDaysSum / leadDaysCount) : null,
     topRooms: [...roomAgg.values()]
       .sort((a, b) => b.estRevenue - a.estRevenue)
       .slice(0, 5)
-      .map((r) => ({ ...r, estRevenue: Math.round(r.estRevenue) })),
-  };
+      .map((r) => ({ ...r, estRevenue: Math.round(r.estRevenue) }))};
 }
 
 /**
  * Build the full admin context snapshot consumed by both /insights and
  * /admin-chat. Cached in-memory for CACHE_TTL_MS.
  */
-export async function buildAdminContext({ trainingMode = null, force = false } = {}) {
-  const key = trainingMode === "training" || trainingMode === true ? "training" : "prod";
+export async function buildAdminContext({ force = false } = {}) {
+  const key = "prod";
 
   if (!force && contextCache && contextCache.key === key && Date.now() - contextCache.fetchedAt < CACHE_TTL_MS) {
     return contextCache.data;
@@ -158,13 +154,13 @@ export async function buildAdminContext({ trainingMode = null, force = false } =
   const prevFromMs = curFromMs - WINDOW_DAYS * DAY_MS;
 
   const [bookings, payments, reviews, hkLogs, messages, testimonials, rooms] = await Promise.all([
-    fetchAll("bookings", trainingMode),
-    fetchAll("payments", trainingMode),
-    fetchAll("reviews", trainingMode),
-    fetchAll("housekeeping_logs", trainingMode),
+    fetchAll("bookings"),
+    fetchAll("payments"),
+    fetchAll("reviews"),
+    fetchAll("housekeeping_logs"),
     fetchAll("messages", null),
     fetchAll("testimonials", null),
-    listRooms({ trainingMode }),
+    listRooms(),
   ]);
 
   const roomsById = new Map(rooms.map((r) => [r.id, r]));
@@ -317,8 +313,7 @@ export async function buildAdminContext({ trainingMode = null, force = false } =
     period: {
       windowDays: WINDOW_DAYS,
       current: { from: ymd(new Date(curFromMs)), to: ymd(new Date(curToMs)) },
-      previous: { from: ymd(new Date(prevFromMs)), to: ymd(new Date(curFromMs)) },
-    },
+      previous: { from: ymd(new Date(prevFromMs)), to: ymd(new Date(curFromMs)) }},
     hotel: {
       activeRooms: activeRooms.length,
       totalRooms: rooms.length,
@@ -327,9 +322,7 @@ export async function buildAdminContext({ trainingMode = null, force = false } =
           const t = String(r.type ?? "Unknown");
           acc[t] = (acc[t] ?? 0) + 1;
           return acc;
-        }, {}),
-      ).map(([type, count]) => ({ type, count })),
-    },
+        })).map(([type, count]) => ({ type, count }))},
     currentPeriod: {
       ...current,
       revenue: Math.round(revenueCurrent),
@@ -340,28 +333,23 @@ export async function buildAdminContext({ trainingMode = null, force = false } =
       occupancyRatePct: occupancyRate,
       paymentsByMethod: [...methodsCurrent.values()]
         .sort((a, b) => b.total - a.total)
-        .map((m) => ({ method: m.method, count: m.count, total: Math.round(m.total) })),
-    },
+        .map((m) => ({ method: m.method, count: m.count, total: Math.round(m.total) }))},
     previousPeriod: {
       bookingsCreated: previousLite.bookingsCreated,
-      revenue: Math.round(revenuePrevious),
-    },
+      revenue: Math.round(revenuePrevious)},
     dailyActivity: daily.map((d) => ({ ...d, revenue: Math.round(d.revenue) })),
     reviews: {
       count: ratedCount,
       avgRating: ratedCount > 0 ? round1(ratingSum / ratedCount) : null,
-      distribution: ratingDist,
-    },
+      distribution: ratingDist},
     operations: {
       housekeepingLogsLast30: hkLogs30,
       midStayRequestsLast30: midStay30,
       cleanlinessRatingsLast30: {
         count: hkRatings30,
-        avgRating: hkRatings30 > 0 ? round1(hkRatingSum30 / hkRatings30) : null,
-      },
+        avgRating: hkRatings30 > 0 ? round1(hkRatingSum30 / hkRatings30) : null},
       messagesByStatus: messageCounts,
-      testimonialsByStatus: testimonialCounts,
-    },
+      testimonialsByStatus: testimonialCounts},
     rightNow: {
       pendingApprovals,
       awaitingPayment,
@@ -372,9 +360,7 @@ export async function buildAdminContext({ trainingMode = null, force = false } =
       roomsNeedingCleaning,
       roomsByStatus,
       unreadMessages: messageCounts.unread ?? 0,
-      pendingTestimonials: testimonialCounts.Pending ?? 0,
-    },
-  };
+      pendingTestimonials: testimonialCounts.Pending ?? 0}};
 
   contextCache = { key, fetchedAt: Date.now(), data };
   return data;
@@ -406,10 +392,8 @@ export async function generateAiInsights(context) {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      ...(await getAiAuthHeaders()),
-    },
-    body: JSON.stringify({ context }),
-  });
+      ...(await getAiAuthHeaders())},
+    body: JSON.stringify({ context })});
 
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throwUpstreamError(data, res.status, "AI insights request failed");
@@ -428,10 +412,8 @@ export async function generateOpsBriefing(context) {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      ...(await getAiAuthHeaders()),
-    },
-    body: JSON.stringify({ context }),
-  });
+      ...(await getAiAuthHeaders())},
+    body: JSON.stringify({ context })});
 
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throwUpstreamError(data, res.status, "Ops briefing request failed");
@@ -442,8 +424,7 @@ export async function generateOpsBriefing(context) {
     severity: ["high", "medium", "low"].includes(item.severity) ? item.severity : "medium",
     evidence: String(item.evidence ?? ""),
     recommendation: String(item.recommendation ?? ""),
-    link: typeof item.link === "string" && item.link.startsWith("/") ? item.link : "/admin",
-  }));
+    link: typeof item.link === "string" && item.link.startsWith("/") ? item.link : "/admin"}));
 }
 
 /**
@@ -460,10 +441,8 @@ export async function sendAdminChat(messages, context) {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      ...(await getAiAuthHeaders()),
-    },
-    body: JSON.stringify({ messages, context }),
-  });
+      ...(await getAiAuthHeaders())},
+    body: JSON.stringify({ messages, context })});
 
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throwUpstreamError(data, res.status, "Admin assistant request failed");

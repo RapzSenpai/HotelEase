@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Bot, X, Copy, Check, ArrowUp, RotateCcw, Megaphone, Mail, ClipboardList } from "lucide-react";
-import { useAuth } from "@/contexts/AuthContext";
 import { buildAdminContext, sendAdminChat } from "@/services/insightsService";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -22,26 +21,22 @@ function computePrompts(ctx) {
   if (now.expiringHolds24h > 0) {
     prompts.push({
       label: `${now.expiringHolds24h} payment hold${now.expiringHolds24h === 1 ? "" : "s"} expiring soon`,
-      prompt: "Payment holds are expiring within 24 hours. What should I do, in order?",
-    });
+      prompt: "Payment holds are expiring within 24 hours. What should I do, in order?"});
   }
   if (now.pendingApprovals > 0) {
     prompts.push({
       label: `${now.pendingApprovals} booking${now.pendingApprovals === 1 ? "" : "s"} awaiting approval`,
-      prompt: "Summarize the pending approvals and any risks around them.",
-    });
+      prompt: "Summarize the pending approvals and any risks around them."});
   }
   if (now.cancellationRequests > 0) {
     prompts.push({
       label: `${now.cancellationRequests} cancellation request${now.cancellationRequests === 1 ? "" : "s"}`,
-      prompt: "Review the cancellation requests and recommend what to do.",
-    });
+      prompt: "Review the cancellation requests and recommend what to do."});
   }
   if (now.roomsNeedingCleaning > 0) {
     prompts.push({
       label: `${now.roomsNeedingCleaning} room${now.roomsNeedingCleaning === 1 ? "" : "s"} need cleaning`,
-      prompt: "Housekeeping status: which rooms need attention and in what order?",
-    });
+      prompt: "Housekeeping status: which rooms need attention and in what order?"});
   }
   prompts.push({ label: "Draft an announcement", prompt: "Draft a short announcement for guests based on what is happening in the hotel right now." });
   prompts.push({ label: "Chart revenue trend", prompt: "Show me a chart of the daily revenue trend." });
@@ -55,8 +50,7 @@ function parseActionBlock(code) {
       return {
         type: "draft_announcement",
         title: String(parsed.title ?? "").slice(0, 120),
-        body: String(parsed.body ?? "").slice(0, 800),
-      };
+        body: String(parsed.body ?? "").slice(0, 800)};
     }
   } catch {
     // malformed JSON — caller falls back to a plain code block
@@ -111,8 +105,7 @@ function AssistantActionCard({ action }) {
             type="button"
             onClick={() =>
               navigate("/fo/announcements", {
-                state: { aiDraft: { title: action.title, description: action.body } },
-              })
+                state: { aiDraft: { title: action.title, description: action.body } }})
             }
             className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground transition-all hover:brightness-110 active:scale-[0.98]"
           >
@@ -168,8 +161,7 @@ const markdownComponents = {
     }
     return <code className="rounded-md bg-foreground/8 px-1.5 py-0.5 text-xs font-mono">{children}</code>;
   },
-  pre: ({ children }) => <>{children}</>,
-};
+  pre: ({ children }) => <>{children}</>};
 
 function ActionBar({ content, onRegenerate }) {
   const [copied, setCopied] = useState(false);
@@ -223,7 +215,6 @@ function EmptyState({ contextReady }) {
 }
 
 export default function AdminAssistantWidget() {
-  const { trainingMode } = useAuth();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
@@ -241,7 +232,7 @@ export default function AdminAssistantWidget() {
     setLoading(false);
     let cancelled = false;
     setContextReady(false);
-    buildAdminContext({ trainingMode })
+    buildAdminContext()
       .then((ctx) => {
         if (cancelled) return;
         setDynamicPrompts(computePrompts(ctx));
@@ -254,7 +245,7 @@ export default function AdminAssistantWidget() {
     return () => {
       cancelled = true;
     };
-  }, [open, trainingMode]);
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -274,8 +265,7 @@ export default function AdminAssistantWidget() {
       if (isRegenerate) {
         setMessages((prev) => {
           const withoutLastAssistant = prev.filter(
-            (m) => !(m.role === "assistant" && m.id !== "welcome"),
-          );
+            (m) => !(m.role === "assistant" && m.id !== "welcome"));
           return [...withoutLastAssistant];
         });
       } else {
@@ -289,7 +279,7 @@ export default function AdminAssistantWidget() {
       setLoading(true);
 
       try {
-        const context = await buildAdminContext({ trainingMode });
+        const context = await buildAdminContext();
         const reply = await sendAdminChat([...historyForApi, { role: "user", content: trimmed }], context);
         setMessages((prev) => [
           ...prev,
@@ -306,15 +296,13 @@ export default function AdminAssistantWidget() {
             id: `e-${Date.now()}`,
             role: "assistant",
             content: msg,
-            isError: true,
-          },
+            isError: true},
         ]);
       } finally {
         setLoading(false);
       }
     },
-    [loading, messages, trainingMode, contextReady],
-  );
+    [loading, messages, contextReady]);
 
   const handleRegenerate = useCallback(() => {
     const lastUserMsg = [...messages].reverse().find((m) => m.role === "user");

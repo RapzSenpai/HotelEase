@@ -7,8 +7,7 @@ import {
   getBooking,
   subscribeToBookingsPage,
   approveCancellation,
-  rejectCancellation,
-} from "@/services/bookingsService";
+  rejectCancellation} from "@/services/bookingsService";
 import {
   REFUND_METHODS,
   approveRefund,
@@ -21,8 +20,7 @@ import {
   rejectRefund,
   requestRefund,
   subscribeToRefunds,
-  validateRefundReference,
-} from "@/services/refundsService";
+  validateRefundReference} from "@/services/refundsService";
 import { listPaymentsForBooking } from "@/services/paymentsService";
 // Policy inputs shared with the guest cancel dialog — one rule, both screens.
 import { deadlineFor, oneNightFor } from "@/lib/refund-policy";
@@ -60,8 +58,7 @@ function CancellationCard({
   onOpenReject,
   onCancelReject,
   onRejectReasonChange,
-  onSubmitReject,
-}) {
+  onSubmitReject}) {
   return (
     <div className="rounded-xl border border-border bg-background px-5 py-3.5">
       {/* ── Top row: details left · status right ── */}
@@ -165,21 +162,21 @@ function CancellationCard({
   );
 }
 
-// Module-level id-keyed cache (mode-scoped) so re-renders never refetch.
+// Module-level id-keyed cache so re-renders never refetch.
 const refundBookingCache = new Map();
 
-function RefundIdentity({ refund, roomsMap, guestsMap, trainingMode }) {
+function RefundIdentity({ refund, roomsMap, guestsMap}) {
   const [booking, setBooking] = useState(null);
   useEffect(() => {
     if (!refund?.bookingId) return;
-    const key = `${trainingMode ?? "live"}:${refund.bookingId}`;
+    const key = `live:${refund.bookingId}`;
     if (refundBookingCache.has(key)) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- cache sync on id/mode change, mirrors FoBookingsPage history load
       setBooking(refundBookingCache.get(key));
       return;
     }
     let cancelled = false;
-    getBooking(refund.bookingId, { trainingMode })
+    getBooking(refund.bookingId)
       .then((b) => {
         refundBookingCache.set(key, b || null);
         if (!cancelled) setBooking(b || null);
@@ -190,7 +187,7 @@ function RefundIdentity({ refund, roomsMap, guestsMap, trainingMode }) {
     return () => {
       cancelled = true;
     };
-  }, [refund?.bookingId, trainingMode]);
+  }, [refund?.bookingId]);
 
   if (!booking) {
     return (
@@ -209,7 +206,7 @@ function RefundIdentity({ refund, roomsMap, guestsMap, trainingMode }) {
   );
 }
 
-function RefundHistoryRow({ refund, roomsMap, guestsMap, trainingMode }) {
+function RefundHistoryRow({ refund, roomsMap, guestsMap}) {
   const [expanded, setExpanded] = useState(false);
   return (
     <div className="rounded-lg border border-border bg-background">
@@ -225,7 +222,7 @@ function RefundHistoryRow({ refund, roomsMap, guestsMap, trainingMode }) {
             {refund.status}
           </Badge>
           <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
-            <RefundIdentity refund={refund} roomsMap={roomsMap} guestsMap={guestsMap} trainingMode={trainingMode} />
+            <RefundIdentity refund={refund} roomsMap={roomsMap} guestsMap={guestsMap} />
           </span>
         </button>
         <span className="shrink-0 text-sm font-semibold tabular-nums text-foreground">
@@ -263,7 +260,6 @@ function RefundCard({
   refund,
   roomsMap,
   guestsMap,
-  trainingMode,
   refValue,
   onRefChange,
   noteValue,
@@ -276,13 +272,12 @@ function RefundCard({
   onMarkPaid,
   onOpenReject,
   onCancelReject,
-  onSubmitReject,
-}) {
+  onSubmitReject}) {
   return (
     <div className="rounded-xl border border-border bg-background px-5 py-3.5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <RefundIdentity refund={refund} roomsMap={roomsMap} guestsMap={guestsMap} trainingMode={trainingMode} />
+          <RefundIdentity refund={refund} roomsMap={roomsMap} guestsMap={guestsMap} />
           <p className="mt-0.5 text-[13px] tabular-nums text-foreground/60">{formatCurrency(refund.amount)} · {refund.method || "GCash"} · Fee: {formatCurrency(refund.fee ?? 0)}{refund.referenceNumber ? ` · Ref: ${refund.referenceNumber}` : refund.referenceNote ? ` · Note: ${refund.referenceNote}` : ""}</p>
         </div>
         <Badge variant={refund.status === "Paid" ? "default" : refund.status === "Rejected" ? "destructive" : "warning"} className="shrink-0">
@@ -342,8 +337,7 @@ function RefundCard({
               isActing,
               method: refund.method,
               referenceNumber: refValue,
-              note: noteValue,
-            })} onClick={onMarkPaid} className="h-7 px-2.5 text-xs shadow-sm">
+              note: noteValue})} onClick={onMarkPaid} className="h-7 px-2.5 text-xs shadow-sm">
               {isActing ? "Marking…" : "Mark Paid"}
             </Button>
           )}
@@ -378,7 +372,7 @@ function RefundCard({
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function FoCancellationsPage() {
-  const { trainingMode, profile } = useAuth();
+  const { profile } = useAuth();
 
   const [activeTab, setActiveTab] = useState("requests");
   const [searchParams] = useSearchParams();
@@ -411,7 +405,7 @@ export default function FoCancellationsPage() {
     let isMounted = true;
     async function loadResources() {
       try {
-        const rooms = await listRooms({ trainingMode });
+        const rooms = await listRooms();
 
         if (!isMounted) return;
         const rMap = {};
@@ -425,7 +419,7 @@ export default function FoCancellationsPage() {
     }
     loadResources();
     return () => { isMounted = false; };
-  }, [trainingMode]);
+  }, []);
 
   // Resolve display names for guests visible in the current window.
   async function ensureGuestNames(list) {
@@ -435,13 +429,12 @@ export default function FoCancellationsPage() {
     const entries = await Promise.all(
       missing.map(async (id) => {
         try {
-          const d = await getUserDoc(id, { preferTraining: trainingMode });
+          const d = await getUserDoc(id);
           return [id, d?.fullName || d?.email || ""];
         } catch {
           return [id, ""];
         }
-      }),
-    );
+      }));
     entries.forEach(([id, name]) => {
       guestsMapRef.current[id] = name;
     });
@@ -453,7 +446,7 @@ export default function FoCancellationsPage() {
   useEffect(() => {
     guestsMapRef.current = {};
     setGuestsMap({});
-  }, [trainingMode]);
+  }, []);
 
   // Bell deep-link (?tab=requests|refunds&bookingId=): switch to the right
   // tab one-shot, expand past refunds if the target sits there, scroll to
@@ -467,8 +460,7 @@ export default function FoCancellationsPage() {
     setActiveTab(deepTab);
     if (deepTab === "refunds" && deepBookingId) {
       const inPast = refunds.some(
-        (r) => r.bookingId === deepBookingId && r.status !== "Pending" && r.status !== "Approved",
-      );
+        (r) => r.bookingId === deepBookingId && r.status !== "Pending" && r.status !== "Approved");
       if (inPast) setShowPastRefunds(true);
     }
     if (deepBookingId) {
@@ -483,21 +475,20 @@ export default function FoCancellationsPage() {
   useEffect(() => {
     setLoading(true);
     const unsub = subscribeToBookingsPage(
-      { status: "Cancellation Requested", pageSize, trainingMode },
+      { status: "Cancellation Requested", pageSize},
       (data) => {
         setBookings(data);
         setLoading(false);
         ensureGuestNames(data);
-      },
-    );
+      });
     return () => unsub();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [trainingMode, pageSize]);
+  }, [ pageSize]);
 
   useEffect(() => {
-    const unsub = subscribeToRefunds((data) => setRefunds(data), { trainingMode });
+    const unsub = subscribeToRefunds((data) => setRefunds(data));
     return () => unsub();
-  }, [trainingMode]);
+  }, []);
 
   // ── Filtered list (server already scoped; client filter is a backstop) ──
   const filtered = bookings.filter((b) => b.status === "Cancellation Requested");
@@ -508,14 +499,14 @@ export default function FoCancellationsPage() {
     const bookingId = typeof booking === "string" ? booking : booking?.id;
     setActionLoading(bookingId);
     try {
-      await approveCancellation(bookingId, { trainingMode });
+      await approveCancellation(bookingId);
       toast.success("Cancellation request approved! No auto-refund — create one below if due.");
       // Suggest a Pending refund (manual two-step, never auto-created).
       try {
         const full = typeof booking === "string"
           ? bookings.find((b) => b.id === bookingId)
           : booking;
-        const recs = await listPaymentsForBooking(bookingId, { trainingMode });
+        const recs = await listPaymentsForBooking(bookingId);
         const paid = recs.reduce((s, p) => s + Number(p.amount ?? 0), 0);
         const rateType = full?.rateType || "Standard";
         const { fee, refund, reason } = computeRefund({
@@ -523,8 +514,7 @@ export default function FoCancellationsPage() {
           rateType,
           cancelTime: full?.cancellationRequestedAt || new Date(),
           deadline: deadlineFor(full),
-          oneNightRate: oneNightFor(full),
-        });
+          oneNightRate: oneNightFor(full)});
         setSuggestions((prev) => [
           {
             bookingId,
@@ -536,8 +526,7 @@ export default function FoCancellationsPage() {
             amount: refund,
             overrideReason: "",
             paymentMethod: full?.paymentMethod || null,
-            refundMethod: defaultRefundMethod(recs.map((r) => r.method)),
-          },
+            refundMethod: defaultRefundMethod(recs.map((r) => r.method))},
           ...prev.filter((s) => s.bookingId !== bookingId),
         ]);
       } catch (e) {
@@ -569,9 +558,7 @@ export default function FoCancellationsPage() {
         method: s.refundMethod || defaultRefundMethod([]),
         // No placeholder reason for the normal path — the queue only shows a
         // reason box when the amount was overridden on a non-refundable rate.
-        reason: s.rateType === "NonRefundable" ? `Override: ${s.overrideReason}` : "",
-        trainingMode,
-      });
+        reason: s.rateType === "NonRefundable" ? `Override: ${s.overrideReason}` : ""});
       if (res?.notified === false) {
         toast.warning("Pending refund created, but the guest notification failed — check console.");
       } else {
@@ -589,7 +576,7 @@ export default function FoCancellationsPage() {
   async function handleApproveRefund(refundId) {
     setRefundActionLoading(refundId);
     try {
-      const res = await approveRefund(refundId, { processedBy: profile?.email || profile?.fullName || null, trainingMode });
+      const res = await approveRefund(refundId, { processedBy: profile?.email || profile?.fullName || null});
       if (res?.notified === false) {
         toast.warning("Refund approved, but the guest notification failed — check console.");
       } else {
@@ -607,8 +594,7 @@ export default function FoCancellationsPage() {
     const check = validateRefundReference({
       method: refund?.method,
       referenceNumber: refundRefs[refundId],
-      note: refundNotes[refundId],
-    });
+      note: refundNotes[refundId]});
     if (!check.ok) {
       toast.error(check.error);
       return;
@@ -618,9 +604,7 @@ export default function FoCancellationsPage() {
       const res = await markRefundPaid(refundId, {
         referenceNumber: check.referenceNumber,
         note: check.note,
-        processedBy: profile?.email || profile?.fullName || null,
-        trainingMode,
-      });
+        processedBy: profile?.email || profile?.fullName || null});
       if (res?.notified === false) {
         toast.warning("Refund marked paid, but the guest notification failed — check console.");
       } else {
@@ -656,7 +640,7 @@ export default function FoCancellationsPage() {
     }
     setActionLoading(bookingId);
     try {
-      await rejectCancellation(bookingId, reason, { trainingMode });
+      await rejectCancellation(bookingId, reason);
       toast.success("Cancellation request rejected.");
       setRejecting(null);
     } catch (err) {
@@ -680,9 +664,7 @@ export default function FoCancellationsPage() {
     setRefundActionLoading(refundId);
     try {
       const res = await rejectRefund(refundId, reason, {
-        processedBy: profile?.email || profile?.fullName || null,
-        trainingMode,
-      });
+        processedBy: profile?.email || profile?.fullName || null});
       if (res?.notified === false) {
         toast.warning("Refund rejected, but the guest notification failed — check console.");
       } else {
@@ -888,7 +870,6 @@ export default function FoCancellationsPage() {
                 refund={refund}
                 roomsMap={roomsMap}
                 guestsMap={guestsMap}
-                trainingMode={trainingMode}
                 refValue={refundRefs[refund.id] ?? ""}
               onRefChange={(v) => setRefundRefs((prev) => ({ ...prev, [refund.id]: v }))}
               noteValue={refundNotes[refund.id] ?? ""}
@@ -937,7 +918,6 @@ export default function FoCancellationsPage() {
                         refund={refund}
                         roomsMap={roomsMap}
                         guestsMap={guestsMap}
-                        trainingMode={trainingMode}
                       />
                       </div>
                     ))}

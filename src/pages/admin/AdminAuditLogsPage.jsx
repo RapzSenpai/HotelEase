@@ -1,6 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
 import { toJsDate } from "@/lib/time-utils";
-import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -19,15 +18,13 @@ import {
   ChevronRight,
   ChevronsUpDown,
   LayoutList,
-  AlignJustify,
-} from "lucide-react";
+  AlignJustify} from "lucide-react";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  DialogTitle} from "@/components/ui/dialog";
 import { Select } from "radix-ui";
 import { toast } from "sonner";
 
@@ -69,8 +66,7 @@ function formatTimestamp(timestamp) {
     day: "numeric",
     year: "numeric",
     hour: "2-digit",
-    minute: "2-digit",
-  });
+    minute: "2-digit"});
 }
 
 function getActionColor(actionType) {
@@ -90,13 +86,11 @@ function getActionColor(actionType) {
     [AUDIT_ACTIONS.ANNOUNCEMENT_CREATE]: "bg-green-500/10 text-green-600 border-green-500/20",
     [AUDIT_ACTIONS.ANNOUNCEMENT_UPDATE]: "bg-blue-500/10 text-blue-600 border-blue-500/20",
     [AUDIT_ACTIONS.ANNOUNCEMENT_DELETE]: "bg-red-500/10 text-red-600 border-red-500/20",
-    [AUDIT_ACTIONS.SYSTEM_SETTINGS_CHANGE]: "bg-purple-500/10 text-purple-600 border-purple-500/20",
-  };
+    [AUDIT_ACTIONS.SYSTEM_SETTINGS_CHANGE]: "bg-purple-500/10 text-purple-600 border-purple-500/20"};
   return colors[actionType] || "bg-gray-500/10 text-gray-600 border-gray-500/20";
 }
 
 export default function AdminAuditLogsPage() {
-  const { trainingMode } = useAuth();
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -115,7 +109,7 @@ export default function AdminAuditLogsPage() {
   const [expandedIds, setExpandedIds] = useState(new Set());
 
   // Reset fetch/loading state when query signature changes
-  const filterKey = `${actionTypeFilter}|${targetTypeFilter}|${limit}|${trainingMode}|${refreshKey}`;
+  const filterKey = `${actionTypeFilter}|${targetTypeFilter}|${limit}|${refreshKey}`;
   const [prevFilterKey, setPrevFilterKey] = useState(filterKey);
   if (prevFilterKey !== filterKey) {
     setPrevFilterKey(filterKey);
@@ -130,10 +124,8 @@ export default function AdminAuditLogsPage() {
       {
         actionType: actionTypeFilter === "all" ? undefined : actionTypeFilter,
         targetType: targetTypeFilter === "all" ? undefined : targetTypeFilter,
-        limit,
-      },
+        limit},
       {
-        trainingMode,
         onData: (data) => {
           setLogs(data);
           setLoading(false);
@@ -142,12 +134,11 @@ export default function AdminAuditLogsPage() {
           setError(e?.message || "Failed to load audit logs");
           toast.error("Failed to load audit logs");
           setLoading(false);
-        },
-      }
+        }}
     );
 
     return () => unsub();
-  }, [actionTypeFilter, targetTypeFilter, limit, trainingMode, refreshKey]);
+  }, [actionTypeFilter, targetTypeFilter, limit, refreshKey]);
 
   const filteredLogs = useMemo(() => {
     if (!searchQuery) return logs;

@@ -7,8 +7,7 @@ import {
   sendPasswordResetEmail,
   onAuthStateChanged,
   setPersistence,
-  browserLocalPersistence,
-} from "firebase/auth";
+  browserLocalPersistence} from "firebase/auth";
 
 import { auth, db } from "@/firebase/firebase.config";
 import { doc, onSnapshot } from "firebase/firestore";
@@ -19,8 +18,7 @@ import { createSession } from "@/services/sessionService";
 import { mapAuthError } from "@/lib/authErrors";
 import {
   issueVerificationCode,
-  verifyEmailCode,
-} from "@/services/emailVerificationService";
+  verifyEmailCode} from "@/services/emailVerificationService";
 
 const AuthContext = createContext(null);
 
@@ -30,9 +28,6 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => auth.currentUser);
   const [role, setRole] = useState(null); // 'guest' | 'fo' | 'admin'
   const [profile, setProfile] = useState(null);
-  // Training sandbox is gone: trainingMode stays pinned to false so every
-  // existing consumer keeps working until Task 12 removes the threading.
-  const [trainingMode] = useState(false);
   const [loading, setLoading] = useState(true);
   const [authError, setAuthError] = useState(null);
 
@@ -45,13 +40,13 @@ export function AuthProvider({ children }) {
 
   // Live profile subscription for one user. Extracted so the listener can
   // be repointed without leaving it stuck on a previous user/collection.
-  function startProfileSubscription(firebaseUser, mode) {
+  function startProfileSubscription(firebaseUser) {
     if (profileSnapUnsubRef.current) {
       profileSnapUnsubRef.current();
       profileSnapUnsubRef.current = null;
     }
     profileSnapUserRef.current = firebaseUser;
-    const ref = doc(db, getCol("users", mode), firebaseUser.uid);
+    const ref = doc(db, getCol("users"), firebaseUser.uid);
     profileSnapUnsubRef.current = onSnapshot(
       ref,
       async (snap) => {
@@ -127,17 +122,13 @@ export function AuthProvider({ children }) {
           const stillSignedIn = () => auth.currentUser?.uid === firebaseUser.uid;
           if (!stillSignedIn()) return;
 
-          // Training sandbox is gone: collections are always production.
-          const effectiveTrainingMode = false;
-
+          // Collections are always production (no sandbox indirection).
           if (!stillSignedIn()) return;
 
           // Fetch the user doc once for initial role/force-logout, then
           // subscribe to live changes so profile (fullName, photoUrl, phone,
           // emailVerified) propagates instantly across the entire app.
-          const userDoc = await getUserDoc(firebaseUser.uid, {
-            preferTraining: effectiveTrainingMode,
-          });
+          const userDoc = await getUserDoc(firebaseUser.uid);
 
           if (!stillSignedIn()) return;
 
@@ -162,16 +153,16 @@ export function AuthProvider({ children }) {
 
             // Update last login timestamp, set online status, and create session
             try {
-              await updateLastLogin(firebaseUser.uid, { trainingMode: effectiveTrainingMode });
-              await setOnlineStatus(firebaseUser.uid, true, { trainingMode: effectiveTrainingMode });
+              await updateLastLogin(firebaseUser.uid);
+              await setOnlineStatus(firebaseUser.uid, true);
               currentUidRef.current = firebaseUser.uid;
-              startPresence(firebaseUser.uid, { trainingMode: effectiveTrainingMode });
+              startPresence(firebaseUser.uid);
             } catch (e) {
               console.error("Failed to update last login/online status:", e);
             }
 
             // Create session for tracking (non-blocking)
-            createSession(firebaseUser.uid, { trainingMode: effectiveTrainingMode })
+            createSession(firebaseUser.uid)
               .then((session) => {
                 currentSessionIdRef.current = session.id;
               })
@@ -182,7 +173,7 @@ export function AuthProvider({ children }) {
             // Live profile subscription: keeps profile in sync when
             // ProfilePage (or other components) update fullName/photoUrl/phone,
             // and enforces force-logout in real time.
-            startProfileSubscription(firebaseUser, effectiveTrainingMode);
+            startProfileSubscription(firebaseUser);
           } else if (assignedRoleRef.current) {
             setRole(assignedRoleRef.current);
           } else {
@@ -194,7 +185,7 @@ export function AuthProvider({ children }) {
           // lands a moment later brings emailVerified/role with it: without
           // this, profile stays null, the verification gate never fires, and
           // the new account is unverified with no way to notice.
-          if (!userDoc) startProfileSubscription(firebaseUser, effectiveTrainingMode);
+          if (!userDoc) startProfileSubscription(firebaseUser);
 
           setLoading(false);
         } catch (e) {
@@ -229,17 +220,15 @@ export function AuthProvider({ children }) {
 
 
   // Email verification (OTP) helpers. Defined in the provider body so they see
-  // the current trainingMode/profile rather than a stale closure.
+  // the current profile rather than a stale closure.
   const sendVerificationCode = useCallback(async () => {
     const currentUser = auth.currentUser;
     if (!currentUser?.uid) throw new Error("Not signed in.");
     return issueVerificationCode({
       uid: currentUser.uid,
       email: currentUser.email,
-      fullName: profile?.fullName || "",
-      trainingMode,
-    });
-  }, [profile, trainingMode]);
+      fullName: profile?.fullName || ""});
+  }, [profile]);
 
   const verifyEmailWithCode = useCallback(
     async (code) => {
@@ -247,19 +236,14 @@ export function AuthProvider({ children }) {
       if (!currentUser?.uid) throw new Error("Not signed in.");
       const result = await verifyEmailCode({
         uid: currentUser.uid,
-        code,
-        trainingMode,
-      });
+        code});
       if (result.ok) {
-        const fresh = await getUserDoc(currentUser.uid, {
-          preferTraining: trainingMode,
-        });
+        const fresh = await getUserDoc(currentUser.uid);
         if (fresh) setProfile(fresh);
       }
       return result;
     },
-    [trainingMode],
-  );
+    []);
 
   const api = useMemo(() => {
     async function login({ email, password }) {
@@ -282,17 +266,13 @@ export function AuthProvider({ children }) {
 
       try {
         const cred = await createUserWithEmailAndPassword(auth, email, password);
-        // Sandbox is gone: registration is always a production guest signup.
-        const effectiveTrainingMode = false;
 
         await createUserProfile({
           uid: cred.user.uid,
           email: cred.user.email,
           role: "guest",
           fullName,
-          phone,
-          trainingMode: effectiveTrainingMode,
-        });
+          phone});
 
         // Stay signed in: Firebase already signed the new user in, and the
         // unverified guest can only reach /verify-email, so sending them back
@@ -313,8 +293,8 @@ export function AuthProvider({ children }) {
         if (currentUser?.uid) {
           // Set offline status before logout
           try {
-            stopPresence(currentUser.uid, { trainingMode });
-            await setOnlineStatus(currentUser.uid, false, { trainingMode });
+            stopPresence(currentUser.uid);
+            await setOnlineStatus(currentUser.uid, false);
             if (currentUidRef.current === currentUser.uid) currentUidRef.current = null;
           } catch (e) {
             console.error("Failed to set offline status:", e);
@@ -340,21 +320,19 @@ export function AuthProvider({ children }) {
     }
 
       return { login, register, logout, forgotPassword };
-  }, [trainingMode]);
+  }, []);
 
   const value = useMemo(
     () => ({
       user,
       role,
       profile,
-      trainingMode,
       loading,
       authError,
       sendVerificationCode,
       verifyEmailWithCode,
-      ...api,
-    }),
-    [user, role, trainingMode, loading, authError, profile, api, sendVerificationCode, verifyEmailWithCode]
+      ...api}),
+    [user, role, loading, authError, profile, api, sendVerificationCode, verifyEmailWithCode]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

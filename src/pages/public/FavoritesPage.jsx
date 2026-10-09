@@ -25,8 +25,7 @@ function formatFreeDate(dateStr) {
   if (!dateStr) return "";
   return new Date(`${dateStr}T00:00:00`).toLocaleDateString("en-US", {
     month: "short",
-    day: "numeric",
-  });
+    day: "numeric"});
 }
 
 function timeAgo(date) {
@@ -145,7 +144,7 @@ function FavoriteRoomCard({ room, favorite, onRemove, hint }) {
 }
 
 export default function FavoritesPage() {
-  const { user, role, trainingMode } = useAuth();
+  const { user, role} = useAuth();
   const [favorites, setFavorites] = useState([]);
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -164,14 +163,12 @@ export default function FavoritesPage() {
       user.uid,
       (data) => {
         setFavorites(data);
-      },
-      { trainingMode },
-    );
+      });
 
     return () => {
       if (typeof unsubscribe === "function") unsubscribe();
     };
-  }, [user, role, trainingMode]);
+  }, [user, role]);
 
   useEffect(() => {
     let isMounted = true;
@@ -186,7 +183,7 @@ export default function FavoritesPage() {
 
       if (isMounted) setLoading(true);
       try {
-        const roomPromises = favorites.map((fav) => getRoom(fav.roomId, { trainingMode }));
+        const roomPromises = favorites.map((fav) => getRoom(fav.roomId));
         const roomData = await Promise.all(roomPromises);
         if (!isMounted) return;
         // Archived rooms are hidden — their only signal used to be the
@@ -202,12 +199,12 @@ export default function FavoritesPage() {
 
     loadRooms();
     return () => { isMounted = false; };
-  }, [favorites, trainingMode]);
+  }, [favorites]);
 
   async function handleRemoveFavorite(roomId) {
     if (!user || role !== "guest") return;
     try {
-      await removeFavorite(user.uid, roomId, { trainingMode });
+      await removeFavorite(user.uid, roomId);
     } catch (e) {
       console.error("Failed to remove favorite:", e);
     }
@@ -223,7 +220,7 @@ export default function FavoritesPage() {
       start.setDate(start.getDate() + 1); // scan from tomorrow
       for (const room of rooms) {
         try {
-          const cards = await getRoomAvailabilityCards(room.id, { trainingMode });
+          const cards = await getRoomAvailabilityCards(room.id);
           const blocked = new Set(cards.map((c) => c.date));
           const d = new Date(start);
           let freeFrom = null;
@@ -246,7 +243,7 @@ export default function FavoritesPage() {
     return () => {
       isMounted = false;
     };
-  }, [rooms, trainingMode]);
+  }, [rooms]);
 
   const roomsWithFavorites = useMemo(() => {
     const favMap = {};

@@ -3,17 +3,17 @@ import { db } from "@/firebase/firebase.config";
 import { listRooms } from "@/services/roomsService";
 import { getCol } from "@/lib/db-utils";
 
-function analyticsBookingsCollection(trainingMode) {
-  return getCol("bookings", trainingMode);
+function analyticsBookingsCollection() {
+  return getCol("bookings");
 }
 
-function analyticsPaymentsCollection(trainingMode) {
-  return getCol("payments", trainingMode);
+function analyticsPaymentsCollection() {
+  return getCol("payments");
 }
 
 const BOOKING_STATUSES_FOR_OCCUPANCY = ["Approved", "Checked In", "Checked Out"];
 
-export async function getAdminAnalyticsSummary({ fromDate, toDate, trainingMode = null } = {}) {
+export async function getAdminAnalyticsSummary({ fromDate, toDate } = {}) {
   const now = new Date();
   const from = parseDateInput(fromDate) ?? new Date(now.getFullYear(), now.getMonth(), 1);
   const to = parseDateInput(toDate) ?? new Date(now.getFullYear(), now.getMonth() + 1, 1);
@@ -23,14 +23,14 @@ export async function getAdminAnalyticsSummary({ fromDate, toDate, trainingMode 
   const days = daysBetween(from, to);
 
   // Active rooms define the maximum available nights.
-  const rooms = await listRooms({ trainingMode });
+  const rooms = await listRooms();
   const activeRooms = rooms.filter((r) => r.isActive !== false);
   const roomCount = activeRooms.length;
   const totalAvailableNights = roomCount * days;
 
   // Fetch bookings in the range (filter statuses client-side).
   const bookingsQ = query(
-    collection(db, analyticsBookingsCollection(trainingMode)),
+    collection(db, analyticsBookingsCollection()),
     where("checkInDate", ">=", fromTs),
     where("checkInDate", "<", toTs)
   );
@@ -47,7 +47,7 @@ export async function getAdminAnalyticsSummary({ fromDate, toDate, trainingMode 
 
   // Fetch payments in the range for revenue.
   const paymentsQ = query(
-    collection(db, analyticsPaymentsCollection(trainingMode)),
+    collection(db, analyticsPaymentsCollection()),
     where("createdAt", ">=", fromTs),
     where("createdAt", "<", toTs)
   );
@@ -64,7 +64,7 @@ export async function getAdminAnalyticsSummary({ fromDate, toDate, trainingMode 
   const trendToTs = Timestamp.fromDate(startOfDay(now));
 
   const trendQ = query(
-    collection(db, analyticsBookingsCollection(trainingMode)),
+    collection(db, analyticsBookingsCollection()),
     where("checkInDate", ">=", trendFromTs),
     where("checkInDate", "<", trendToTs)
   );
@@ -102,13 +102,12 @@ export async function getAdminAnalyticsSummary({ fromDate, toDate, trainingMode 
     occupancyRate,
     totalRevenue,
     bookingTrendLast7Days: last7,
-    peakBookingDays: peaks,
-  };
+    peakBookingDays: peaks};
 }
 
-export async function listBookingsForAnalyticsDebug({ limitCount = 20, trainingMode = null } = {}) {
+export async function listBookingsForAnalyticsDebug({ limitCount = 20 } = {}) {
   const q = query(
-    collection(db, analyticsBookingsCollection(trainingMode)),
+    collection(db, analyticsBookingsCollection()),
     orderBy("checkInDate", "desc"),
     where("status", "!=", null)
   );

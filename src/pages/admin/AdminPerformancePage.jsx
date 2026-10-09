@@ -5,8 +5,7 @@ import {
   CardHeader,
   CardTitle,
   CardDescription,
-  CardContent,
-} from "@/components/ui/card";
+  CardContent} from "@/components/ui/card";
 import {
   Gauge,
   Zap,
@@ -16,17 +15,14 @@ import {
   Trash2,
   Loader2,
   FileText,
-  AlertTriangle,
-} from "lucide-react";
+  AlertTriangle} from "lucide-react";
 import {
   getBrowserPerformanceSnapshot,
   summarizeSamples,
   computePerformanceScore,
   clearSamples,
   probeConnectivity,
-  subscribeToConnectivity,
-} from "@/services/performanceService";
-import { useAuth } from "@/contexts/AuthContext";
+  subscribeToConnectivity} from "@/services/performanceService";
 
 function scoreColor(score) {
   if (score >= 85) return "text-success";
@@ -51,7 +47,6 @@ function formatTime(ts) {
 }
 
 export default function AdminPerformancePage() {
-  const { trainingMode } = useAuth();
   const [metrics, setMetrics] = useState(() => getBrowserPerformanceSnapshot());
   const [summary, setSummary] = useState(() => summarizeSamples());
   const [connectivity, setConnectivity] = useState({ connected: null, latency: null });
@@ -66,20 +61,18 @@ export default function AdminPerformancePage() {
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     refreshAll();
-    const r = await probeConnectivity({ trainingMode });
+    const r = await probeConnectivity();
     setConnectivity(r);
     setRefreshing(false);
-  }, [refreshAll, trainingMode]);
+  }, [refreshAll]);
 
   useEffect(() => {
     refreshAll();
     const unsub = subscribeToConnectivity(
-      (state) => setConnectivity((prev) => ({ ...prev, connected: state.connected })),
-      { trainingMode }
-    );
-    probeConnectivity({ trainingMode }).then((r) => setConnectivity(r));
+      (state) => setConnectivity((prev) => ({ ...prev, connected: state.connected })));
+    probeConnectivity().then((r) => setConnectivity(r));
     return unsub;
-  }, [trainingMode, refreshAll]);
+  }, [ refreshAll]);
 
   const score = useMemo(
     () => computePerformanceScore(metrics, summary),
@@ -97,7 +90,7 @@ export default function AdminPerformancePage() {
   async function handleProbe() {
     setProbing(true);
     try {
-      const r = await probeConnectivity({ trainingMode });
+      const r = await probeConnectivity();
       setConnectivity(r);
     } finally {
       setProbing(false);
@@ -131,12 +124,6 @@ export default function AdminPerformancePage() {
           </Button>
         </div>
       </div>
-
-      {trainingMode && (
-        <div className="rounded-xl border border-warning/40 bg-warning/10 px-4 py-3 text-sm text-warning">
-          Training mode is active — connectivity checks read from the training sandbox.
-        </div>
-      )}
 
       <Card className="overflow-hidden">
         <div className="grid divide-y divide-border sm:grid-cols-2 lg:grid-cols-4 lg:divide-x lg:divide-y-0">

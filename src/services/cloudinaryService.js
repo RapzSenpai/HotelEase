@@ -31,10 +31,9 @@ const MAX_UPLOAD_BYTES = 5 * 1024 * 1024; // 5 MB
  * preset in the Cloudinary dashboard — tags are the most unsigned
  * uploads can enforce client-side.)
  * @param {File} file
- * @param {{ onProgress?: (pct: number) => void, compressionPreset?: string, trainingMode?: boolean | null }} options
  * @returns {Promise<{ url: string, publicId: string }>}
  */
-export async function uploadImageToCloudinary(file, { onProgress, compressionPreset = "roomPhotos", trainingMode = null } = {}) {
+export async function uploadImageToCloudinary(file, { onProgress, compressionPreset = "roomPhotos" } = {}) {
   if (!file || typeof file.type !== "string" || !file.type.startsWith("image/")) {
     throw new Error("Only image files can be uploaded.");
   }
@@ -48,12 +47,8 @@ export async function uploadImageToCloudinary(file, { onProgress, compressionPre
     );
   }
 
-  // Resolve like getCol: explicit param wins, else production (the training
-  // sandbox is gone, so uploads are always tagged prod).
-  let isTraining = trainingMode === true || trainingMode === "training";
-  if (trainingMode === null || trainingMode === undefined) {
-    isTraining = false;
-  }
+  // Sandbox is gone: uploads are always tagged prod.
+  const isTraining = false;
 
   return new Promise((resolve, reject) => {
     const formData = new FormData();

@@ -5,7 +5,7 @@ import { subscribeToMessages } from "@/services/messageService";
 import { subscribeToRooms } from "@/services/roomsService";
 import { subscribeToAllTestimonials } from "@/services/testimonialsService";
 
-export function useFOIndicators({ trainingMode = null, role = null } = {}) {
+export function useFOIndicators({ role = null } = {}) {
   const [pendingBookingsCount, setPendingBookingsCount] = useState(0);
   const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
   const [hasApprovedCheckIns, setHasApprovedCheckIns] = useState(false);
@@ -42,7 +42,7 @@ export function useFOIndicators({ trainingMode = null, role = null } = {}) {
     // 1. Pending bookings count
     const unsubPending = subscribeToPendingBookingRequests((bookings) => {
       setPendingBookingsCount(bookings.length);
-    }, { trainingMode });
+    });
     unsubscribers.push(unsubPending);
 
     // 2. Unread messages count — the inbox is shared by FO + Admin per rules,
@@ -52,9 +52,7 @@ export function useFOIndicators({ trainingMode = null, role = null } = {}) {
         (messages) => {
           const unreadCount = messages.filter((m) => m.status === "unread").length;
           setUnreadMessagesCount(unreadCount);
-        },
-        { trainingMode },
-      );
+        });
       unsubscribers.push(unsubMessages);
     }
 
@@ -65,16 +63,13 @@ export function useFOIndicators({ trainingMode = null, role = null } = {}) {
     tomorrow.setHours(0, 0, 0, 0);
     tomorrow.setDate(tomorrow.getDate() + 1);
     unsubscribers.push(
-      subscribeToHasBookings({ status: "Approved", trainingMode }, setHasApprovedCheckIns),
+      subscribeToHasBookings({ status: "Approved"}, setHasApprovedCheckIns),
       subscribeToHasBookings(
-        { status: "Checked In", checkOutBefore: tomorrow, trainingMode },
-        setHasDueCheckOuts,
-      ),
+        { status: "Checked In", checkOutBefore: tomorrow},
+        setHasDueCheckOuts),
       subscribeToHasBookings(
-        { status: "Cancellation Requested", trainingMode },
-        setHasPendingCancellations,
-      ),
-    );
+        { status: "Cancellation Requested"},
+        setHasPendingCancellations));
 
     // 5. Dirty / in-progress housekeeping rooms
     const unsubDirtyRooms = subscribeToRooms((rooms) => {
@@ -83,11 +78,10 @@ export function useFOIndicators({ trainingMode = null, role = null } = {}) {
           "Dirty / Needs Cleaning",
           "Being Cleaned",
           "Pending Approval",
-        ].includes(room.status),
-      );
+        ].includes(room.status));
       setHasDirtyRooms(housekeepingRooms.length > 0);
       setDirtyRoomsCount(housekeepingRooms.length);
-    }, { trainingMode });
+    });
     unsubscribers.push(unsubDirtyRooms);
 
     // 6. Payments needing attention — any Approved / Checked In booking whose
@@ -111,14 +105,13 @@ export function useFOIndicators({ trainingMode = null, role = null } = {}) {
             const total = Number(b.totalCost ?? 0);
             if (!(total > 0)) return false;
             try {
-              const recs = await listPaymentsForBooking(b.id, { trainingMode });
+              const recs = await listPaymentsForBooking(b.id);
               const paid = recs.reduce((s, p) => s + Number(p.amount ?? 0), 0);
               return paid < total;
             } catch {
               return total > 0;
             }
-          }),
-        );
+          }));
         if (!cancelled && mySeq === recomputeSeq)
           setHasPaymentsNeedingAttention(flags.some(Boolean));
       } catch {
@@ -127,15 +120,14 @@ export function useFOIndicators({ trainingMode = null, role = null } = {}) {
       }
     }
     unsubscribers.push(
-      subscribeToBookingsPage({ status: "Approved", trainingMode }, (list) => {
+      subscribeToBookingsPage({ status: "Approved"}, (list) => {
         approvedBookings = list;
         recomputePaymentsAttention();
       }),
-      subscribeToBookingsPage({ status: "Checked In", trainingMode }, (list) => {
+      subscribeToBookingsPage({ status: "Checked In"}, (list) => {
         checkedInBookings = list;
         recomputePaymentsAttention();
-      }),
-    );
+      }));
 
     // 7. Pending testimonials — testimonials are admin-read-only for non-approved
     //    per rules, so only subscribe for the admin role.
@@ -151,7 +143,7 @@ export function useFOIndicators({ trainingMode = null, role = null } = {}) {
       cancelled = true;
       unsubscribers.forEach((unsub) => unsub());
     };
-  }, [trainingMode, role, dayKey]);
+  }, [ role, dayKey]);
 
   return {
     pendingBookingsCount,
@@ -162,6 +154,5 @@ export function useFOIndicators({ trainingMode = null, role = null } = {}) {
     dirtyRoomsCount,
     pendingTestimonialsCount,
     hasPendingCancellations,
-    hasPaymentsNeedingAttention,
-  };
+    hasPaymentsNeedingAttention};
 }

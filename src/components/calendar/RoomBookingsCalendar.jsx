@@ -10,10 +10,9 @@ const statusToColor = {
   "Awaiting Payment": "#F59E0B",
   "Checked In": "#EF4444", // danger/red
   "Checked Out": "#6B7280", // muted/gray
-  Cancelled: "#94A3B8",
-};
+  Cancelled: "#94A3B8"};
 
-export default function RoomBookingsCalendar({ roomId, trainingMode = false }) {
+export default function RoomBookingsCalendar({ roomId }) {
   const normalizedRoomId = typeof roomId === "string" ? roomId : roomId?.id;
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -45,8 +44,7 @@ export default function RoomBookingsCalendar({ roomId, trainingMode = false }) {
         end: g.end,
         backgroundColor: statusToColor[g.status] || "#F5C518",
         borderColor: statusToColor[g.status] || "#F5C518",
-        allDay: true,
-      }));
+        allDay: true}));
     }
 
     if (!normalizedRoomId) {
@@ -67,12 +65,12 @@ export default function RoomBookingsCalendar({ roomId, trainingMode = false }) {
       if (!isMounted) return;
       setEvents(fromMarkers(cards));
       setLoading(false);
-    }, { trainingMode });
+    });
     return () => {
       isMounted = false;
       if (typeof unsubscribe === "function") unsubscribe();
     };
-  }, [roomId, normalizedRoomId, trainingMode]);
+  }, [roomId, normalizedRoomId]);
 
   if (loading) {
     return (
@@ -99,8 +97,7 @@ export default function RoomBookingsCalendar({ roomId, trainingMode = false }) {
         headerToolbar={{
           left: "prev,next today",
           center: "title",
-          right: "",
-        }}
+          right: ""}}
         events={events}
         dayMaxEventRows={3}
         eventDisplay="block"

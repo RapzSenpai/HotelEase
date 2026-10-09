@@ -50,7 +50,7 @@ export function shouldToast(type) {
  * treated as new and toasted; the ceiling is 20 unread rows, and the upgrade
  * path is a createdAt watermark instead of an id set.
  */
-export function useNotificationToasts({ userId, trainingMode = null } = {}) {
+export function useNotificationToasts({ userId } = {}) {
   const navigate = useNavigate();
   const seenRef = useRef({ seeded: false, ids: new Set() });
 
@@ -87,15 +87,13 @@ export function useNotificationToasts({ userId, trainingMode = null } = {}) {
                 onClick: () => {
                   toast.dismiss(toastId);
                   // Clicking the toast counts as reading it (same rule as the bell).
-                  markAsRead(userId, notif.id, { trainingMode }).catch(() => {});
+                  markAsRead(userId, notif.id).catch(() => {});
                   navigate(notif.link);
-                },
-              }
-            : undefined,
-        });
+                }}
+            : undefined});
       }
-    }, { trainingMode });
+    });
 
     return () => unsub();
-  }, [userId, trainingMode, navigate]);
+  }, [userId, navigate]);
 }

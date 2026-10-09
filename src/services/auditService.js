@@ -16,7 +16,6 @@ import { getCol } from "@/lib/db-utils";
  * @param {string} params.description - Human-readable description of the action
  * @param {Object} params.metadata - Additional metadata
  * @param {Object} options
- * @param {boolean} options.trainingMode - Whether to use training collection
  * @returns {Promise<void>}
  */
 export async function logAuditEvent(
@@ -29,11 +28,9 @@ export async function logAuditEvent(
     targetType,
     changes = {},
     description,
-    metadata = {},
-  },
-  { trainingMode = false } = {}
+    metadata = {}}
 ) {
-  const col = getCol("audit_logs", trainingMode);
+  const col = getCol("audit_logs");
   const ref = collection(db, col);
 
   await addDoc(ref, {
@@ -46,8 +43,7 @@ export async function logAuditEvent(
     changes,
     description,
     metadata,
-    timestamp: new Date().toISOString(),
-  });
+    timestamp: new Date().toISOString()});
 }
 
 /**
@@ -60,12 +56,11 @@ export async function logAuditEvent(
  * @param {Object} [params.changes] - Before/after values
  * @param {string} [params.description] - Human-readable description
  * @param {Object} [params.metadata] - Extra metadata
- * @param {boolean} [params.trainingMode] - Whether the action happened in training mode
  * @returns {Promise<void>}
  */
 export async function auditAction(
   actionType,
-  { targetId, targetType, changes = {}, description, metadata = {}, trainingMode = false } = {}
+  { targetId, targetType, changes = {}, description, metadata = {} } = {}
 ) {
   try {
     const authUser = getAuth().currentUser;
@@ -73,7 +68,7 @@ export async function auditAction(
 
     let actorRole = null;
     try {
-      const snap = await getDoc(doc(db, getCol("users", trainingMode), authUser.uid));
+      const snap = await getDoc(doc(db, getCol("users"), authUser.uid));
       actorRole = snap.exists() ? snap.data().role || null : null;
     } catch {
       // Role lookup failure shouldn't block the audit write
@@ -89,10 +84,7 @@ export async function auditAction(
         targetType,
         changes,
         description,
-        metadata,
-      },
-      { trainingMode }
-    );
+        metadata});
   } catch (e) {
     console.error("Audit log write failed:", e);
   }
@@ -106,16 +98,15 @@ export async function auditAction(
  * @param {string} params.targetType - Filter by target type
  * @param {number} params.limit - Maximum number of logs to return
  * @param {Object} options
- * @param {boolean} options.trainingMode - Whether to use training collection
  * @param {Function} options.onData - Callback for data updates
  * @param {Function} options.onError - Callback for errors
  * @returns {Function} Unsubscribe function
  */
 export function subscribeToAuditLogs(
   { actionType, userId, targetType, limit: maxResults = 100 } = {},
-  { trainingMode = false, onData, onError } = {}
+  { onData, onError } = {}
 ) {
-  const col = getCol("audit_logs", trainingMode);
+  const col = getCol("audit_logs");
   const ref = collection(db, col);
   
   let q = query(ref, orderBy("timestamp", "desc"));
@@ -139,8 +130,7 @@ export function subscribeToAuditLogs(
     (snapshot) => {
       const logs = snapshot.docs.map((doc) => ({
         id: doc.id,
-        ...doc.data(),
-      }));
+        ...doc.data()}));
       onData?.(logs);
     },
     (error) => {
@@ -159,14 +149,12 @@ export function subscribeToAuditLogs(
  * @param {string} params.targetType - Filter by target type
  * @param {number} params.limit - Maximum number of logs to return
  * @param {Object} options
- * @param {boolean} options.trainingMode - Whether to use training collection
  * @returns {Promise<Array>} Array of audit logs
  */
 export async function getAuditLogs(
-  { actionType, userId, targetType, limit: maxResults = 100 } = {},
-  { trainingMode = false } = {}
+  { actionType, userId, targetType, limit: maxResults = 100 } = {}
 ) {
-  const col = getCol("audit_logs", trainingMode);
+  const col = getCol("audit_logs");
   const ref = collection(db, col);
   
   let q = query(ref, orderBy("timestamp", "desc"));
@@ -188,8 +176,7 @@ export async function getAuditLogs(
   const snapshot = await getDocs(q);
   return snapshot.docs.map((doc) => ({
     id: doc.id,
-    ...doc.data(),
-  }));
+    ...doc.data()}));
 }
 
 /**
@@ -276,5 +263,4 @@ export const AUDIT_ACTIONS = {
   ANNOUNCEMENT_CREATE: "ANNOUNCEMENT_CREATE",
   ANNOUNCEMENT_UPDATE: "ANNOUNCEMENT_UPDATE",
   ANNOUNCEMENT_DELETE: "ANNOUNCEMENT_DELETE",
-  SYSTEM_SETTINGS_CHANGE: "SYSTEM_SETTINGS_CHANGE",
-};
+  SYSTEM_SETTINGS_CHANGE: "SYSTEM_SETTINGS_CHANGE"};

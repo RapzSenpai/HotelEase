@@ -11,8 +11,7 @@ import {
   CardContent,
   CardDescription,
   CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+  CardTitle} from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -21,8 +20,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-  DialogClose,
-} from "@/components/ui/dialog";
+  DialogClose} from "@/components/ui/dialog";
 import {
   User,
   Pencil,
@@ -34,8 +32,7 @@ import {
   Upload,
   ImagePlus,
   Wallet,
-  CalendarCheck,
-} from "lucide-react";
+  CalendarCheck} from "lucide-react";
 import { toast } from "sonner";
 import { optimizeCloudinaryUrl } from "@/lib/cloudinaryTransform";
 import { uploadImageToCloudinary } from "@/services/cloudinaryService";
@@ -54,7 +51,7 @@ function getInitials(name) {
 }
 
 export default function ProfilePage() {
-  const { user, role, profile, trainingMode, forgotPassword } = useAuth();
+  const { user, role, profile, forgotPassword } = useAuth();
 
   // Local copy so edits reflect immediately without a full reload.
   const [localProfile, setLocalProfile] = useState({});
@@ -90,7 +87,7 @@ export default function ProfilePage() {
     if (!user?.uid) return;
     setSummaryLoading(true);
     try {
-      const bookings = await listBookingsForUser(user.uid, { trainingMode });
+      const bookings = await listBookingsForUser(user.uid);
       const completed = bookings.filter((b) => b.status === "Checked Out").length;
       const spent = bookings
         .filter((b) => b.status !== "Cancelled")
@@ -101,7 +98,7 @@ export default function ProfilePage() {
     } finally {
       setSummaryLoading(false);
     }
-  }, [user?.uid, trainingMode]);
+  }, [user?.uid]);
 
   useEffect(() => {
     loadSummary();
@@ -136,7 +133,7 @@ export default function ProfilePage() {
     }
     setSavingName(true);
     try {
-      await updateUserProfile(user.uid, { fullName: next }, { trainingMode });
+      await updateUserProfile(user.uid, { fullName: next });
       setLocalProfile((p) => ({ ...p, fullName: next }));
       setEditingName(false);
       toast.success("Display name updated.");
@@ -164,7 +161,7 @@ export default function ProfilePage() {
     }
     setSavingPhone(true);
     try {
-      await updateUserProfile(user.uid, { phone: next }, { trainingMode });
+      await updateUserProfile(user.uid, { phone: next });
       setLocalProfile((p) => ({ ...p, phone: next }));
       setEditingPhone(false);
       toast.success("Phone number updated.");
@@ -181,7 +178,7 @@ export default function ProfilePage() {
     setUploadingAvatar(true);
     try {
       const { url } = await uploadImageToCloudinary(file, { compressionPreset: "avatar" });
-      await updateUserProfile(user.uid, { photoUrl: url }, { trainingMode });
+      await updateUserProfile(user.uid, { photoUrl: url });
       setLocalProfile((p) => ({ ...p, photoUrl: url }));
       toast.success("Profile picture updated.");
     } catch (err) {

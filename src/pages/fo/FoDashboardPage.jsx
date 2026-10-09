@@ -6,13 +6,10 @@ import { Card } from "@/components/ui/card";
 import RoomScheduleTape from "@/components/dashboard/RoomScheduleTape";
 import { subscribeToRooms } from "@/services/roomsService";
 import {
-  listBookingsByStatuses,
   subscribeToBookingsPage,
   countCheckInsToday,
   countCheckOutsDue,
-  countOverdueCheckOuts,
-} from "@/services/bookingsService";
-import { useAuth } from "@/contexts/AuthContext";
+  countOverdueCheckOuts} from "@/services/bookingsService";
 import { useHotkeys } from "@/hooks/useHotkeys";
 import { getStatusTimestamp, toJsDate } from "@/lib/time-utils";
 import {
@@ -24,8 +21,7 @@ import {
   CalendarClock,
   LogIn,
   Search,
-  AlertTriangle,
-} from "lucide-react";
+  AlertTriangle} from "lucide-react";
 
 const STATUS_FILTERS = [
   { id: "all", label: "All Rooms" },
@@ -70,23 +66,14 @@ function getRoomLabel(room) {
   return parts.join(" • ");
 }
 
-function matchesHotkeyAction(room, hotkey, trainingMode, trainingBookingsByRoomId) {
+function matchesHotkeyAction(room, hotkey) {
   const status = room.status || "Available";
-  const action = trainingMode
-    ? (() => {
-        const t = trainingBookingsByRoomId.get(room.id);
-        if (t?.hasPendingOrApproved) return "c";
-        if (t?.hasCheckedIn) return "o";
-        if (t?.hasCheckedOut) return "h";
-        return null;
-      })()
-    : actionForStatus(status)?.key;
+  const action = actionForStatus(status)?.key;
   return action === hotkey;
 }
 
 export default function FoDashboardPage() {
   const navigate = useNavigate();
-  const { trainingMode } = useAuth();
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
   // P1 scalability: exact server counts instead of the whole bookings
@@ -94,17 +81,13 @@ export default function FoDashboardPage() {
   const [bookingMetrics, setBookingMetrics] = useState({
     checkInsToday: null,
     checkOutsDue: null,
-    overdueCheckOuts: null,
-  });
+    overdueCheckOuts: null});
   const [error] = useState(null);
   // Table row selection is gone with the table; hotkeys fall back to the
   // first matching room when nothing is selected.
   const [selectedRoomId] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeStatusFilter, setActiveStatusFilter] = useState("all");
-  const [trainingBookingsByRoomId, setTrainingBookingsByRoomId] = useState(
-    new Map(),
-  );
 
   const prevStatusesRef = useRef(null);
   const isInitialLoadRef = useRef(true);
@@ -127,29 +110,25 @@ export default function FoDashboardPage() {
             ) {
               toast.info(
                 `${getRoomLabel(room)} is now ${room.status || "Unknown"}`,
-                { description: "Updated by another staff member" },
-              );
+                { description: "Updated by another staff member" });
             }
           });
         }
 
         prevStatusesRef.current = new Map(
-          data.map((room) => [room.id, room.status]),
-        );
+          data.map((room) => [room.id, room.status]));
         isInitialLoadRef.current = false;
         setRooms(data);
         if (!settled) {
           settled = true;
           setLoading(false);
         }
-      },
-      { trainingMode },
-    );
+      });
 
     return () => {
       if (typeof unsubscribe === "function") unsubscribe();
     };
-  }, [trainingMode]);
+  }, []);
 
   // Realtime trigger + periodic refresh for the booking metrics below.
   // The 1-doc window watches ALL statuses ordered by updatedAt, so every
@@ -162,9 +141,9 @@ export default function FoDashboardPage() {
     async function refreshMetrics() {
       try {
         const [checkInsToday, checkOutsDue, overdueCheckOuts] = await Promise.all([
-          countCheckInsToday({ trainingMode }),
-          countCheckOutsDue({ trainingMode }),
-          countOverdueCheckOuts({ trainingMode }),
+          countCheckInsToday(),
+          countCheckOutsDue(),
+          countOverdueCheckOuts(),
         ]);
         if (!cancelled) setBookingMetrics({ checkInsToday, checkOutsDue, overdueCheckOuts });
       } catch (err) {
@@ -175,11 +154,10 @@ export default function FoDashboardPage() {
     }
     refreshMetrics();
     const unsubscribe = subscribeToBookingsPage(
-      { pageSize: 1, orderField: "updatedAt", orderDir: "desc", trainingMode },
+      { pageSize: 1, orderField: "updatedAt", orderDir: "desc"},
       () => {
         if (!cancelled) refreshMetrics();
-      },
-    );
+      });
     const interval = setInterval(() => {
       if (!cancelled) refreshMetrics();
     }, 60000);
@@ -188,50 +166,7 @@ export default function FoDashboardPage() {
       if (typeof unsubscribe === "function") unsubscribe();
       clearInterval(interval);
     };
-  }, [trainingMode]);
-
-  useEffect(() => {
-    let isMounted = true;
-    async function loadTrainingBookings() {
-      if (!trainingMode) {
-        setTrainingBookingsByRoomId(new Map());
-        return;
-      }
-      try {
-        const data = await listBookingsByStatuses(
-          ["Pending", "Approved", "Checked In", "Checked Out"],
-          { trainingMode: true },
-        );
-        if (!isMounted) return;
-
-        const map = new Map();
-        for (const b of data) {
-          if (!b.roomId) continue;
-          if (!map.has(b.roomId)) {
-            map.set(b.roomId, {
-              hasPendingOrApproved: false,
-              hasCheckedIn: false,
-              hasCheckedOut: false,
-            });
-          }
-          const item = map.get(b.roomId);
-          if (b.status === "Pending" || b.status === "Approved")
-            item.hasPendingOrApproved = true;
-          if (b.status === "Checked In") item.hasCheckedIn = true;
-          if (b.status === "Checked Out") item.hasCheckedOut = true;
-        }
-        setTrainingBookingsByRoomId(map);
-      } catch {
-        if (!isMounted) return;
-        setTrainingBookingsByRoomId(new Map());
-      }
-    }
-
-    loadTrainingBookings();
-    return () => {
-      isMounted = false;
-    };
-  }, [trainingMode]);
+  }, []);
 
   const visibleRooms = rooms.filter((r) => r.isActive !== false);
 
@@ -241,10 +176,7 @@ export default function FoDashboardPage() {
     reserved: visibleRooms.filter((r) => r.status === "Reserved").length,
     housekeeping: visibleRooms.filter((r) =>
       ["Being Cleaned", "Pending Approval", "Dirty / Needs Cleaning"].includes(
-        r.status,
-      ),
-    ).length,
-  };
+        r.status)).length};
 
   const timeMetrics = useMemo(() => {
     const total = visibleRooms.length || 1;
@@ -254,8 +186,7 @@ export default function FoDashboardPage() {
     const checkOutsDue = bookingMetrics.checkOutsDue;
 
     const activeStatuses = visibleRooms.filter(
-      (room) => room.status && room.status !== "Available",
-    );
+      (room) => room.status && room.status !== "Available");
     const nowMs = new Date().getTime();
     const avgMinutes =
       activeStatuses.length > 0
@@ -265,8 +196,7 @@ export default function FoDashboardPage() {
               const date = toJsDate(ts);
               if (!date) return sum;
               return sum + (nowMs - date.getTime()) / 60000;
-            }, 0) / activeStatuses.length,
-          )
+            }, 0) / activeStatuses.length)
         : 0;
 
     const avgStatusLabel =
@@ -289,8 +219,7 @@ export default function FoDashboardPage() {
       result = result.filter((r) =>
         activeStatusFilter === "Housekeeping"
           ? HK_STATUSES.includes(r.status)
-          : r.status === activeStatusFilter,
-      );
+          : r.status === activeStatusFilter);
     }
 
     if (searchQuery.trim()) {
@@ -300,8 +229,7 @@ export default function FoDashboardPage() {
           (r.name || "").toLowerCase().includes(q) ||
           (r.type || "").toLowerCase().includes(q) ||
           String(r.roomNumber || "").toLowerCase().includes(q) ||
-          String(r.floor || "").toLowerCase().includes(q),
-      );
+          String(r.floor || "").toLowerCase().includes(q));
     }
 
     return result;
@@ -313,11 +241,10 @@ export default function FoDashboardPage() {
         selectedRoomId &&
         visibleRooms.find((room) => room.id === selectedRoomId);
       const target =
-        selected && matchesHotkeyAction(selected, hotkey, trainingMode, trainingBookingsByRoomId)
+        selected && matchesHotkeyAction(selected, hotkey)
           ? selected
           : visibleRooms.find((room) =>
-              matchesHotkeyAction(room, hotkey, trainingMode, trainingBookingsByRoomId),
-            );
+              matchesHotkeyAction(room, hotkey));
 
       if (!target) {
         toast.message(`No room available for that action (${hotkey.toUpperCase()})`);
@@ -325,15 +252,7 @@ export default function FoDashboardPage() {
       }
 
       const status = target.status || "Available";
-      const action = trainingMode
-        ? trainingBookingsByRoomId.get(target.id)?.hasPendingOrApproved
-          ? { path: "/fo/check-in" }
-          : trainingBookingsByRoomId.get(target.id)?.hasCheckedIn
-            ? { path: "/fo/check-out" }
-            : trainingBookingsByRoomId.get(target.id)?.hasCheckedOut
-              ? { path: "/fo/housekeeping" }
-              : null
-        : actionForStatus(status);
+      const action = actionForStatus(status);
 
       if (!action) {
         toast.message(`No action available for ${getRoomLabel(target)}`);
@@ -346,19 +265,14 @@ export default function FoDashboardPage() {
       navigate,
       selectedRoomId,
       visibleRooms,
-      trainingMode,
-      trainingBookingsByRoomId,
-    ],
-  );
+    ]);
 
   const hotkeys = useMemo(
     () => ({
       c: () => navigateForHotkey("c"),
       o: () => navigateForHotkey("o"),
-      h: () => navigateForHotkey("h"),
-    }),
-    [navigateForHotkey],
-  );
+      h: () => navigateForHotkey("h")}),
+    [navigateForHotkey]);
 
   useHotkeys(hotkeys, { enabled: !loading });
 
@@ -531,7 +445,7 @@ export default function FoDashboardPage() {
           </div>
 
           {/* Room schedule */}
-          <RoomScheduleTape rooms={filteredRooms} trainingMode={trainingMode} />
+          <RoomScheduleTape rooms={filteredRooms} />
         </div>
       )}
     </div>

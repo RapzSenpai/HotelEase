@@ -9,8 +9,7 @@ import {
   DialogContent,
   DialogDescription,
   DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  DialogTitle} from "@/components/ui/dialog";
 import { subscribeToBookingsPage } from "@/services/bookingsService";
 import { toJsDate } from "@/lib/time-utils";
 
@@ -66,7 +65,7 @@ function badgeVariant(status, roomStatus) {
   return "reserved";
 }
 
-export default function RoomScheduleTape({ rooms = [], trainingMode }) {
+export default function RoomScheduleTape({ rooms = []}) {
   const navigate = useNavigate();
   const [windowOffset, setWindowOffset] = useState(0); // days shifted from default
   const [bookings, setBookings] = useState([]);
@@ -84,20 +83,18 @@ export default function RoomScheduleTape({ rooms = [], trainingMode }) {
 
   const days = useMemo(
     () => Array.from({ length: WINDOW_DAYS }, (_, i) => new Date(winStart.getTime() + i * DAY_MS)),
-    [winStart],
-  );
+    [winStart]);
 
   // One bounded window query — arrival-ordered, client filters true overlap.
   useEffect(() => {
     const fromDate = new Date(winStart.getTime() - LOOKBACK_DAYS * DAY_MS);
     const unsub = subscribeToBookingsPage(
-      { fromDate, toDate: winEnd, pageSize: 300, trainingMode },
-      (rows) => setBookings(Array.isArray(rows) ? rows : []),
-    );
+      { fromDate, toDate: winEnd, pageSize: 300},
+      (rows) => setBookings(Array.isArray(rows) ? rows : []));
     return () => {
       if (typeof unsub === "function") unsub();
     };
-  }, [winStart, winEnd, trainingMode]);
+  }, [winStart, winEnd]);
 
   // Room id → stacked lanes of chips intersecting the window.
   const lanesByRoom = useMemo(() => {
@@ -246,8 +243,7 @@ export default function RoomScheduleTape({ rooms = [], trainingMode }) {
                           className="absolute inset-y-0 bg-primary/5 border-x border-primary/20 pointer-events-none"
                           style={{
                             left: `${(todayIdx / WINDOW_DAYS) * 100}%`,
-                            width: `${(1 / WINDOW_DAYS) * 100}%`,
-                          }}
+                            width: `${(1 / WINDOW_DAYS) * 100}%`}}
                         />
                       )}
                       {/* Empty-available hint */}

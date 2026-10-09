@@ -6,8 +6,7 @@ import {
   CardHeader,
   CardTitle,
   CardDescription,
-  CardContent,
-} from "@/components/ui/card";
+  CardContent} from "@/components/ui/card";
 import { buildAdminContext, generateOpsBriefing } from "@/services/insightsService";
 import {
   AlertTriangle,
@@ -17,29 +16,24 @@ import {
   Info,
   Loader2,
   Sparkles,
-  X,
-} from "lucide-react";
+  X} from "lucide-react";
 
 const SEVERITY_STYLES = {
   high: {
     chip: "border-destructive/30 bg-destructive/10 text-destructive",
     label: "High",
     icon: AlertTriangle,
-    iconClass: "text-destructive",
-  },
+    iconClass: "text-destructive"},
   medium: {
     chip: "border-warning/30 bg-warning/10 text-warning",
     label: "Medium",
     icon: AlertTriangle,
-    iconClass: "text-warning",
-  },
+    iconClass: "text-warning"},
   low: {
     chip: "border-info/30 bg-info/10 text-info",
     label: "Low",
     icon: Info,
-    iconClass: "text-info",
-  },
-};
+    iconClass: "text-info"}};
 
 const DISMISS_KEY = "he_dismissed_briefings";
 
@@ -57,7 +51,7 @@ function readDismissed() {
  * snapshot (rightNow queues + 30-day trends). Every item cites numbers and
  * deep-links to the page that resolves it. Dismissed items persist locally.
  */
-export default function AdminBriefingCard({ trainingMode }) {
+export default function AdminBriefingCard() {
   const [items, setItems] = useState([]);
   const [hasRun, setHasRun] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -68,13 +62,13 @@ export default function AdminBriefingCard({ trainingMode }) {
     // New scope (prod vs training) invalidates dismissed items — sandbox
     // briefings are independent from production ones.
     setDismissed(readDismissed());
-  }, [trainingMode]);
+  }, []);
 
   async function runBriefing() {
     setLoading(true);
     setError(null);
     try {
-      const context = await buildAdminContext({ trainingMode, force: true });
+      const context = await buildAdminContext({ force: true });
       const result = await generateOpsBriefing(context);
       setItems(result);
       setHasRun(true);

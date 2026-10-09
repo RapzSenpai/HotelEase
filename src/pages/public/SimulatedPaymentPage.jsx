@@ -4,7 +4,6 @@ import { formatDate } from "@/lib/format";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import PageLoader from "@/components/common/PageLoader";
-import { useAuth } from "@/contexts/AuthContext";
 import { getBooking } from "@/services/bookingsService";
 import { getRoom } from "@/services/roomsService";
 import { completeSimulatedPayment } from "@/services/paymentGatewayService";
@@ -23,8 +22,7 @@ import {
   Landmark,
   Loader2,
   ShieldCheck,
-  Users,
-} from "lucide-react";
+  Users} from "lucide-react";
 
 
 /**
@@ -38,8 +36,7 @@ function BankTransferPanel({
   processing,
   onBankRefChange,
   onCopy,
-  onConfirm,
-}) {
+  onConfirm}) {
   const details = getPaymentDetails("Bank Transfer");
   return (
     <div className="rounded-xl border border-border bg-background p-4 sm:p-5 space-y-4">
@@ -116,7 +113,6 @@ function BankTransferPanel({
 export default function SimulatedPaymentPage() {
   const { bookingId } = useParams();
   const navigate = useNavigate();
-  const { trainingMode } = useAuth();
 
   const [booking, setBooking] = useState(null);
   const [room, setRoom] = useState(null);
@@ -131,7 +127,7 @@ export default function SimulatedPaymentPage() {
     let cancelled = false;
     async function load() {
       try {
-        const b = await getBooking(bookingId, { trainingMode });
+        const b = await getBooking(bookingId);
         if (cancelled) return;
         if (!b) {
           toast.error("Booking not found.");
@@ -140,7 +136,7 @@ export default function SimulatedPaymentPage() {
         }
         setBooking(b);
         if (b.roomId) {
-          const r = await getRoom(b.roomId, { trainingMode }).catch(() => null);
+          const r = await getRoom(b.roomId).catch(() => null);
           if (!cancelled) setRoom(r);
         }
       } catch (e) {
@@ -153,7 +149,7 @@ export default function SimulatedPaymentPage() {
     return () => {
       cancelled = true;
     };
-  }, [bookingId, trainingMode, navigate]);
+  }, [bookingId, navigate]);
 
   const amountDue = booking
     ? booking.paymentType === "Partial"
@@ -176,9 +172,7 @@ export default function SimulatedPaymentPage() {
     try {
       const res = await completeSimulatedPayment({
         bookingId,
-        trainingMode,
-        userBankRef: isBank ? bankRef.trim() : undefined,
-      });
+        userBankRef: isBank ? bankRef.trim() : undefined});
       // Brief pause so the processing state reads as a gateway handshake.
       await new Promise((resolve) => setTimeout(resolve, 1200));
       setSuccessRef(res.gatewayRef);

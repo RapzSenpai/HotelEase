@@ -6,22 +6,19 @@ import {
   CardContent,
   CardDescription,
   CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+  CardTitle} from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  DialogTitle} from "@/components/ui/dialog";
 import {
   requestMidStayHousekeeping,
   cancelMidStayRequest,
   rateHousekeeping,
-  subscribeToHousekeepingLogsForBooking,
-} from "@/services/housekeepingService";
+  subscribeToHousekeepingLogsForBooking} from "@/services/housekeepingService";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { roomLabel } from "@/lib/room-label";
@@ -32,8 +29,7 @@ import {
   Star,
   ImageIcon,
   CheckCircle2,
-  XCircle,
-} from "lucide-react";
+  XCircle} from "lucide-react";
 
 const QUICK_OPTIONS = [
   "Fresh towels",
@@ -67,8 +63,7 @@ function formatWhen(tsLike) {
     month: "short",
     day: "numeric",
     hour: "numeric",
-    minute: "2-digit",
-  });
+    minute: "2-digit"});
 }
 
 function stripRequestPrefix(note = "") {
@@ -120,12 +115,10 @@ function buildRequests(logs) {
       const latest = group.logs[group.logs.length - 1];
       const origin =
         group.logs.find(
-          (l) => l.changedByRole === "guest" && l.toStatus === "Dirty / Needs Cleaning",
-        ) || group.logs[0];
+          (l) => l.changedByRole === "guest" && l.toStatus === "Dirty / Needs Cleaning") || group.logs[0];
       const completion = group.logs.find((l) => l.toStatus === "Available");
       const photoLog = group.logs.find(
-        (l) => Array.isArray(l.photoUrls) && l.photoUrls.length > 0,
-      );
+        (l) => Array.isArray(l.photoUrls) && l.photoUrls.length > 0);
       const status = latest?.toStatus || "Unknown";
       return {
         id: group.requestId || origin?.id || group.logs[0]?.id,
@@ -140,8 +133,7 @@ function buildRequests(logs) {
         ratingFeedback: completion?.ratingFeedback || "",
         isInFlight: IN_FLIGHT_STATUSES.has(status),
         isCompleted: status === "Available",
-        isCancelled: status === "Occupied / Checked In",
-      };
+        isCancelled: status === "Occupied / Checked In"};
     })
     .sort((a, b) => tsToMs(b.requestedAt) - tsToMs(a.requestedAt));
 }
@@ -152,8 +144,7 @@ const ACTIVE_STATUS_TEXT = {
   "Being Cleaned":
     "Our housekeeping team is currently refreshing your room. We'll notify you once it's done.",
   "Pending Approval":
-    "Cleaning completed! Awaiting final approval from Front Office. We'll notify you once your room is ready.",
-};
+    "Cleaning completed! Awaiting final approval from Front Office. We'll notify you once your room is ready."};
 
 /**
  * One past-request row. Shared by the inline latest entry and the history
@@ -167,8 +158,7 @@ function PastRequestRow({ request, onRate, onSeePhotos }) {
           "flex h-7 w-7 shrink-0 items-center justify-center rounded-full",
           request.isCancelled
             ? "bg-destructive/10 text-destructive"
-            : "bg-success/10 text-success",
-        )}
+            : "bg-success/10 text-success")}
       >
         {request.isCancelled ? (
           <XCircle className="h-4 w-4" />
@@ -197,8 +187,7 @@ function PastRequestRow({ request, onRate, onSeePhotos }) {
                     "h-3.5 w-3.5",
                     star <= request.rating
                       ? "fill-amber-400 text-amber-400"
-                      : "text-foreground/20",
-                  )}
+                      : "text-foreground/20")}
                 />
               ))}
             </span>
@@ -236,7 +225,7 @@ function PastRequestRow({ request, onRate, onSeePhotos }) {
   );
 }
 
-export default function GuestHousekeepingCard({ booking, room, trainingMode, userProfile }) {
+export default function GuestHousekeepingCard({ booking, room, userProfile }) {
   const [hkDialogOpen, setHkDialogOpen] = useState(false);
   const [selectedOptions, setSelectedOptions] = useState([]);
   const [note, setNote] = useState("");
@@ -279,8 +268,8 @@ export default function GuestHousekeepingCard({ booking, room, trainingMode, use
       });
 
       setLogs(scopedLogs);
-    }, { trainingMode, roomId: room.id, guestId: booking.guestId });
-  }, [room?.id, booking?.id, booking?.guestId, booking?.createdAt, trainingMode]);
+    }, { roomId: room.id, guestId: booking.guestId });
+  }, [room?.id, booking?.id, booking?.guestId, booking?.createdAt]);
 
   const requests = useMemo(() => buildRequests(logs), [logs]);
   const activeRequest = requests.find((r) => r.isInFlight) || null;
@@ -288,8 +277,7 @@ export default function GuestHousekeepingCard({ booking, room, trainingMode, use
 
   function toggleOption(opt) {
     setSelectedOptions((prev) =>
-      prev.includes(opt) ? prev.filter((o) => o !== opt) : [...prev, opt],
-    );
+      prev.includes(opt) ? prev.filter((o) => o !== opt) : [...prev, opt]);
   }
 
   async function handleRequest() {
@@ -304,9 +292,7 @@ export default function GuestHousekeepingCard({ booking, room, trainingMode, use
         bookingId: booking.id,
         guestId: booking.guestId,
         guestName: userProfile?.fullName || userProfile?.email || "Guest",
-        note: combinedNote,
-        trainingMode,
-      });
+        note: combinedNote});
       toast.success("Housekeeping request sent to Front Office!");
       setHkDialogOpen(false);
       setNote("");
@@ -327,9 +313,7 @@ export default function GuestHousekeepingCard({ booking, room, trainingMode, use
         bookingId: booking.id,
         cancelledByRole: "guest",
         cancelledByUserId: booking.guestId,
-        cancelledByName: userProfile?.fullName || userProfile?.email || "Guest",
-        trainingMode,
-      });
+        cancelledByName: userProfile?.fullName || userProfile?.email || "Guest"});
       toast.success("Housekeeping request cancelled.");
     } catch (err) {
       toast.error(err?.message || "Failed to cancel request.");
@@ -352,9 +336,7 @@ export default function GuestHousekeepingCard({ booking, room, trainingMode, use
         logId: reviewTarget.completionLog.id,
         rating,
         feedback,
-        roomName: room?.name || room?.type || "",
-        trainingMode,
-      });
+        roomName: room?.name || room?.type || ""});
       toast.success("Thank you for your cleanliness feedback!");
       setReviewTarget(null);
     } catch (err) {
@@ -537,8 +519,7 @@ export default function GuestHousekeepingCard({ booking, room, trainingMode, use
                         "rounded-full border px-3 py-1 text-xs transition-colors",
                         active
                           ? "border-primary bg-primary/10 font-medium text-primary"
-                          : "border-border text-foreground/70 hover:border-primary/40",
-                      )}
+                          : "border-border text-foreground/70 hover:border-primary/40")}
                     >
                       {opt}
                     </button>
@@ -639,8 +620,7 @@ export default function GuestHousekeepingCard({ booking, room, trainingMode, use
                       "h-8 w-8",
                       star <= rating
                         ? "fill-amber-400 text-amber-400"
-                        : "text-foreground/20",
-                    )}
+                        : "text-foreground/20")}
                   />
                 </button>
               ))}

@@ -14,21 +14,20 @@ import {
   onSnapshot,
   query,
   serverTimestamp,
-  updateDoc,
-} from "firebase/firestore";
+  updateDoc} from "firebase/firestore";
 import { db } from "@/firebase/firebase.config";
 import { getCol } from "@/lib/db-utils";
 
 const ROOMS_COL = "rooms";
 
-export async function listRooms({ trainingMode = null } = {}) {
-  const col = getCol(ROOMS_COL, trainingMode);
+export async function listRooms() {
+  const col = getCol(ROOMS_COL);
   const snap = await getDocs(collection(db, col));
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
 
-export async function getRoom(roomId, { trainingMode = null } = {}) {
-  const col = getCol(ROOMS_COL, trainingMode);
+export async function getRoom(roomId) {
+  const col = getCol(ROOMS_COL);
   const ref = doc(db, col, roomId);
   const snap = await getDoc(ref);
   if (!snap.exists()) return null;
@@ -59,11 +58,9 @@ export function isRoomBookable(room) {
  * @param {string} payload.description
  * @param {string} payload.floor
  * @param {string[]} payload.amenities
- * @param {boolean} payload.trainingMode
  */
 export async function createRoom(payload) {
-  const trainingMode = payload?.trainingMode ?? null;
-  const col = getCol(ROOMS_COL, trainingMode);
+  const col = getCol(ROOMS_COL);
   const colRef = collection(db, col);
   const data = {
     roomNumber: payload.roomNumber ?? "",
@@ -86,16 +83,14 @@ export async function createRoom(payload) {
     photos: Array.isArray(payload.photos) ? payload.photos : [],
     isActive: payload.isActive ?? true,
     createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  };
+    updatedAt: serverTimestamp()};
 
   const docRef = await addDoc(colRef, data);
   return { id: docRef.id };
 }
 
 export async function updateRoom(roomId, payload) {
-  const trainingMode = payload?.trainingMode ?? null;
-  const col = getCol(ROOMS_COL, trainingMode);
+  const col = getCol(ROOMS_COL);
   const ref = doc(db, col, roomId);
   const data = {
     roomNumber: payload.roomNumber ?? "",
@@ -120,35 +115,32 @@ export async function updateRoom(roomId, payload) {
     facilities: Array.isArray(payload.facilities) ? payload.facilities : [],
     ...(Array.isArray(payload.photos) ? { photos: payload.photos } : {}),
     isActive: payload.isActive ?? true,
-    updatedAt: serverTimestamp(),
-  };
+    updatedAt: serverTimestamp()};
 
   await updateDoc(ref, data);
   return { ok: true };
 }
 
-export async function deactivateRoom(roomId, { trainingMode = null } = {}) {
-  const col = getCol(ROOMS_COL, trainingMode);
+export async function deactivateRoom(roomId) {
+  const col = getCol(ROOMS_COL);
   const ref = doc(db, col, roomId);
   await updateDoc(ref, {
     isActive: false,
-    updatedAt: serverTimestamp(),
-  });
+    updatedAt: serverTimestamp()});
   return { ok: true };
 }
 
-export async function activateRoom(roomId, { trainingMode = null } = {}) {
-  const col = getCol(ROOMS_COL, trainingMode);
+export async function activateRoom(roomId) {
+  const col = getCol(ROOMS_COL);
   const ref = doc(db, col, roomId);
   await updateDoc(ref, {
     isActive: true,
-    updatedAt: serverTimestamp(),
-  });
+    updatedAt: serverTimestamp()});
   return { ok: true };
 }
 
-export function subscribeToRooms(callback, { trainingMode = null } = {}) {
-  const col = getCol(ROOMS_COL, trainingMode);
+export function subscribeToRooms(callback) {
+  const col = getCol(ROOMS_COL);
   const q = query(collection(db, col));
   return onSnapshot(
     q,

@@ -1,33 +1,8 @@
 /**
- * Shared utility for Firestore collection sandboxing.
- * Determines if we should use a 'training_' prefix based on 
- * session state (localStorage) or an explicit flag.
+ * Collection resolver. The training sandbox is gone: this is a plain
+ * passthrough kept so the ~30 call sites need no query-logic changes.
  */
 
-export function getCol(baseName, explicitMode = null) {
-  let mode = "prod"; // 'prod' or 'training'
-
-  // 1. Determine mode from localStorage session state first
-  try {
-    const isTraining = localStorage.getItem("bshm_training_override") === "true";
-    if (isTraining) mode = "training";
-  } catch {
-    // ignore
-  }
-
-  // 2. Prioritize explicit parameter if provided
-  if (explicitMode === "training" || explicitMode === true) mode = "training";
-  if (explicitMode === "prod" || explicitMode === false) mode = "prod";
-
-  if (mode === "prod") return baseName;
-
-  const sandboxed = [
-    "bookings", "guests", "payments", "refunds", "housekeeping_logs", "rooms", "users", "reviews",
-    "system_alerts", "audit_logs", "notifications", "messages", "booking_notification_jobs",
-  ];
-  
-  if (!sandboxed.includes(baseName)) return baseName;
-
-  if (baseName === "users") return `training_guests`;
-  return `training_${baseName}`;
+export function getCol(baseName) {
+  return baseName;
 }

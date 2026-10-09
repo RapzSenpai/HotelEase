@@ -9,8 +9,8 @@ import { getCol } from "@/lib/db-utils";
  * - `training_guests`: sandbox for training mode
  */
 
-function usersCollection(trainingMode) {
-  return getCol("users", trainingMode);
+function usersCollection() {
+  return getCol("users");
 }
 
 // Reserved docs that live in the users collection but are not people
@@ -21,24 +21,15 @@ export function isPersonDoc(docId) {
   return !NON_USER_DOC_IDS.includes(docId);
 }
 
-export async function getUserDoc(uid, { preferTraining = false } = {}) {
-  const trainingCol = getCol("users", true);
-  const primary = preferTraining ? trainingCol : "users";
-  const secondary = preferTraining ? "users" : trainingCol;
-
-  const pRef = doc(db, primary, uid);
-  const pSnap = await getDoc(pRef);
-  if (pSnap.exists()) return pSnap.data();
-
-  const sRef = doc(db, secondary, uid);
-  const sSnap = await getDoc(sRef);
-  if (sSnap.exists()) return sSnap.data();
-
+export async function getUserDoc(uid) {
+  const ref = doc(db, "users", uid);
+  const snap = await getDoc(ref);
+  if (snap.exists()) return snap.data();
   return null;
 }
 
-export async function getUserRoleByUid(uid, { preferTraining = false } = {}) {
-  const data = await getUserDoc(uid, { preferTraining });
+export async function getUserRoleByUid(uid) {
+  const data = await getUserDoc(uid);
   if (data && ["fo", "admin", "guest"].includes(data?.role)) return data.role;
   return "guest";
 }
@@ -49,10 +40,8 @@ export async function createUserProfile({
   email,
   role = "guest",
   fullName = "",
-  phone = "",
-  trainingMode = false,
-} = {}) {
-  const col = usersCollection(trainingMode);
+  phone = ""} = {}) {
+  const col = usersCollection();
   const ref = doc(db, col, uid);
   await setDoc(
     ref,
@@ -61,8 +50,8 @@ export async function createUserProfile({
   );
 }
 
-export async function listUsers({ trainingMode = false } = {}) {
-  const col = usersCollection(trainingMode);
+export async function listUsers() {
+  const col = usersCollection();
   const snap = await getDocs(collection(db, col));
   return snap.docs
     .map((d) => ({ id: d.id, ...d.data() }))
@@ -74,8 +63,8 @@ export async function listUsers({ trainingMode = false } = {}) {
  * user docs (for cancellation/notification fan-out) but must NOT be able to
  * read other guests — so use this instead of listUsers() in guest flows.
  */
-export async function listFoUsers({ trainingMode = false } = {}) {
-  const col = usersCollection(trainingMode);
+export async function listFoUsers() {
+  const col = usersCollection();
   const q = query(collection(db, col), where("role", "==", "fo"));
   const snap = await getDocs(q);
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
@@ -84,8 +73,8 @@ export async function listFoUsers({ trainingMode = false } = {}) {
 // P1 scalability: role-scoped guest list for announcement fan-out. Same
 // recipient set as listUsers().filter(role === "guest") without reading
 // fo/admin docs; reserved non-person docs stay excluded either way.
-export async function listGuests({ trainingMode = false } = {}) {
-  const col = usersCollection(trainingMode);
+export async function listGuests() {
+  const col = usersCollection();
   const q = query(collection(db, col), where("role", "==", "guest"));
   const snap = await getDocs(q);
   return snap.docs
@@ -95,8 +84,8 @@ export async function listGuests({ trainingMode = false } = {}) {
 
 // P2 scalability: staff-only list for reassignment pickers. One `in` query
 // instead of the whole users collection; single-field, no composite index.
-export async function listStaffUsers({ trainingMode = false } = {}) {
-  const col = usersCollection(trainingMode);
+export async function listStaffUsers() {
+  const col = usersCollection();
   const q = query(collection(db, col), where("role", "in", ["fo", "admin"]));
   const snap = await getDocs(q);
   return snap.docs
@@ -107,15 +96,14 @@ export async function listStaffUsers({ trainingMode = false } = {}) {
 /**
  * Subscribe to live changes in the users collection.
  * @param {Object} options
- * @param {boolean} options.trainingMode - Whether to watch training_guests instead
  * @param {(users: Array) => void} options.onData - Callback receiving the full list
  * @param {(error: Error) => void} [options.onError] - Optional error callback
  * @returns {() => void} Unsubscribe function
  */
 export const USERS_PAGE_SIZE = 50;
 
-export function subscribeToUsers({ trainingMode = false, onData, onError, limit: maxDocs = null, role = null }) {
-  const col = usersCollection(trainingMode);
+export function subscribeToUsers({ onData, onError, limit: maxDocs = null, role = null }) {
+  const col = usersCollection();
   const constraints = [];
   if (role) constraints.push(where("role", "==", role));
   if (maxDocs) constraints.push(limit(maxDocs));
@@ -126,8 +114,7 @@ export function subscribeToUsers({ trainingMode = false, onData, onError, limit:
       onData(
         snap.docs
           .map((d) => ({ id: d.id, ...d.data() }))
-          .filter((u) => isPersonDoc(u.id)),
-      );
+          .filter((u) => isPersonDoc(u.id)));
     },
     (error) => onError?.(error)
   );
@@ -136,8 +123,8 @@ export function subscribeToUsers({ trainingMode = false, onData, onError, limit:
 
 // Server-side counts so badges and the last-admin shield stay exact without
 // loading the collection. Role equality needs no composite index.
-export async function countUsers({ trainingMode = false, role = null } = {}) {
-  const col = usersCollection(trainingMode);
+export async function countUsers({ role = null } = {}) {
+  const col = usersCollection();
   const target = role
     ? query(collection(db, col), where("role", "==", role))
     : collection(db, col);
@@ -145,7 +132,7 @@ export async function countUsers({ trainingMode = false, role = null } = {}) {
   return snap.data().count;
 }
 
-export async function updateUserProfile(uid, patch, { trainingMode = false } = {}) {
+export async function updateUserProfile(uid, patch) {
   if (!uid || typeof uid !== "string") throw new Error("Invalid uid passed to updateUserProfile");
   if (!patch || typeof patch !== "object" || Array.isArray(patch)) {
     throw new Error("Invalid patch passed to updateUserProfile");
@@ -157,29 +144,29 @@ export async function updateUserProfile(uid, patch, { trainingMode = false } = {
     throw new Error(`Cannot update field(s): ${invalid.join(", ")}`);
   }
 
-  const col = usersCollection(trainingMode);
+  const col = usersCollection();
   const ref = doc(db, col, uid);
   await updateDoc(ref, { ...patch, updatedAt: serverTimestamp() });
   return { ok: true };
 }
 
-export async function setUserRole(uid, role, { trainingMode = false } = {}) {
+export async function setUserRole(uid, role) {
   if (!uid || typeof uid !== "string") throw new Error("Invalid uid passed to setUserRole");
 
   const nextRole = String(role || "").trim();
   const allowed = ["guest", "fo", "admin"];
   if (!allowed.includes(nextRole)) throw new Error(`Invalid role. Allowed: ${allowed.join(", ")}`);
 
-  const col = usersCollection(trainingMode);
+  const col = usersCollection();
   const ref = doc(db, col, uid);
   await updateDoc(ref, { role: nextRole, updatedAt: serverTimestamp() });
   return { ok: true };
 }
 
-export async function deleteUser(uid, { trainingMode = false } = {}) {
+export async function deleteUser(uid) {
   if (!uid || typeof uid !== "string") throw new Error("Invalid uid passed to deleteUser");
 
-  const col = usersCollection(trainingMode);
+  const col = usersCollection();
   const ref = doc(db, col, uid);
   await deleteDoc(ref);
   return { ok: true };
@@ -206,8 +193,7 @@ export async function deleteUserFully(uid) {
   }
 
   const headers = {
-    "Content-Type": "application/json",
-  };
+    "Content-Type": "application/json"};
 
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
@@ -217,8 +203,7 @@ export async function deleteUserFully(uid) {
   const response = await fetch(`${base}/delete-user`, {
     method: "POST",
     headers,
-    body: JSON.stringify({ uid }),
-  });
+    body: JSON.stringify({ uid })});
 
   const data = await response.json().catch(() => ({}));
 
@@ -235,10 +220,10 @@ export async function deleteUserFully(uid) {
   return data;
 }
 
-export async function updateLastLogin(uid, { trainingMode = false } = {}) {
+export async function updateLastLogin(uid) {
   if (!uid || typeof uid !== "string") throw new Error("Invalid uid passed to updateLastLogin");
 
-  const col = usersCollection(trainingMode);
+  const col = usersCollection();
   const ref = doc(db, col, uid);
   await updateDoc(ref, { 
     lastLoginAt: serverTimestamp(),
@@ -247,14 +232,13 @@ export async function updateLastLogin(uid, { trainingMode = false } = {}) {
   return { ok: true };
 }
 
-export async function setOnlineStatus(uid, isOnline, { trainingMode = false } = {}) {
+export async function setOnlineStatus(uid, isOnline) {
   if (!uid || typeof uid !== "string") throw new Error("Invalid uid passed to setOnlineStatus");
 
-  const col = usersCollection(trainingMode);
+  const col = usersCollection();
   const ref = doc(db, col, uid);
   await updateDoc(ref, { 
     isOnline,
-    lastSeenAt: serverTimestamp(),
-  });
+    lastSeenAt: serverTimestamp()});
   return { ok: true };
 }

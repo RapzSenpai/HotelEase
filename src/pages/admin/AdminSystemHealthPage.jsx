@@ -4,13 +4,11 @@ import {
   Card,
   CardHeader,
   CardTitle,
-  CardContent,
-} from "@/components/ui/card";
+  CardContent} from "@/components/ui/card";
 import { subscribeToSystemHealth, getRecentErrorLogs, initializeSystemHealth } from "@/services/healthService";
 import {
   summarizeSamples,
-  probeConnectivity,
-} from "@/services/performanceService";
+  probeConnectivity} from "@/services/performanceService";
 import { 
   Database, 
   Activity, 
@@ -22,13 +20,11 @@ import {
   Shield,
   Users
 } from "lucide-react";
-import { useAuth } from "@/contexts/AuthContext";
 import { subscribeToUsers } from "@/services/userService";
 
 export default function AdminSystemHealthPage() {
   // System health and error logs are production-only collections (no sandbox
   // variants) — explain instead of showing permission errors to trainees.
-  const { trainingMode } = useAuth();
   const [health, setHealth] = useState(null);
   const [errorLogs, setErrorLogs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -68,7 +64,6 @@ export default function AdminSystemHealthPage() {
 
     // Live user presence — single subscription powers both metrics
     const unsubUsers = subscribeToUsers({
-      trainingMode: false, // always production users for health page
       onData: (users) => {
         const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
         setOnlineNow(users.filter((u) => u.isOnline === true).length);
@@ -84,16 +79,14 @@ export default function AdminSystemHealthPage() {
       onError: () => {
         setOnlineNow(null);
         setActiveToday(null);
-      },
-    });
+      }});
 
     // Real performance metrics (setState deferred onto a microtask so the
     // effect body stays free of synchronous setState calls).
     const summary = summarizeSamples();
     const latencyOp = Object.values(summary.operations || {}).sort((a, b) => b.count - a.count)[0];
     Promise.resolve().then(() =>
-      setRealLatency(latencyOp ? latencyOp.avgMs : null),
-    );
+      setRealLatency(latencyOp ? latencyOp.avgMs : null));
     probeConnectivity().then((r) => setRealConnectivity(r));
 
     return () => {
@@ -140,26 +133,6 @@ export default function AdminSystemHealthPage() {
           {[1, 2, 3].map((i) => (
             <div key={i} className="h-32 rounded-2xl border border-border bg-background animate-pulse" />
           ))}
-        </div>
-      </div>
-    );
-  }
-
-  if (trainingMode) {
-    return (
-      <div className="space-y-4 max-w-7xl mx-auto">
-        <div className="space-y-1">
-          <h1 className="font-playfair text-4xl font-bold tracking-tight">System Health</h1>
-          <p className="text-muted-foreground text-lg">
-            Real-time monitoring of system performance and status.
-          </p>
-        </div>
-        <div className="flex items-start gap-2 rounded-xl border border-warning/30 bg-warning/5 p-4 text-sm text-foreground/80">
-          <AlertTriangle className="h-4 w-4 shrink-0 text-warning mt-0.5" />
-          <p>
-            System health diagnostics and error logs are production-only and are not
-            available in training mode. Exit training mode to view live system data.
-          </p>
         </div>
       </div>
     );
@@ -281,8 +254,7 @@ export default function AdminSystemHealthPage() {
                     day: 'numeric',
                     year: 'numeric',
                     hour: '2-digit',
-                    minute: '2-digit',
-                  })
+                    minute: '2-digit'})
                 : "Never"}
             </div>
           </div>

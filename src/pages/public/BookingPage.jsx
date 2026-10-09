@@ -23,8 +23,7 @@ import {
   HOTEL_GCASH_QR_IMAGE_URL,
   calculatePartialPayment,
   getPaymentDetails,
-  PROOF_REQUIRED_METHODS,
-} from "@/lib/paymentDetails";
+  PROOF_REQUIRED_METHODS} from "@/lib/paymentDetails";
 import { toast } from "sonner";
 
 const PAYMENT_METHODS = ["GCash", "Bank Transfer", "Credit/Debit Card", "Over-the-Counter"];
@@ -87,7 +86,7 @@ export default function BookingPage() {
   const navigate = useNavigate();
   const { roomId } = useParams();
   const [searchParams] = useSearchParams();
-  const { user, profile, trainingMode } = useAuth();
+  const { user, profile} = useAuth();
 
   const [room, setRoom] = useState(null);
   const [loadingRoom, setLoadingRoom] = useState(true);
@@ -201,8 +200,7 @@ export default function BookingPage() {
       maxPax: roomCapacity.maxPax,
       extraPaxFee: roomCapacity.extraPaxFee,
       nights,
-      paxCount,
-    });
+      paxCount});
   }, [room?.ratePerNight, roomCapacity, nights, paxCount]);
 
   const totalCost = pricing.totalCost;
@@ -263,9 +261,7 @@ export default function BookingPage() {
         leadGuestPhone: `${countryCode}${phoneNumber}`,
         arrivalTime,
         paymentMethod,
-        paymentType,
-        trainingMode,
-      };
+        paymentType};
       const res = await createBooking(payload);
       setBookingId(res.id);
       trackEvent(GA_EVENTS.BOOKING_CREATED, {
@@ -273,8 +269,7 @@ export default function BookingPage() {
         value: totalCost,
         items: [{ item_id: resolvedRoomId, price: totalCost }],
         payment_method: paymentMethod,
-        payment_type: paymentType,
-      });
+        payment_type: paymentType});
       setCreatedBookingData({
         id: res.id,
         totalCost,
@@ -282,22 +277,21 @@ export default function BookingPage() {
         leadGuestName,
         leadGuestEmail,
         leadGuestPhone: `${countryCode}${phoneNumber}`,
-        arrivalTime,
-      });
+        arrivalTime});
       setStep(3); // Phase 13: advance to inline confirmation+upload, no Dialog
     } catch (e) {
       setSubmitError(mapFirebaseError(e) || "Booking failed. Please try again.");
     } finally {
       setSubmitting(false);
     }
-  }, [user, room, resolvedRoomId, roomActive, bookable, checkIn, checkOut, paxCount, pricing, roomCapacity, specialRequests, trainingMode, totalCost, paymentMethod, paymentType, arrivalTime, countryCode, honeypot, termsAccepted, leadGuestEmail, leadGuestName, phoneNumber]);
+  }, [user, room, resolvedRoomId, roomActive, bookable, checkIn, checkOut, paxCount, pricing, roomCapacity, specialRequests, totalCost, paymentMethod, paymentType, arrivalTime, countryCode, honeypot, termsAccepted, leadGuestEmail, leadGuestName, phoneNumber]);
 
   // Phase 10/11: exact signature preserved — only "GCash" arg replaced by paymentMethod
   async function handleUploadProof() {
     if (!paymentFile) { toast.error("Please select a file to upload."); return; }
     setUploadingProof(true);
     try {
-      await uploadPaymentProof(bookingId, paymentFile, paymentType, paymentMethod, { trainingMode });
+      await uploadPaymentProof(bookingId, paymentFile, paymentType, paymentMethod);
       toast.success("Payment proof uploaded successfully!");
       navigate("/my-bookings");
     } catch (err) {
@@ -573,7 +567,7 @@ export default function BookingPage() {
                   <div className="font-semibold">Booking Calendar</div>
                   <div className="text-sm text-foreground/70">Existing bookings for this room. Date conflicts are blocked on submit.</div>
                 </div>
-                <RoomBookingsCalendar roomId={resolvedRoomId} trainingMode={trainingMode} />
+                <RoomBookingsCalendar roomId={resolvedRoomId} />
               </div>
             ) : null}
           </div>

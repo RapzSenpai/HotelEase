@@ -11,8 +11,7 @@ import {
   query,
   serverTimestamp,
   updateDoc,
-  where,
-} from "firebase/firestore";
+  where} from "firebase/firestore";
 import { db } from "@/firebase/firebase.config";
 import { getCol } from "@/lib/db-utils";
 import { listRooms } from "@/services/roomsService";
@@ -29,7 +28,6 @@ export const SEVERITIES = ["critical", "high", "medium", "low"];
  * @param {string} params.title
  * @param {string} [params.message]
  * @param {Object} [params.metadata]
- * @param {boolean} [params.trainingMode]
  * @returns {Promise<{ id: string }>}
  */
 export async function createAlert({
@@ -37,14 +35,12 @@ export async function createAlert({
   severity = "medium",
   title,
   message = "",
-  metadata = {},
-  trainingMode = false,
-} = {}) {
+  metadata = {}} = {}) {
   if (!title) throw new Error("Alert title is required.");
   if (!SEVERITIES.includes(severity)) {
     throw new Error(`Unsupported alert severity "${severity}". Expected one of: ${SEVERITIES.join(", ")}`);
   }
-  const col = getCol(ALERTS_COL, trainingMode);
+  const col = getCol(ALERTS_COL);
   const ref = await addDoc(collection(db, col), {
     type,
     severity,
@@ -53,8 +49,7 @@ export async function createAlert({
     metadata,
     status: "unresolved",
     createdAt: serverTimestamp(),
-    resolvedAt: null,
-  });
+    resolvedAt: null});
   return { id: ref.id };
 }
 
@@ -62,24 +57,20 @@ export async function createAlert({
  * Subscribe to system alerts, unresolved-first.
  * @param {Function} callback
  * @param {Object} options
- * @param {boolean} options.trainingMode
  * @returns {() => void} Unsubscribe function
  */
 // The list stays bounded; separate Firestore buckets enforce priority before
 // each bucket's limit is applied.
 export const ALERTS_PAGE_SIZE = 500;
 const ALERT_BUCKETS = ["unresolved", "resolved"].flatMap((status) =>
-  SEVERITIES.map((severity) => ({ status, severity })),
-);
+  SEVERITIES.map((severity) => ({ status, severity })));
 
-export function subscribeToAlerts(callback, { trainingMode = false, limitCount = ALERTS_PAGE_SIZE } = {}) {
-  const col = getCol(ALERTS_COL, trainingMode);
+export function subscribeToAlerts(callback, { limitCount = ALERTS_PAGE_SIZE } = {}) {
+  const col = getCol(ALERTS_COL);
   const bucketAlerts = new Map();
   const publish = () => callback(
     ALERT_BUCKETS.flatMap(({ status, severity }) =>
-      bucketAlerts.get(`${status}:${severity}`) || [],
-    ).slice(0, limitCount),
-  );
+      bucketAlerts.get(`${status}:${severity}`) || []).slice(0, limitCount));
   const unsubscribers = ALERT_BUCKETS.map(({ status, severity }) => {
     const key = `${status}:${severity}`;
     return onSnapshot(
@@ -88,8 +79,7 @@ export function subscribeToAlerts(callback, { trainingMode = false, limitCount =
         where("status", "==", status),
         where("severity", "==", severity),
         orderBy("createdAt", "desc"),
-        limit(limitCount),
-      ),
+        limit(limitCount)),
       (snap) => {
         bucketAlerts.set(key, snap.docs.map((d) => ({ id: d.id, ...d.data() })));
         publish();
@@ -98,8 +88,7 @@ export function subscribeToAlerts(callback, { trainingMode = false, limitCount =
         console.error("[alertService] subscribeToAlerts error:", error);
         bucketAlerts.set(key, []);
         publish();
-      },
-    );
+      });
   });
   return () => unsubscribers.forEach((unsubscribe) => unsubscribe());
 }
@@ -107,8 +96,8 @@ export function subscribeToAlerts(callback, { trainingMode = false, limitCount =
 /**
  * Exact unresolved-alert count, polled independently from the bounded list.
  */
-export function subscribeToUnresolvedCount(callback, { trainingMode = false } = {}) {
-  const col = getCol(ALERTS_COL, trainingMode);
+export function subscribeToUnresolvedCount(callback) {
+  const col = getCol(ALERTS_COL);
   let active = true;
   let requestSequence = 0;
   const refresh = () => {
@@ -133,11 +122,10 @@ export function subscribeToUnresolvedCount(callback, { trainingMode = false } = 
 
 /**
  * Fetch unresolved alerts once. Used by auto-scan dedup.
- * @param {boolean} [trainingMode]
  * @returns {Promise<Array>}
  */
-export async function listAlerts({ trainingMode = false, status = null, limitCount = ALERTS_PAGE_SIZE } = {}) {
-  const col = getCol(ALERTS_COL, trainingMode);
+export async function listAlerts({ status = null, limitCount = ALERTS_PAGE_SIZE } = {}) {
+  const col = getCol(ALERTS_COL);
   const base = collection(db, col);
   const constraints = status ? [where("status", "==", status)] : [];
   const q = query(base, ...constraints, limit(limitCount));
@@ -148,26 +136,23 @@ export async function listAlerts({ trainingMode = false, status = null, limitCou
 /**
  * Mark an alert resolved.
  * @param {string} alertId
- * @param {boolean} [trainingMode]
  */
-export async function resolveAlert(alertId, { trainingMode = false } = {}) {
+export async function resolveAlert(alertId) {
   if (!alertId) throw new Error("Invalid alertId");
-  const col = getCol(ALERTS_COL, trainingMode);
+  const col = getCol(ALERTS_COL);
   await updateDoc(doc(db, col, alertId), {
     status: "resolved",
-    resolvedAt: serverTimestamp(),
-  });
+    resolvedAt: serverTimestamp()});
   return { ok: true };
 }
 
 /**
  * Delete an alert permanently.
  * @param {string} alertId
- * @param {boolean} [trainingMode]
  */
-export async function deleteAlert(alertId, { trainingMode = false } = {}) {
+export async function deleteAlert(alertId) {
   if (!alertId) throw new Error("Invalid alertId");
-  const col = getCol(ALERTS_COL, trainingMode);
+  const col = getCol(ALERTS_COL);
   await deleteDoc(doc(db, col, alertId));
   return { ok: true };
 }
@@ -177,7 +162,6 @@ export async function deleteAlert(alertId, { trainingMode = false } = {}) {
  * Currently scans rooms for long-neglected dirty rooms and out-of-order
  * rooms. Designed to be called from the admin alerts page on load.
  * @param {Object} params
- * @param {boolean} params.trainingMode
  * @returns {Promise<{ created: number }>}
  */
 /**
@@ -186,28 +170,26 @@ export async function deleteAlert(alertId, { trainingMode = false } = {}) {
  * stays exact no matter how many unresolved alerts exist — unlike scanning
  * the capped listAlerts window.
  */
-async function hasUnresolvedDedupKey(key, trainingMode) {
-  const col = getCol(ALERTS_COL, trainingMode);
+async function hasUnresolvedDedupKey(key) {
+  const col = getCol(ALERTS_COL);
   const snap = await getDocs(
     query(
       collection(db, col),
       where("metadata.dedupKey", "==", key),
       where("status", "==", "unresolved"),
-      limit(1),
-    ),
-  );
+      limit(1)));
   return !snap.empty;
 }
 
-export async function scanAndCreateAlerts({ trainingMode = false } = {}) {
+export async function scanAndCreateAlerts() {
   const created = [];
 
   async function createOnce(key, payload) {
-    if (await hasUnresolvedDedupKey(key, trainingMode)) return;
-    created.push(createAlert({ ...payload, trainingMode }));
+    if (await hasUnresolvedDedupKey(key)) return;
+    created.push(createAlert({ ...payload}));
   }
 
-  const rooms = await listRooms({ trainingMode });
+  const rooms = await listRooms();
   const dirtyCount = rooms.filter(
     (r) => r.status === "Dirty / Needs Cleaning"
   ).length;
@@ -219,8 +201,7 @@ export async function scanAndCreateAlerts({ trainingMode = false } = {}) {
       severity: "medium",
       title: `${dirtyCount} rooms need cleaning`,
       message: "Multiple rooms are marked Dirty. Housekeeping may be backed up.",
-      metadata: { dedupKey: "dirty-rooms-5", roomCount: dirtyCount },
-    });
+      metadata: { dedupKey: "dirty-rooms-5", roomCount: dirtyCount }});
   }
 
   if (outOfOrder.length > 0) {
@@ -233,8 +214,7 @@ export async function scanAndCreateAlerts({ trainingMode = false } = {}) {
         message:
           room.emergencyNote ||
           "This room is flagged Out of Order and cannot be booked.",
-        metadata: { dedupKey: key, roomId: room.id },
-      });
+        metadata: { dedupKey: key, roomId: room.id }});
     }
   }
 
