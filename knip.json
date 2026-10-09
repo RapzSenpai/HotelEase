@@ -2,11 +2,21 @@
   "$schema": "https://unpkg.com/knip@5/schema.json",
   "entry": [
     "index.html",
+    "src/main.jsx",
     "src/test/**/*.test.js",
     "scripts/*.mjs",
     "worker/src/index.js"
   ],
   "project": ["src/**/*.{js,jsx}", "scripts/*.mjs", "worker/src/*.js", "worker/src/handlers/*.js"],
+  "ignore": [
+    "src/services/receiptPdfcnService.js",
+    "src/lib/pdf-svg.jsx",
+    "src/components/pdf/blocks/invoice-minimal/**",
+    "src/components/pdf/table/table.types.js",
+    "src/types/pdf-components.js",
+    "src/types/pdf-themes.js"
+  ],
+  "ignoreDependencies": ["@takumi-rs/helpers", "jspdf-autotable", "takumi-pdf"],
   "rules": {
     "files": "error",
     "dependencies": "error",
