@@ -39,4 +39,11 @@ describe("DemoPreviewStrip", () => {
     act(() => root.unmount());
     container.remove();
   });
+
+  it("shows on any route with ?demo=1 (global preview affordance)", () => {
+    const { container, root } = renderAt("/about?demo=1");
+    expect(container.textContent).toMatch(/Demo preview/);
+    act(() => root.unmount());
+    container.remove();
+  });
 });

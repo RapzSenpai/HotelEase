@@ -35,6 +35,18 @@ export default function DemoAdminPage() {
     toast.success(`Demo: ${room.name} marked ${status}.`);
   }
 
+  // Edit toggles availability only — deeper states (Dirty, Being Cleaned,
+  // Occupied) belong to the cleaning cycle, not the room form.
+  function toggleAvailability(room) {
+    if (room.status === "Available") {
+      setRoomStatus(room, "Reserved");
+    } else if (room.status === "Reserved") {
+      setRoomStatus(room, "Available");
+    } else {
+      demoToast();
+    }
+  }
+
   // Archive/restore are disabled in demo.
   function demoDisabled() {
     demoToast();
@@ -72,14 +84,14 @@ export default function DemoAdminPage() {
           {roomView === "Grid" ? (
             <RoomsGridView
               rooms={data.rooms}
-              onEdit={(room) => setRoomStatus(room, room.status === "Available" ? "Reserved" : "Available")}
+              onEdit={(room) => toggleAvailability(room)}
               onArchive={demoDisabled}
               onRestore={demoDisabled}
             />
           ) : (
             <RoomsTableView
               rooms={data.rooms}
-              onEdit={(room) => setRoomStatus(room, room.status === "Available" ? "Reserved" : "Available")}
+              onEdit={(room) => toggleAvailability(room)}
               onArchive={demoDisabled}
               onRestore={demoDisabled}
             />

@@ -95,6 +95,9 @@ describe("DemoRoomCard", () => {
     const el = renderCard({ onToggleFavorite });
     const btn = el.querySelector('button[aria-label="Add to favorites"]');
     expect(btn).not.toBeNull();
+    const classes = btn.className.split(/\s+/);
+    expect(classes).toContain("opacity-100");
+    expect(classes).not.toContain("opacity-0");
     act(() => {
       btn.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
@@ -193,6 +196,22 @@ describe("demo admin rooms", () => {
     });
     expect(el.textContent).toContain("Reserved");
   });
+
+  it("edit leaves non-Available rooms alone", async () => {
+    const el = await renderAdmin();
+    const heading = [...el.querySelectorAll("h4")].find((h) =>
+      (h.textContent || "").includes("Ocean View Single"),
+    );
+    expect(heading).not.toBeUndefined();
+    const card = heading.closest("div.rounded-xl");
+    const edit = [...card.querySelectorAll("button")].find((b) =>
+      (b.textContent || "").trim() === "Edit",
+    );
+    act(() => {
+      edit.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    expect(el.textContent).toContain("Dirty / Needs Cleaning");
+  });
 });
 
 describe("demo FO housekeeping", () => {
@@ -243,13 +262,13 @@ describe("demo FO housekeeping", () => {
   }
 
   it("full cleaning cycle runs on the real list view", async () => {
-    const el = await renderFoHousekeeping();
-    act(() => {
+    const el = await renderFoHousekeeping();    act(() => {
       probeCtx.guest.demoRequestHousekeeping({ bookingId: "demo-bk-checkedin", note: "Fresh towels" });
     });
     clickText(el, "Housekeeping");
     expect(el.textContent).toContain("Verification Photos");
     expect(el.textContent).toContain("Leyte Suite");
+    expect(el.querySelector('input[type="file"]')).toBeNull();
     clickInRow(el, "Leyte Suite", "Start Clean");
     clickInRow(el, "Leyte Suite", "Submit Review");
     const row = [...el.querySelectorAll("tr")].find((tr) =>

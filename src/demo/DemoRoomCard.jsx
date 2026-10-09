@@ -54,7 +54,7 @@ export default function DemoRoomCard({
         <button
           type="button"
           onClick={() => onToggleFavorite(room.id)}
-          className="absolute right-3 top-3 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-white/90 shadow-sm opacity-0 transition-all duration-200 hover:bg-white group-hover/card:opacity-100 focus:opacity-100"
+            className="absolute right-3 top-3 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-white/90 shadow-sm opacity-100 transition-all duration-200 hover:bg-white active:scale-[0.96]"
           aria-label={isFavorite ? "Remove from favorites" : "Add to favorites"}
         >
           <Heart
