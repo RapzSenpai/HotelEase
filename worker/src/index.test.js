@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   resolveBookingClaimIdentity: vi.fn(),
   getGoogleAccessToken: vi.fn(),
   claimBookingNotificationJob: vi.fn(),
+  deliverQueuedJob: vi.fn(),
   rateLimited: vi.fn(),
   getAiDailyCount: vi.fn(),
   incrementAiDailyCount: vi.fn(),
@@ -18,6 +19,7 @@ vi.mock("./google-auth.js", () => ({
 }));
 vi.mock("./booking-notifications.js", () => ({
   claimBookingNotificationJob: mocks.claimBookingNotificationJob,
+  deliverQueuedJob: mocks.deliverQueuedJob,
   processBookingNotificationOutbox: vi.fn(),
 }));
 vi.mock("./rate-limit.js", () => ({ rateLimited: mocks.rateLimited }));
@@ -62,6 +64,7 @@ beforeEach(() => {
     status: "queued",
     claimedMarkers: 2,
   });
+  mocks.deliverQueuedJob.mockResolvedValue({ delivered: true });
 });
 
 describe("POST /claim-booking-markers", () => {
@@ -139,6 +142,34 @@ describe("POST /claim-booking-markers", () => {
     }), workerEnv);
     expect(conflict.status).toBe(409);
     expect(await conflict.json()).toMatchObject({ error: expect.any(String) });
+  });
+
+  it("fans out queued jobs immediately but stays ok when delivery fails", async () => {
+    mocks.resolveBookingClaimIdentity.mockResolvedValue({
+      uid: "guest-1",
+      isAnonymous: false,
+    });
+    const response = await worker.fetch(request({
+      bookingId: "booking-1",
+      trainingMode: false,
+    }), workerEnv);
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ ok: true, claimed: 2 });
+    expect(mocks.deliverQueuedJob).toHaveBeenCalledWith({
+      accessToken: "service-token",
+      projectId: "hotel-project",
+      bookingId: "booking-1",
+      trainingMode: false,
+    });
+
+    mocks.deliverQueuedJob.mockRejectedValueOnce(new Error("inbox write failed"));
+    const retryResponse = await worker.fetch(request({
+      bookingId: "booking-1",
+      trainingMode: false,
+    }), workerEnv);
+    expect(retryResponse.status).toBe(200);
+    expect(await retryResponse.json()).toEqual({ ok: true, claimed: 2 });
   });
 
   it("validates request data and bypasses AI rate limits", async () => {

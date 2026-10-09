@@ -38,6 +38,7 @@ vi.mock("./firestore.js", () => ({
 
 import {
   claimBookingNotificationJob,
+  deliverQueuedJob,
   processBookingNotificationOutbox,
 } from "./booking-notifications.js";
 
@@ -628,6 +629,100 @@ describe("booking notification outbox", () => {
     )).toEqual([
       "booking_notification_jobs/missing-booking",
       "booking_notification_jobs/cancelled-booking",
+    ]);
+  });
+});
+
+describe("deliverQueuedJob", () => {
+  function queuedJobDoc(overrides = {}) {
+    return {
+      exists: true,
+      fields: claimFields({
+        status: "queued",
+        bookingId: "job-1",
+        guestId: "guest-1",
+        roomId: "room-1",
+        roomName: "Deluxe Suite",
+        checkIn: "10/1/2026",
+        checkOut: "10/3/2026",
+        paymentMethod: "GCash",
+        attempts: 0,
+        ...overrides,
+      }),
+    };
+  }
+
+  it("delivers a queued job immediately with the same deterministic IDs", async () => {
+    mocks.getFirestoreDoc.mockResolvedValueOnce(queuedJobDoc());
+    mocks.staff.users = [{ id: "fo-1" }];
+
+    await expect(deliverQueuedJob({
+      accessToken: "access-token",
+      projectId: "test-project",
+      bookingId: "job-1",
+      trainingMode: false,
+    })).resolves.toEqual({ delivered: true });
+
+    expect(mocks.getFirestoreDoc).toHaveBeenCalledWith(
+      "access-token",
+      "test-project",
+      "booking_notification_jobs",
+      "job-1",
+    );
+    expect(mocks.createFirestoreDoc.mock.calls.map(([, , path, id]) => [path, id])).toEqual([
+      ["notifications/fo-1/items", "booking_job-1_fo-1_booking_request"],
+      ["notifications/guest-1/items", "booking_job-1_guest-1_payment_proof_required"],
+    ]);
+    expect(mocks.patchFirestoreDoc).toHaveBeenCalledWith(
+      "access-token",
+      "test-project",
+      "booking_notification_jobs",
+      "job-1",
+      expect.objectContaining({ status: { stringValue: "delivered" } }),
+      expect.arrayContaining(["status"]),
+    );
+  });
+
+  it("skips missing or non-queued jobs without writing", async () => {
+    mocks.getFirestoreDoc.mockResolvedValueOnce({ exists: false, fields: {} });
+    await expect(deliverQueuedJob({
+      accessToken: "access-token",
+      projectId: "test-project",
+      bookingId: "job-gone",
+      trainingMode: false,
+    })).resolves.toEqual({ delivered: false });
+
+    mocks.getFirestoreDoc.mockResolvedValueOnce(queuedJobDoc({ status: "delivered" }));
+    await expect(deliverQueuedJob({
+      accessToken: "access-token",
+      projectId: "test-project",
+      bookingId: "job-1",
+      trainingMode: false,
+    })).resolves.toEqual({ delivered: false });
+
+    expect(mocks.createFirestoreDoc).not.toHaveBeenCalled();
+    expect(mocks.patchFirestoreDoc).not.toHaveBeenCalled();
+  });
+
+  it("uses training collections for training jobs", async () => {
+    mocks.getFirestoreDoc.mockResolvedValueOnce(queuedJobDoc({ paymentMethod: "Over-the-Counter" }));
+    mocks.staff.training_guests = [{ id: "fo-training" }];
+
+    await expect(deliverQueuedJob({
+      accessToken: "access-token",
+      projectId: "test-project",
+      bookingId: "job-1",
+      trainingMode: true,
+    })).resolves.toEqual({ delivered: true });
+
+    expect(mocks.getFirestoreDoc).toHaveBeenCalledWith(
+      "access-token",
+      "test-project",
+      "training_booking_notification_jobs",
+      "job-1",
+    );
+    expect(mocks.createFirestoreDoc.mock.calls.map(([, , path]) => path)).toEqual([
+      "training_notifications/fo-training/items",
     ]);
   });
 });

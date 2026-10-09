@@ -151,8 +151,12 @@ export default function FoPaymentsPage() {
         setPaidTotals({});
       }
 
-      // Auto-select the first booking only on initial load
+      // Auto-select the first booking only on initial load.
+      // Flag the payment list loading synchronously: the prefill effect
+      // below must not run against the stale (empty) records and lock the
+      // amount to the full total before the reload lands.
       if (!selectedBookingId && bookingData.length > 0) {
+        setPaymentsLoading(true);
         setSelectedBookingId(bookingData[0].id);
       }
     } catch (e) {
@@ -398,6 +402,11 @@ export default function FoPaymentsPage() {
                         if (b.id === selectedBookingId) return;
                         setSelectedBookingId(b.id);
                         setPayments([]);
+                        setPaymentsError(null);
+                        // Same race guard as auto-select: hold the prefill
+                        // until the fresh records land, or a partial payment
+                        // would preload as the full total.
+                        setPaymentsLoading(true);
                         setAmount("");
                         setError(null);
                       }}

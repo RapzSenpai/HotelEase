@@ -19,14 +19,15 @@ describe("notification toast policy", () => {
       "payment_proof_uploaded",
       "payment_received",
       "support_message",
+      "midstay_requested",
+      "housekeeping_in_progress",
     ];
     for (const type of core) expect(shouldToast(type)).toBe(true);
   });
 
-  it("stays quiet for housekeeping chatter, announcements and ratings", () => {
+  it("stays quiet for turnover chatter, announcements and ratings", () => {
     const quiet = [
       "room_dirty",
-      "housekeeping_in_progress",
       "housekeeping_done",
       "housekeeping_cancelled",
       "housekeeping_rated",

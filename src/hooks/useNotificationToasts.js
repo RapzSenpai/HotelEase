@@ -7,8 +7,10 @@ import { markAsRead, subscribeToNotifications } from "@/services/notificationSer
  * Types that deserve an immediate toast. Everything else still lands in the
  * bell — the noise policy is data, not code.
  *
- * Skipped on purpose: housekeeping chatter, announcements and stay_extended
- * (the FO is standing next to the guest when it happens).
+ * Skipped on purpose: turnover "room_dirty" chatter, announcements and
+ * stay_extended (the FO is standing next to the guest when it happens).
+ * Mid-stay requests ring on both sides via "midstay_requested" (FO) and
+ * "housekeeping_in_progress" (guest).
  */
 export const TOASTABLE_TYPES = new Set([
   "booking_request",
@@ -26,6 +28,8 @@ export const TOASTABLE_TYPES = new Set([
   "payment_proof_uploaded",
   "payment_received",
   "support_message",
+  "midstay_requested",
+  "housekeeping_in_progress",
 ]);
 
 export function shouldToast(type) {

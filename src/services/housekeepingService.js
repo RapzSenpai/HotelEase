@@ -266,7 +266,9 @@ export async function requestMidStayHousekeeping({
       await Promise.all(
         foUsers.map((fo) =>
           createNotification(fo.id, {
-            type: "room_dirty",
+            // Distinct from turnover "room_dirty" so the FO toast policy
+            // can ring for mid-stay requests without waking turnovers.
+            type: "midstay_requested",
             title: "Mid-Stay Cleaning Requested 🧹",
             message: `Guest (${guestName}) requested cleaning for ${result.roomName}${
               note ? `: "${note}"` : "."

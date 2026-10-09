@@ -515,6 +515,26 @@ async function recordJobFailure(summary, accessToken, projectId, collectionId, j
   );
 }
 
+/**
+ * Best-effort immediate fan-out for one queued job. Called from the
+ * /claim-booking-markers request path so FO inboxes update without waiting
+ * for the next cron tick. Throws on failure — the caller leaves the job
+ * queued and the scheduled sweep retries it. Notification document IDs are
+ * deterministic, so a concurrent cron delivery cannot duplicate toasts.
+ */
+export async function deliverQueuedJob({ accessToken, projectId, bookingId, trainingMode = false }) {
+  const prefix = trainingMode ? "training_" : "";
+  const collectionId = `${prefix}booking_notification_jobs`;
+  const userCollection = trainingMode ? "training_guests" : "users";
+  const job = await getFirestoreDoc(accessToken, projectId, collectionId, bookingId);
+  if (!job.exists || fsValue(job.fields, "status") !== "queued") {
+    return { delivered: false };
+  }
+  // getFirestoreDoc carries no id — the job doc id is the booking id.
+  await deliverJob(accessToken, projectId, collectionId, decodeJob({ ...job, id: bookingId }), userCollection, new Date());
+  return { delivered: true };
+}
+
 export async function processBookingNotificationOutbox(workerEnv) {
   const serviceAccount = workerEnv.FIREBASE_SERVICE_ACCOUNT;
   if (!serviceAccount) return { ok: false, reason: "FIREBASE_SERVICE_ACCOUNT not configured" };

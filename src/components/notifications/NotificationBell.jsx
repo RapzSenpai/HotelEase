@@ -43,6 +43,8 @@ function getNotifIcon(type) {
     case "payment_received":
       return <Wallet className="h-4 w-4 text-success" />;
     case "room_dirty":
+    case "midstay_requested":
+    case "housekeeping_in_progress":
       return <Sparkles className="h-4 w-4 text-info" />;
     case "announcement":
       return <BellRing className="h-4 w-4 text-warning" />;

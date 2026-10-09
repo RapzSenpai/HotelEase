@@ -47,6 +47,7 @@ import { handleBriefingRequest } from "./handlers/briefing.js";
 import { handleAdminChatRequest } from "./handlers/admin-chat.js";
 import {
   claimBookingNotificationJob,
+  deliverQueuedJob,
   processBookingNotificationOutbox,
 } from "./booking-notifications.js";
 
@@ -143,6 +144,20 @@ export default {
           requesterUid: identity.uid,
         });
         if (result.status === "queued") {
+          // Immediate fan-out so FO inboxes update without waiting for the
+          // next cron tick. Best-effort: failures stay queued and the
+          // scheduled sweep retries them. Document IDs are deterministic,
+          // so a concurrent sweep cannot duplicate notifications.
+          try {
+            await deliverQueuedJob({
+              accessToken,
+              projectId,
+              bookingId: body.bookingId,
+              trainingMode: body.trainingMode,
+            });
+          } catch (error) {
+            console.error("[booking-marker-claim] immediate delivery failed:", String(error?.message || error));
+          }
           return send(json({ ok: true, claimed: result.claimedMarkers }));
         }
         if (result.status === "conflict") {
