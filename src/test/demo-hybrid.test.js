@@ -8,6 +8,9 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 const { default: DemoRoomCard } = await import("@/demo/DemoRoomCard");
 const { default: DemoBookingCard } = await import("@/demo/DemoBookingCard");
 const { buildDemoData } = await import("@/demo/fixtures");
+const { default: DemoAdminPage } = await import("@/demo/admin/DemoAdminPage");
+const { DemoProvider, useDemo } = await import("@/demo/DemoContext");
+const { useEffect } = await import("react");
 
 let root = null;
 let container = null;
@@ -116,5 +119,46 @@ describe("DemoBookingCard", () => {
       cancel.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
     expect(onCancel).toHaveBeenCalledWith(booking.id);
+  });
+});
+
+describe("demo admin rooms", () => {
+  async function renderAdmin() {
+    function WithRole() {
+      const { role, setRole } = useDemo();
+      useEffect(() => {
+        if (!role) setRole("admin");
+      }, [role, setRole]);
+      return createElement(DemoAdminPage);
+    }
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+    await act(async () => {
+      root.render(
+        createElement(MemoryRouter, null,
+          createElement(DemoProvider, null, createElement(WithRole))),
+      );
+    });
+    return container;
+  }
+
+  it("rooms tab renders all six fixture rooms in a real view", async () => {
+    const el = await renderAdmin();
+    for (const name of ["Sunrise Single", "Cebu Suite", "Presidential Suite"]) {
+      expect(el.textContent).toContain(name);
+    }
+  });
+
+  it("edit toggles availability in memory", async () => {
+    const el = await renderAdmin();
+    const edit = [...el.querySelectorAll("button")].find((b) =>
+      (b.textContent || "").trim() === "Edit",
+    );
+    expect(edit).not.toBeUndefined();
+    act(() => {
+      edit.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    expect(el.textContent).toContain("Reserved");
   });
 });

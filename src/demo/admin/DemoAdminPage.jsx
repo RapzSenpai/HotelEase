@@ -1,18 +1,20 @@
 import { useState } from "react";
 import { Navigate } from "react-router-dom";
 import { toast } from "sonner";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { roomLabel } from "@/lib/room-label";
+import RoomsGridView from "@/components/rooms/RoomsGridView";
+import RoomsTableView from "@/components/rooms/RoomsTableView";
 import { useDemo } from "../DemoContext";
 
 const TABS = ["Rooms", "Users", "Analytics"];
+const ROOM_VIEWS = ["Grid", "Table"];
 
 export default function DemoAdminPage() {
   const { role, data, admin } = useDemo();
   const [tab, setTab] = useState("Rooms");
+  const [roomView, setRoomView] = useState("Grid");
   const [rates, setRates] = useState({});
 
   if (!role) return <Navigate to="/demo" replace />;
@@ -30,6 +32,11 @@ export default function DemoAdminPage() {
   function setRoomStatus(room, status) {
     admin.demoUpdateRoom({ roomId: room.id, patch: { status } });
     toast.success(`Demo: ${room.name} marked ${status}.`);
+  }
+
+  // TEMP (Task 9 unifies): archive/restore are disabled in demo.
+  function demoDisabled() {
+    toast.message("Demo — nothing was saved.");
   }
 
   function setUserRole(user, nextRole) {
@@ -53,30 +60,48 @@ export default function DemoAdminPage() {
       </div>
 
       {tab === "Rooms" && (
-        <div className="space-y-2">
-          {data.rooms.map((room) => (
-            <Card key={room.id} className="space-y-2 p-4">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="font-semibold text-sm">{roomLabel(room)}</div>
-                <Badge variant="outline">{room.status}</Badge>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center gap-1.5">
+            {ROOM_VIEWS.map((v) => (
+              <Button key={v} variant={roomView === v ? "default" : "outline"} size="sm" className="h-8 text-xs" onClick={() => setRoomView(v)}>
+                {v}
+              </Button>
+            ))}
+          </div>
+          {roomView === "Grid" ? (
+            <RoomsGridView
+              rooms={data.rooms}
+              onEdit={(room) => setRoomStatus(room, room.status === "Available" ? "Reserved" : "Available")}
+              onArchive={demoDisabled}
+              onRestore={demoDisabled}
+            />
+          ) : (
+            <RoomsTableView
+              rooms={data.rooms}
+              onEdit={(room) => setRoomStatus(room, room.status === "Available" ? "Reserved" : "Available")}
+              onArchive={demoDisabled}
+              onRestore={demoDisabled}
+            />
+          )}
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs text-foreground/60">Edit toggles availability in memory. Archive and restore are disabled in the demo.</span>
+          </div>
+          <div className="space-y-2">
+            {data.rooms.map((room) => (
+              <Card key={room.id} className="flex flex-wrap items-center gap-2 p-4">
+                <div className="text-sm font-medium">{room.name}</div>
                 <Input
                   type="number"
                   min={1}
-                  className="h-8 max-w-36 text-xs"
+                  className="h-8 max-w-36 text-xs tabular-nums"
                   defaultValue={room.ratePerNight}
                   onChange={(e) => setRates((prev) => ({ ...prev, [room.id]: e.target.value }))}
                   aria-label={`${room.name} nightly rate`}
                 />
-                <Button size="sm" className="h-8 text-xs" onClick={() => saveRate(room)}>Set rate (demo)</Button>
-                <Button size="sm" variant="outline" className="h-8 text-xs"
-                  onClick={() => setRoomStatus(room, room.status === "Available" ? "Reserved" : "Available")}>
-                  Toggle availability (demo)
-                </Button>
-              </div>
-            </Card>
-          ))}
+                <Button size="sm" className="h-8 text-xs active:scale-[0.96]" onClick={() => saveRate(room)}>Set rate (demo)</Button>
+              </Card>
+            ))}
+          </div>
         </div>
       )}
 
