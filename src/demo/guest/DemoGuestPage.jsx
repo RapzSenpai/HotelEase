@@ -6,9 +6,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { roomLabel } from "@/lib/room-label";
 import { useDemo } from "../DemoContext";
 import DemoRoomCard from "../DemoRoomCard";
+import DemoBookingCard from "../DemoBookingCard";
 
 const TABS = ["Rooms", "My Bookings", "Reviews", "Housekeeping"];
 
@@ -29,8 +29,6 @@ export default function DemoGuestPage() {
 
   const checkedIn = data.bookings.find((b) => b.status === "Checked In");
   const completed = data.bookings.find((b) => b.status === "Checked Out" && b.demoRating == null);
-  const paidFor = (bookingId) =>
-    data.payments.filter((p) => p.bookingId === bookingId).reduce((s, p) => s + Number(p.amount ?? 0), 0);
 
   function book(room) {
     guest.demoCreateBooking({ roomId: room.id, method: "Over-the-Counter" });
@@ -102,21 +100,18 @@ export default function DemoGuestPage() {
 
       {tab === "My Bookings" && (
         <div className="space-y-2">
-          {data.bookings.map((b) => {
-            const room = data.rooms.find((r) => r.id === b.roomId);
-            const paid = paidFor(b.id);
-            return (
-              <Card key={b.id} className="p-4">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="font-semibold text-sm">{room ? roomLabel(room) : b.roomId}</div>
-                  <Badge variant={paid >= b.totalCost ? "success" : "warning"}>{b.status}</Badge>
-                </div>
-                <div className="mt-1 text-xs text-foreground/60 tabular-nums">
-                  Total PHP {Number(b.totalCost).toLocaleString()} · Paid PHP {paid.toLocaleString()} · {b.nights} night{b.nights !== 1 ? "s" : ""}
-                </div>
-              </Card>
-            );
-          })}
+          {data.bookings.map((b) => (
+            <DemoBookingCard
+              key={b.id}
+              booking={b}
+              room={data.rooms.find((r) => r.id === b.roomId)}
+              payments={data.payments.filter((p) => p.bookingId === b.id)}
+              onCancel={(bookingId) => {
+                guest.demoCancelBooking({ bookingId });
+                toast.success("Demo booking cancelled. Nothing was saved.");
+              }}
+            />
+          ))}
         </div>
       )}
 

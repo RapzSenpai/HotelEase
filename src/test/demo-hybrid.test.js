@@ -6,6 +6,8 @@ import { MemoryRouter } from "react-router-dom";
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 const { default: DemoRoomCard } = await import("@/demo/DemoRoomCard");
+const { default: DemoBookingCard } = await import("@/demo/DemoBookingCard");
+const { buildDemoData } = await import("@/demo/fixtures");
 
 let root = null;
 let container = null;
@@ -68,5 +70,51 @@ describe("DemoRoomCard", () => {
     const el = renderCard();
     const link = el.querySelector('a[href="/rooms/demo-103?demo=1"]');
     expect(link).not.toBeNull();
+  });
+});
+
+describe("DemoBookingCard", () => {
+  const data = buildDemoData(new Date());
+  const booking = data.bookings.find((b) => b.status === "Pending");
+  const room = data.rooms.find((r) => r.id === booking.roomId);
+  const payments = data.payments.filter((p) => p.bookingId === booking.id);
+
+  function renderBooking(props = {}) {
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+    act(() => {
+      root.render(
+        createElement(MemoryRouter, null,
+          createElement(DemoBookingCard, { booking, room, payments, onCancel: () => {}, ...props })),
+      );
+    });
+    return container;
+  }
+
+  it("shows room, tabular money, and expands to details", () => {
+    const el = renderBooking();
+    expect(el.textContent).toContain(room.name);
+    expect(el.querySelector(".tabular-nums")).not.toBeNull();
+    act(() => {
+      el.querySelector("button").dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    expect(el.textContent).toContain("PHP");
+  });
+
+  it("cancel calls back with the booking id", async () => {
+    const onCancel = vi.fn();
+    const el = renderBooking({ onCancel });
+    act(() => {
+      el.querySelector("button").dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    const cancel = [...el.querySelectorAll("button")].find((b) =>
+      (b.textContent || "").includes("Cancel Booking"),
+    );
+    expect(cancel).not.toBeUndefined();
+    act(() => {
+      cancel.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    expect(onCancel).toHaveBeenCalledWith(booking.id);
   });
 });
