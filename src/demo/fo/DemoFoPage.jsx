@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import HousekeepingList from "@/components/housekeeping/HousekeepingList";
 import RoomScheduleTape from "@/components/dashboard/RoomScheduleTape";
+import demoToast from "../demoToast";
 import { roomLabel } from "@/lib/room-label";
 import { useDemo } from "../DemoContext";
 
@@ -90,9 +91,9 @@ export default function DemoFoPage() {
     advance(requestId, room.name);
   }
 
-  // TEMP (Task 9 unifies): assignments and photo drafts are disabled in demo.
+  // Assignments and photo drafts are disabled in demo.
   function demoDisabled() {
-    toast.message("Demo — nothing was saved.");
+    demoToast();
   }
 
   function assignmentFor(room) {

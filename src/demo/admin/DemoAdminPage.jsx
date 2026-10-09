@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import RoomsGridView from "@/components/rooms/RoomsGridView";
 import RoomsTableView from "@/components/rooms/RoomsTableView";
+import demoToast from "../demoToast";
 import { useDemo } from "../DemoContext";
 
 const TABS = ["Rooms", "Users", "Analytics"];
@@ -34,9 +35,9 @@ export default function DemoAdminPage() {
     toast.success(`Demo: ${room.name} marked ${status}.`);
   }
 
-  // TEMP (Task 9 unifies): archive/restore are disabled in demo.
+  // Archive/restore are disabled in demo.
   function demoDisabled() {
-    toast.message("Demo — nothing was saved.");
+    demoToast();
   }
 
   function setUserRole(user, nextRole) {

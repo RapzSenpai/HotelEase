@@ -9,6 +9,15 @@ vi.mock("@/services/bookingsService", () => ({
   subscribeToBookingsPage: vi.fn(() => () => {}),
 }));
 
+vi.mock("sonner", () => ({
+  toast: {
+    success: vi.fn(),
+    error: vi.fn(),
+    message: vi.fn(),
+    info: vi.fn(),
+  },
+}));
+
 const { default: DemoRoomCard } = await import("@/demo/DemoRoomCard");
 const { default: DemoBookingCard } = await import("@/demo/DemoBookingCard");
 const { buildDemoData } = await import("@/demo/fixtures");
@@ -18,6 +27,19 @@ const { default: DemoGuestPage } = await import("@/demo/guest/DemoGuestPage");
 const { default: RoomScheduleTape } = await import("@/components/dashboard/RoomScheduleTape");
 const { subscribeToBookingsPage } = await import("@/services/bookingsService");
 const { buildRequests, ACTIVE_STATUS_TEXT } = await import("@/lib/housekeeping-requests");
+const { default: demoToast, DEMO_DISABLED_MESSAGE } = await import("@/demo/demoToast");
+const { toast } = await import("sonner");
+
+describe("demoToast", () => {
+  it("toasts exactly once per call with the default copy", () => {
+    toast.info.mockClear();
+    demoToast();
+    demoToast();
+    expect(toast.info).toHaveBeenCalledTimes(2);
+    expect(toast.info).toHaveBeenCalledWith(DEMO_DISABLED_MESSAGE);
+    expect(DEMO_DISABLED_MESSAGE).toBe("Demo — nothing was saved.");
+  });
+});
 const { DemoProvider, useDemo } = await import("@/demo/DemoContext");
 const { useEffect } = await import("react");
 
