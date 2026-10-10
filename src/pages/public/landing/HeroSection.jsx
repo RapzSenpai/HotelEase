@@ -64,11 +64,7 @@ export default function HeroSection({ user, isStaff, staffDashboardPath, onTryDe
                     <ArrowRight className="h-4 w-4" />
                   </NavLink>
                 </Button>
-                {!user ? (
-                  <Button asChild size="lg" variant="outline" className="bg-white/50 backdrop-blur-sm border-white/40 active:scale-[0.98]">
-                    <NavLink to="/login">Sign In</NavLink>
-                  </Button>
-                ) : isStaff ? (
+                {user && isStaff ? (
                   <Button asChild size="lg" variant="outline" className="bg-white/50 backdrop-blur-sm border-white/40 active:scale-[0.98]">
                     <NavLink to={staffDashboardPath}>
                       Go to Dashboard
@@ -76,9 +72,11 @@ export default function HeroSection({ user, isStaff, staffDashboardPath, onTryDe
                     </NavLink>
                   </Button>
                 ) : null}
-                <Button size="lg" variant="outline" className="bg-white/50 backdrop-blur-sm border-white/40 active:scale-[0.98]" onClick={onTryDemo}>
-                  Try Demo
-                </Button>
+                {!user ? (
+                  <Button size="lg" variant="outline" className="bg-white/50 backdrop-blur-sm border-white/40 active:scale-[0.98]" onClick={onTryDemo}>
+                    Try Demo
+                  </Button>
+                ) : null}
               </div>
             </div>
           </div>

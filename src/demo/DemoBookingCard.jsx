@@ -32,7 +32,7 @@ export default function DemoBookingCard({ booking, room, payments = [], onCancel
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
-        className="w-full text-left p-3.5 flex items-start justify-between gap-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 rounded-t-xl"
+        className="flex w-full flex-col gap-2 rounded-t-xl p-3.5 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 sm:flex-row sm:items-start sm:justify-between sm:gap-3"
         aria-expanded={expanded}
       >
         <div className="space-y-0.5 min-w-0">
@@ -52,13 +52,13 @@ export default function DemoBookingCard({ booking, room, payments = [], onCancel
             ) : null}
           </div>
         </div>
-        <div className="flex flex-col items-end gap-1 shrink-0">
+        <div className="flex shrink-0 items-center justify-between gap-2 sm:flex-col sm:items-end sm:gap-1">
           <Badge variant={STATUS_VARIANT[status] ?? "default"}>{status}</Badge>
-          <div className="text-sm font-semibold tabular-nums">
-            PHP {total.toLocaleString()}
-          </div>
-          <div className="text-foreground/40">
-            {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          <div className="flex items-center gap-1.5">
+            <span className="text-sm font-semibold tabular-nums">PHP {total.toLocaleString()}</span>
+            <span className="text-foreground/40">
+              {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </span>
           </div>
         </div>
       </button>
@@ -87,7 +87,7 @@ export default function DemoBookingCard({ booking, room, payments = [], onCancel
           {(status === "Checked Out" || status === "Cancelled") && booking.roomId ? (
             <div className="flex sm:justify-end">
               <Button asChild variant="default" size="sm" className="w-full sm:w-auto">
-                <NavLink to={`/rooms/${booking.roomId}?demo=1`}>Book This Room Again</NavLink>
+                <NavLink to={`/demo/guest/rooms/${booking.roomId}`}>Book This Room Again</NavLink>
               </Button>
             </div>
           ) : null}

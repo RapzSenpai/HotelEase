@@ -3,11 +3,13 @@ import { Camera, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { uploadImageToCloudinary } from "@/services/cloudinaryService";
 
+export const HOUSEKEEPING_MAX_PHOTOS = 5;
+
 export default function HousekeepingPhotoUpload({
   photos = [],
   onChange,
   label = "Verification photos",
-  maxPhotos = 4,
+  maxPhotos = HOUSEKEEPING_MAX_PHOTOS,
   compact = false,
 }) {
   const [uploading, setUploading] = useState(false);
@@ -20,10 +22,17 @@ export default function HousekeepingPhotoUpload({
     event.target.value = "";
 
     const remaining = maxPhotos - photos.length;
+    if (remaining <= 0) {
+      setUploadError(`Photo limit reached (max ${maxPhotos}). Remove one to add another.`);
+      return;
+    }
     const toUpload = files.slice(0, remaining);
-    if (toUpload.length === 0) return;
 
-    setUploadError(null);
+    setUploadError(
+      files.length > remaining
+        ? `Only ${remaining} more allowed (max ${maxPhotos}).`
+        : null,
+    );
     setUploading(true);
     const nextPhotos = [...photos];
 

@@ -42,6 +42,8 @@ export default function AppShell() {
   }
 
   const hasSidebar = role === "fo" || role === "admin";
+  // Demo staff pages render their own sidebar, but keep the staff page width.
+  const isDemo = location.pathname.startsWith("/demo");
   const isLanding = location.pathname === "/";
   const fullWidthPublicPages = ["/about", "/contact", "/privacy"];
   const isFullWidthPublicPage = fullWidthPublicPages.includes(location.pathname);
@@ -82,7 +84,7 @@ export default function AppShell() {
         <div
           className={cn(
             "mx-auto flex flex-1 w-full",
-            hasSidebar ? "max-w-7xl" : isFullWidthPublicPage ? "max-w-7xl" : "max-w-5xl",
+            hasSidebar || isDemo ? "max-w-7xl" : isFullWidthPublicPage ? "max-w-7xl" : "max-w-5xl",
           )}
         >
           {hasSidebar && (

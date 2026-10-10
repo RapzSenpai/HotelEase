@@ -28,7 +28,9 @@ import {
 import { getStatusCardClasses } from "@/components/rooms/roomStatusHelpers";
 import StaffAssignmentBadge from "@/components/rooms/StaffAssignmentBadge";
 import CleaningTimer from "@/components/rooms/CleaningTimer";
+import CleanerAssignInput from "@/components/housekeeping/CleanerAssignInput";
 import HousekeepingPhotoUpload from "@/components/housekeeping/HousekeepingPhotoUpload";
+import { CLEANER_ROSTER } from "@/lib/cleaner-roster";
 
 function KanbanColumn({ status, label, count, children }) {
   const { setNodeRef, isOver } = useDroppable({
@@ -66,7 +68,6 @@ function KanbanCardContent({
   onSelectRoom,
   onOpenLogs,
   onApproveRoom,
-  staffUsers,
   onReassign,
   isOverlay = false,
 }) {
@@ -140,7 +141,7 @@ function KanbanCardContent({
           <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-foreground/45">
             {room.floor && <span>Floor {room.floor}</span>}
             {room.floor && (assignment?.name || room.assignedToName) && <span>·</span>}
-            {staffUsers && staffUsers.length > 0 && !isOverlay && (
+            {!isOverlay && (
               <Popover.Root>
                 <Popover.Trigger asChild>
                   <button
@@ -156,27 +157,35 @@ function KanbanCardContent({
                 </Popover.Trigger>
                 <Popover.Portal>
                   <Popover.Content
-                    className="z-50 w-40 rounded-md border border-border bg-background p-1 shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2"
+                    className="z-50 w-48 rounded-md border border-border bg-background p-2 shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2"
                     side="bottom"
                     align="start"
                   >
-                    <div className="space-y-1">
-                      {staffUsers.map((staff) => (
-                        <button
-                          key={staff.id}
-                          type="button"
-                          onClick={() => onReassign?.(room.id, staff.id)}
-                          className="w-full rounded-sm px-2 py-1.5 text-xs text-left hover:bg-surface-hover data-[highlighted]:bg-surface-hover"
-                        >
-                          {staff.fullName || staff.email || staff.id}
-                        </button>
-                      ))}
+                    <div className="space-y-1.5">
+                      <CleanerAssignInput
+                        value={assignment?.name || room.assignedToName || ""}
+                        onCommit={(name) => onReassign?.(room.id, name)}
+                      />
+                      {CLEANER_ROSTER.length > 0 ? (
+                        <div className="space-y-0.5">
+                          {CLEANER_ROSTER.map((name) => (
+                            <button
+                              key={name}
+                              type="button"
+                              onClick={() => onReassign?.(room.id, name)}
+                              className="w-full rounded-sm px-2 py-1.5 text-xs text-left hover:bg-surface-hover data-[highlighted]:bg-surface-hover"
+                            >
+                              {name}
+                            </button>
+                          ))}
+                        </div>
+                      ) : null}
                     </div>
                   </Popover.Content>
                 </Popover.Portal>
               </Popover.Root>
             )}
-            {(!staffUsers || staffUsers.length === 0 || isOverlay) && (assignment?.name || room.assignedToName) && (
+            {isOverlay && (assignment?.name || room.assignedToName) && (
               <span className="truncate max-w-[110px]" title={assignment?.name || room.assignedToName}>
                 Assigned: {assignment?.name || room.assignedToName}
               </span>
@@ -195,7 +204,7 @@ function KanbanCardContent({
           photos={verificationPhotos}
           onChange={onVerificationPhotosChange}
           label="Before / after photos"
-          maxPhotos={4}
+          maxPhotos={5}
         />
       )}
 

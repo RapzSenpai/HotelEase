@@ -37,8 +37,9 @@ export function DemoIndex() {
   );
 }
 export default function DemoRoleDialog({ open, onOpenChange, onPick }) {
+  // The caller owns navigation: closing here as well raced the route change and
+  // left the picker mounted on the page the visitor was supposed to leave.
   function pick(role) {
-    onOpenChange(false);
     onPick(role);
   }
 
@@ -46,10 +47,10 @@ export default function DemoRoleDialog({ open, onOpenChange, onPick }) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Try the Demo</DialogTitle>
+          <DialogTitle>Try the demo</DialogTitle>
           <DialogDescription>
-            A simulated tour with sample data — nothing is saved and no real
-            booking is created. Which role do you want to experience?
+            Look around with sample data. Nothing gets saved or booked for real. Pick a
+            role to start.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-2 py-2">

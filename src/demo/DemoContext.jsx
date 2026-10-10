@@ -25,7 +25,7 @@ function reducer(state, action) {
     case "GUEST_BOOK": {
       const room = data.rooms.find((r) => r.id === action.roomId);
       if (!room) return state;
-      const nights = 2;
+      const nights = Math.min(Math.max(Math.round(Number(action.nights) || 2), 1), 14);
       const totalCost = room.ratePerNight * nights;
       const checkIn = new Date();
       const newBooking = {
@@ -260,6 +260,9 @@ export function DemoProvider({ children }) {
       demoMarkRead: (id) => dispatch({ type: "MARK_READ", id }),
       guest: {
         demoCreateBooking: (args) => dispatch({ type: "GUEST_BOOK", ...args }),
+        // Same in-memory payment path Front Office uses, so the guest can finish
+        // the simulated booking; the guard (amount ≤ balance) is shared.
+        demoPayBooking: (args) => dispatch({ type: "FO_PAY", ...args }),
         demoSubmitReview: (args) => dispatch({ type: "GUEST_REVIEW", ...args }),
         demoRequestHousekeeping: (args) => dispatch({ type: "GUEST_REQUEST_CLEANING", ...args }),
         demoCancelBooking: ({ bookingId }) => dispatch({ type: "GUEST_CANCEL", bookingId }),

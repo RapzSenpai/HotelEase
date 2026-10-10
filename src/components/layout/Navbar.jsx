@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { NavLink, useLocation } from "react-router-dom";
+import { NavLink, useLocation, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { User, Menu, X, BedDouble, CalendarDays, Heart, LogOut, SprayCan } from "lucide-react";
@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 export default function Navbar({ onToggleSidebar }) {
   const { user, role, logout, loading } = useAuth();
   const location = useLocation();
+  const [params] = useSearchParams();
   const [mobileGuestMenuOpen, setMobileGuestMenuOpen] = useState(false);
 
   // Auto-close mobile guest drawer when route changes (state adjusted during
@@ -26,6 +27,8 @@ export default function Navbar({ onToggleSidebar }) {
   const roleResolved = !user || !loading;
   const isFoOrAdmin = roleResolved && isStaffRole(role);
   const isGuest = roleResolved && user && role === "guest";
+  const isDemo =
+    location.pathname.startsWith("/demo") || params.get("demo") === "1";
   const homePath = getLogoHomePath(role);
 
   const logo = (
@@ -66,7 +69,7 @@ export default function Navbar({ onToggleSidebar }) {
 
         {/* Desktop Centre nav */}
         <nav className="hidden items-center gap-1 sm:flex">
-          {roleResolved && !isFoOrAdmin && (
+          {roleResolved && !isFoOrAdmin && !isDemo && (
             <NavLink
               to="/rooms"
               className={({ isActive }) =>
@@ -204,6 +207,7 @@ export default function Navbar({ onToggleSidebar }) {
       {isGuest && mobileGuestMenuOpen && (
         <div className="border-b border-border/80 bg-background/95 px-5 py-4 shadow-lg backdrop-blur-xl sm:hidden animate-in slide-in-from-top-2 duration-200">
           <nav className="flex flex-col gap-2">
+            {!isDemo && (
             <NavLink
               to="/rooms"
               className={({ isActive }) =>
@@ -217,6 +221,7 @@ export default function Navbar({ onToggleSidebar }) {
               <BedDouble className="h-4 w-4" />
               Rooms
             </NavLink>
+            )}
 
             <NavLink
               to="/my-bookings"

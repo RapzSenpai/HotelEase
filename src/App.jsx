@@ -3,6 +3,7 @@ import { Navigate, Routes, Route, useLocation } from "react-router-dom";
 
 import AppShell from "@/layouts/AppShell";
 import { DemoProvider } from "@/demo/DemoContext";
+import { STAFF_SECTIONS, sectionElement } from "@/demo/routes";
 import { DemoIndex } from "@/demo/DemoRoleDialog";
 import PrivateRoute from "@/components/routing/PrivateRoute";
 import GuestAuthRoute from "@/components/routing/GuestAuthRoute";
@@ -55,9 +56,11 @@ const AdminAlertsPage = lazy(() => import("@/pages/admin/AdminAlertsPage"));
 
 // Demo pages (frontend-only Try Demo — no auth, no backend)
 const DemoShell = lazy(() => import("@/demo/DemoShell"));
-const DemoGuestPage = lazy(() => import("@/demo/guest/DemoGuestPage"));
-const DemoFoPage = lazy(() => import("@/demo/fo/DemoFoPage"));
-const DemoAdminPage = lazy(() => import("@/demo/admin/DemoAdminPage"));
+const DemoGuestLayout = lazy(() => import("@/demo/guest/DemoGuestLayout"));
+const DemoGuestRooms = lazy(() => import("@/demo/guest/DemoGuestRooms"));
+const DemoGuestRoomDetail = lazy(() => import("@/demo/guest/DemoGuestRoomDetail"));
+const DemoGuestBookings = lazy(() => import("@/demo/guest/DemoGuestBookings"));
+const DemoGuestStay = lazy(() => import("@/demo/guest/DemoGuestStay"));
 
 // Common pages
 const UnauthorizedPage = lazy(() => import("@/pages/common/UnauthorizedPage"));
@@ -417,9 +420,29 @@ export default function App() {
           }
         >
           <Route index element={<SuspenseWrapper><DemoIndex /></SuspenseWrapper>} />
-          <Route path="guest" element={<SuspenseWrapper><DemoGuestPage /></SuspenseWrapper>} />
-          <Route path="fo" element={<SuspenseWrapper><DemoFoPage /></SuspenseWrapper>} />
-          <Route path="admin" element={<SuspenseWrapper><DemoAdminPage /></SuspenseWrapper>} />
+          {/* Guest demo: the layout carries the bar + exit, the pages are the journey. */}
+          <Route path="guest" element={<SuspenseWrapper><DemoGuestLayout /></SuspenseWrapper>}>
+            <Route index element={<SuspenseWrapper><DemoGuestRooms /></SuspenseWrapper>} />
+            <Route path="rooms/:roomId" element={<SuspenseWrapper><DemoGuestRoomDetail /></SuspenseWrapper>} />
+            <Route path="bookings" element={<SuspenseWrapper><DemoGuestBookings /></SuspenseWrapper>} />
+            <Route path="stay" element={<SuspenseWrapper><DemoGuestStay /></SuspenseWrapper>} />
+          </Route>
+          {/* Staff role routes derived from the shared nav data (src/demo/routes.js).
+              Index routes (/demo/fo, /demo/admin) are sections too, so the nav
+              table stays the single source for both the sidebar and the router. */}
+          {STAFF_SECTIONS.map((section) => {
+            return (
+              <Route
+                key={section.path}
+                path={section.path.slice("/demo/".length)}
+                element={
+                  <SuspenseWrapper>
+                    {sectionElement(section)}
+                  </SuspenseWrapper>
+                }
+              />
+            );
+          })}
         </Route>
 
         {/* Catch-all */}

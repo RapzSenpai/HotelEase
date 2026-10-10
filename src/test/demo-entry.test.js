@@ -66,7 +66,7 @@ function clickText(text) {
 }
 
 describe("demo entry", () => {
-  it("landing Try Demo lands on the single role picker", async () => {
+  async function renderLanding() {
     container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
@@ -77,10 +77,24 @@ describe("demo entry", () => {
           createElement(LandingPage)),
       );
     });
-    clickText("Try Demo");
-    clickText("Guest");
-    expect(lastPath).toBe("/demo");
-  });
+  }
+
+  // The bug this pins: picking a role used to route to /demo, which mounted the
+  // same picker again, so the visitor had to click twice.
+  for (const [label, path] of [
+    ["Guest", "/demo/guest"],
+    ["Front Office", "/demo/fo"],
+    ["Admin", "/demo/admin"],
+  ]) {
+    it(`one click on ${label} enters that demo and closes the picker`, async () => {
+      await renderLanding();
+      clickText("Try Demo");
+      expect(document.body.textContent).toContain("Pick a role to start.");
+      clickText(label);
+      expect(lastPath).toBe(path);
+      expect(document.body.textContent).not.toContain("Pick a role to start.");
+    });
+  }
 
   it("closing the /demo picker returns home instead of stranding", async () => {
     container = document.createElement("div");

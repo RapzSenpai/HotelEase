@@ -98,9 +98,16 @@ export function getOverdueDays(checkOutDateLike) {
   const now = new Date();
   if (now <= deadline) return 0;
 
-  const diffMs = now.getTime() - deadline.getTime();
-  const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
-  return Math.max(0, diffDays);
+  // Calendar days past the checkout date: stable within a day, so "1d
+  // Overdue" does not flip to "2d" in the afternoon. Round guards DST days.
+  const checkOutMidnight = new Date(checkOut);
+  checkOutMidnight.setHours(0, 0, 0, 0);
+  const todayMidnight = new Date(now);
+  todayMidnight.setHours(0, 0, 0, 0);
+  return Math.max(
+    0,
+    Math.round((todayMidnight - checkOutMidnight) / (1000 * 60 * 60 * 24)),
+  );
 }
 
 // P0 scalability: bounded live window per status tab. Same ordering as the
@@ -193,7 +200,8 @@ export async function countBookingsByStatus(status) {
 // old client filters exactly:
 // - checkInsToday: status in [Checked In, Checked Out] AND updatedAt >= today
 // - checkOutsDue: Checked In AND checkOutDate < tomorrow (== truncated date <= today)
-// - overdue: Checked In AND checkOutDate < now (== getOverdueDays() > 0)
+// - overdue: Checked In AND getOverdueDays(checkOutDate) > 0 (noon rule —
+//   counted via bounded fetch + client filter, not a single inequality)
 // New composite indexes required: (status + updatedAt), (status + checkOutDate)
 // in firestore.indexes.json (prod + training). Until deployed these throw.
 function startOfToday() {
@@ -228,12 +236,17 @@ export async function countCheckOutsDue() {
 }
 
 export async function countOverdueCheckOuts() {
+  // Noon rule lives in getOverdueDays (deadline = 12:00 on checkout date),
+  // which Firestore cannot express as a single inequality. Fetch the bounded
+  // candidate set (Checked In, checkout date <= today) and filter client-side
+  // so the dashboard banner agrees with the check-out page filter.
   const col = bookingsCollection();
   const q = query(
     collection(db, col),
     where("status", "==", "Checked In"),
-    where("checkOutDate", "<", Timestamp.fromDate(new Date())));
-  return (await getCountFromServer(q)).data().count;
+    where("checkOutDate", "<", startOfTomorrow()));
+  const snap = await getDocs(q);
+  return snap.docs.filter((d) => getOverdueDays(d.data().checkOutDate) > 0).length;
 }
 
 export function subscribeToPendingBookingRequests(

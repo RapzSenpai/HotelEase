@@ -13,6 +13,7 @@ import {
 import { db } from "@/firebase/firebase.config";
 import { getCol } from "@/lib/db-utils";
 import { isValidFoTransition } from "@/lib/room-status-transitions";
+import { checkApproveGate } from "@/lib/housekeeping-approval";
 import { listFoUsers } from "./userService";
 import { createNotification } from "./notificationService";
 
@@ -29,7 +30,10 @@ export async function updateRoomStatus({
   assignedToUserId = null,
   assignedToName = "",
   note = "",
-  photoUrls = []}) {
+  photoUrls = [],
+  // Solo-shift bypass signal from the caller (presence-based): true when at
+  // least one other FO is currently online.
+  otherFoOnline = false}) {
   if (!roomId || typeof roomId !== "string")
     throw new Error("Invalid roomId passed to updateRoomStatus");
   if (!newStatus || typeof newStatus !== "string")
@@ -62,6 +66,8 @@ export async function updateRoomStatus({
 
     if (newStatus === "Being Cleaned") {
       roomUpdate.cleaningStartedAt = serverTimestamp();
+      roomUpdate.cleaningStartedByUserId = changedByUserId || null;
+      roomUpdate.cleaningStartedByName = changedByName || "";
       roomUpdate.photoUrls = deleteField();
       if (assignedToUserId) {
         roomUpdate.assignedToUserId = assignedToUserId;
@@ -74,7 +80,21 @@ export async function updateRoomStatus({
     }
 
     if (newStatus === "Available") {
+      // Four-eyes approval: the inspector must differ from the cleaner who
+      // started the job. Solo-shift bypass: a lone FO may self-approve only
+      // with at least 1 inspection photo as second-eyes evidence. Admins and
+      // rooms with no recorded starter (legacy) always pass.
+      const gate = checkApproveGate({
+        starterUid: roomData.cleaningStartedByUserId || null,
+        approverUid: changedByUserId || null,
+        isAdmin: changedByRole === "admin",
+        otherFoOnline,
+        photoCount: Array.isArray(photoUrls) ? photoUrls.length : 0,
+      });
+      if (!gate.ok) throw new Error(gate.reason);
       roomUpdate.cleaningStartedAt = deleteField();
+      roomUpdate.cleaningStartedByUserId = deleteField();
+      roomUpdate.cleaningStartedByName = deleteField();
       roomUpdate.assignedToUserId = deleteField();
       roomUpdate.assignedToName = deleteField();
       roomUpdate.photoUrls = deleteField();

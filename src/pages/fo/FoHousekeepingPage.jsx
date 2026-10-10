@@ -4,12 +4,15 @@ import { History } from "lucide-react";
 import { StarRating } from "@/components/common/StarRating";
 import { subscribeToRooms } from "@/services/roomsService";
 import { listStaffUsers } from "@/services/userService";
+import { isOnlineNow } from "@/services/presenceService";
 import HousekeepingKanban from "@/components/housekeeping/HousekeepingKanban";
 import HousekeepingList from "@/components/housekeeping/HousekeepingList";
+import HousekeepingPhotoUpload from "@/components/housekeeping/HousekeepingPhotoUpload";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle} from "@/components/ui/dialog";
 import {
@@ -50,6 +53,11 @@ export default function FoHousekeepingPage() {
   const [assignments, setAssignments] = useState({});
   const [verificationPhotosByRoom, setVerificationPhotosByRoom] = useState({});
   const [selectedRoomIds, setSelectedRoomIds] = useState(new Set());
+
+  const [approveRoom, setApproveRoom] = useState(null);
+  const [approvePhotos, setApprovePhotos] = useState([]);
+  const [approveOthersOnline, setApproveOthersOnline] = useState(false);
+  const [approveChecking, setApproveChecking] = useState(false);
 
   const [selectedRoomId, setSelectedRoomId] = useState(null);
   const [logs, setLogs] = useState([]);
@@ -201,17 +209,17 @@ export default function FoHousekeepingPage() {
     };
   }, [selectedRoomId, logsRequestId]);
 
+  // Stored assignment only — no FO self-default. An empty room shows the
+  // "Cleaner name" placeholder instead of the current user. The starter is
+  // tracked separately (cleaningStartedBy*) for the approval gate.
   function getAssignmentForRoom(room) {
     if (assignments[room.id]) return assignments[room.id];
-    if (room.assignedToUserId) {
+    if (room.assignedToUserId || room.assignedToName) {
       return {
-        userId: room.assignedToUserId,
+        userId: room.assignedToUserId || null,
         name: room.assignedToName || "Assigned staff"};
     }
-    if (user?.uid) {
-      return { userId: user.uid, name: currentStaffName };
-    }
-    return { userId: "", name: "" };
+    return { userId: null, name: "" };
   }
 
   function setAssignmentForRoom(roomId, userId, name) {
@@ -250,11 +258,35 @@ export default function FoHousekeepingPage() {
     });
   }
 
-  async function moveRoom(room, nextStatus) {
+  // Four-eyes helpers: the starter is whoever clicked Start Clean.
+  function isSelfStarted(room) {
+    return !!(
+      room?.cleaningStartedByUserId &&
+      user?.uid &&
+      room.cleaningStartedByUserId === user.uid
+    );
+  }
+
+  // Fresh presence check so a just-logged-in FO is never missed.
+  // Returns null when the check itself fails — callers fail closed.
+  async function otherFoOnDuty() {
+    try {
+      const users = await listStaffUsers();
+      setStaffUsers(users);
+      return users.some(
+        (u) => u.role === "fo" && u.id !== user?.uid && isOnlineNow(u),
+      );
+    } catch {
+      return null;
+    }
+  }
+
+  async function moveRoom(room, nextStatus, opts = {}) {
     try {
       setError(null);
       const assignment = getAssignmentForRoom(room);
       const photoUrls = effectiveVerificationPhotosByRoom[room.id] || [];
+      const inspectionPhotos = opts.inspectionPhotos || [];
 
       await updateRoomStatus({
         roomId: room.id,
@@ -269,7 +301,11 @@ export default function FoHousekeepingPage() {
         photoUrls:
           nextStatus === "Pending Approval" && photoUrls.length > 0
             ? photoUrls
-            : []});
+            : nextStatus === "Available" && inspectionPhotos.length > 0
+              ? inspectionPhotos
+              : [],
+        otherFoOnline:
+          nextStatus === "Available" ? !!opts.otherFoOnline : false});
 
       if (nextStatus === "Available" || nextStatus === "Pending Approval") {
         setVerificationPhotosByRoom((prev) => {
@@ -295,9 +331,12 @@ export default function FoHousekeepingPage() {
     }
   }
 
-  async function onReassign(roomId, userId) {
-    const staff = staffUsers.find((u) => u.id === userId);
-    const name = staff ? getStaffLabel(staff) : "";
+  // Assignment is a cleaner NAME (crew has no accounts). A staff uid still
+  // resolves to its label for back-compat; anything else is a cleaner name.
+  async function onReassign(roomId, value) {
+    const staff = staffUsers.find((u) => u.id === value);
+    const userId = staff ? staff.id : null;
+    const name = staff ? getStaffLabel(staff) : String(value || "").trim();
     setAssignmentForRoom(roomId, userId, name);
     try {
       setError(null);
@@ -305,21 +344,70 @@ export default function FoHousekeepingPage() {
         roomId,
         assignedToUserId: userId,
         assignedToName: name});
+      if (name) toast.success(`Cleaner assigned: ${name}`);
     } catch (e) {
       setError(e?.message || "Failed to assign staff.");
     }
   }
 
+  // Approve entry point for every view: second-person approves in one
+  // click; self-approval goes through the inspection dialog instead.
+  async function handleApprove(room) {
+    if (!isSelfStarted(room)) {
+      moveRoom(room, "Available");
+      return;
+    }
+    // Open first so the dialog shows its checking state while presence
+    // resolves; the confirm button stays disabled until then.
+    setApproveRoom(room);
+    setApproveChecking(true);
+    setApprovePhotos([]);
+    try {
+      const others = await otherFoOnDuty();
+      if (others === null) {
+        // Presence check failed — fail closed instead of assuming solo.
+        setApproveRoom(null);
+        toast.error("Could not verify on-duty staff. Try approving again.");
+        return;
+      }
+      setApproveOthersOnline(others);
+    } finally {
+      setApproveChecking(false);
+    }
+  }
+
+  async function confirmSelfApprove() {
+    if (!approveRoom) return;
+    await moveRoom(approveRoom, "Available", {
+      inspectionPhotos: approvePhotos,
+      otherFoOnline: approveOthersOnline,
+    });
+    setApproveRoom(null);
+    setApprovePhotos([]);
+  }
+
   async function handleBulkApprove() {
     const sourceRooms =
       visibleActiveTab === "midstay" ? midStayRooms : turnoverRooms;
-    const roomIds = sourceRooms
-      .filter(
-        (room) =>
-          room.status === "Pending Approval" && selectedRoomIds.has(room.id))
+    const pendingSelected = sourceRooms.filter(
+      (room) =>
+        room.status === "Pending Approval" && selectedRoomIds.has(room.id),
+    );
+    // Bulk cannot attach per-room inspection photos, so self-started rooms
+    // are always skipped here — approve those one by one instead.
+    const skippedSelf = pendingSelected.filter((room) => isSelfStarted(room));
+    const roomIds = pendingSelected
+      .filter((room) => !isSelfStarted(room))
       .map((room) => room.id);
 
-    if (roomIds.length === 0) return;
+    if (roomIds.length === 0) {
+      if (skippedSelf.length > 0) {
+        toast.message(
+          "Bulk approve skipped rooms you started — approve those one by one.",
+        );
+      }
+      return;
+    }
 
     try {
       setError(null);
@@ -341,6 +429,11 @@ export default function FoHousekeepingPage() {
       }
       if (failed.length > 0) {
         toast.error(`Failed to approve ${failed.length} room(s)`);
+      }
+      if (skippedSelf.length > 0) {
+        toast.message(
+          `Skipped ${skippedSelf.length} room(s) you started — approve those one by one.`,
+        );
       }
     } catch (e) {
       setError(e?.message || "Bulk approve failed.");
@@ -456,7 +549,7 @@ export default function FoHousekeepingPage() {
                   onVerificationPhotosChange={handleVerificationPhotosChange}
                   onOpenLogs={openLogsFor}
                   onMoveRoom={moveRoom}
-                  onApproveRoom={(room) => moveRoom(room, "Available")}
+                  onApproveRoom={handleApprove}
                 />
               )
             ) : turnoverRooms.length === 0 ? (
@@ -482,7 +575,7 @@ export default function FoHousekeepingPage() {
                 onOpenLogs={openLogsFor}
                 onMoveRoom={moveRoom}
                 onBulkApprove={handleBulkApprove}
-                onApproveRoom={(room) => moveRoom(room, "Available")}
+                onApproveRoom={handleApprove}
                 staffUsers={staffUsers}
                 onReassign={onReassign}
               />
@@ -496,7 +589,7 @@ export default function FoHousekeepingPage() {
                 onVerificationPhotosChange={handleVerificationPhotosChange}
                 onOpenLogs={openLogsFor}
                 onMoveRoom={moveRoom}
-                onApproveRoom={(room) => moveRoom(room, "Available")}
+                onApproveRoom={handleApprove}
               />
             )}
           </div>
@@ -504,6 +597,71 @@ export default function FoHousekeepingPage() {
       )}
 
       {/* Housekeeping Logs Dialog */}
+      {/* Self-approval dialog: four-eyes check with a solo-shift bypass.
+          Another FO online → blocked, ask them to inspect. Solo → at least
+          1 inspection photo required as second-eyes evidence. */}
+      <Dialog
+        open={!!approveRoom}
+        onOpenChange={(open) => {
+          if (!open) {
+            setApproveRoom(null);
+            setApprovePhotos([]);
+          }
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              Approve {approveRoom?.name || approveRoom?.roomNumber || "room"}?
+            </DialogTitle>
+            <DialogDescription>
+              You started this cleaning job. Ask another FO to inspect and approve it.
+            </DialogDescription>
+          </DialogHeader>
+          {approveChecking ? (
+            <p className="text-sm text-foreground/60">
+              Checking who else is on duty...
+            </p>
+          ) : approveOthersOnline ? (
+            <p className="rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm text-foreground/80">
+              Another FO is on duty. Ask them to inspect and approve this room.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              <p className="rounded-lg border border-border bg-background p-3 text-sm text-foreground/70">
+                You&apos;re the only FO on duty. Add at least one inspection
+                photo to approve your own work. This is logged as a solo approval.
+              </p>
+              <HousekeepingPhotoUpload
+                photos={approvePhotos}
+                onChange={setApprovePhotos}
+                label="Inspection photo"
+                compact
+              />
+            </div>
+          )}
+          <div className="flex justify-end gap-2 pt-1">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setApproveRoom(null);
+                setApprovePhotos([]);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              disabled={approveChecking || approveOthersOnline || approvePhotos.length === 0}
+              onClick={confirmSelfApprove}
+            >
+              Approve
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={logsDialogOpen} onOpenChange={setLogsDialogOpen}>
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>

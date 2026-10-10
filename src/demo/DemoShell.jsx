@@ -1,62 +1,32 @@
-import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Outlet, useLocation } from "react-router-dom";
 import { useDemo } from "./DemoContext";
+import DemoSidebar from "./DemoSidebar";
 
-const ROLE_TABS = [
-  { id: "guest", label: "Guest", to: "/demo/guest" },
-  { id: "fo", label: "Front Office", to: "/demo/fo" },
-  { id: "admin", label: "Admin", to: "/demo/admin" },
+const ROLE_PATHS = [
+  { id: "guest", path: "/demo/guest" },
+  { id: "fo", path: "/demo/fo" },
+  { id: "admin", path: "/demo/admin" },
 ];
 
+// Chrome only: staff get the real sidebar (which carries Exit demo), guests get
+// their own bar from DemoGuestLayout. No role switcher here — leaving the demo
+// and picking another role from the landing page is the way back.
 export default function DemoShell() {
-  const navigate = useNavigate();
   const location = useLocation();
-  const { role, setRole, resetDemo } = useDemo();
-  // Deep links land here without a prior pick — infer role from the path.
-  const activeRole = role ?? ROLE_TABS.find((t) => location.pathname.startsWith(t.to))?.id ?? null;
+  const { role } = useDemo();
+  // Path wins: deep links and role switches land here with a stale persisted
+  // role, so infer from the path first and fall back to the stored pick.
+  const activeRole = ROLE_PATHS.find((r) => location.pathname.startsWith(r.path))?.id ?? role ?? null;
+  const staffRole = activeRole === "fo" || activeRole === "admin" ? activeRole : null;
 
-  function switchRole(tab) {
-    setRole(tab.id);
-    resetDemo();
-    navigate(tab.to);
-  }
+  if (!staffRole) return <Outlet />;
 
   return (
-    <div className="space-y-5">
-      <div className="rounded-xl border border-primary/30 bg-primary/5 p-4">
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="primary" className="shrink-0">Try Demo</Badge>
-          <p className="text-xs text-foreground/70">
-            Simulated data — exploring here never touches the real system.
-          </p>
-          <div className="ml-auto flex flex-wrap items-center gap-1.5">
-            {ROLE_TABS.map((tab) => (
-              <Button
-                key={tab.id}
-                variant={activeRole === tab.id ? "default" : "outline"}
-                size="sm"
-                className="h-8 text-xs"
-                onClick={() => switchRole(tab)}
-              >
-                {tab.label}
-              </Button>
-            ))}
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-8 text-xs"
-              onClick={() => navigate("/")}
-            >
-              Exit demo
-            </Button>
-          </div>
-        </div>
+    <div className="md:flex md:gap-5">
+      <DemoSidebar role={staffRole} />
+      <div className="min-w-0 flex-1">
+        <Outlet />
       </div>
-      <Outlet />
-      <p className="text-center text-xs text-foreground/40">
-        Demo only — <NavLink to="/" className="text-primary hover:underline underline-offset-4">back to HotelEase</NavLink>
-      </p>
     </div>
   );
 }

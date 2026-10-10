@@ -108,7 +108,16 @@ export default function LandingPage() {
   return (
     <div className="overflow-x-hidden">
       <HeroSection user={user} isStaff={isStaff} staffDashboardPath={staffDashboardPath} onTryDemo={() => setDemoOpen(true)} />
-      <DemoRoleDialog open={demoOpen} onOpenChange={setDemoOpen} onPick={() => navigate("/demo")} />
+      {/* Pick a role → straight into that role's demo. Navigation is role.to, not
+          "demo": routing to the picker again made the same dialog reappear. */}
+      <DemoRoleDialog
+        open={demoOpen}
+        onOpenChange={setDemoOpen}
+        onPick={(role) => {
+          setDemoOpen(false);
+          navigate(role.to);
+        }}
+      />
       <SectionDivider />
       <PartnershipSection />
       <SectionDivider />

@@ -7,6 +7,7 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 vi.mock("@/services/bookingsService", () => ({
   subscribeToBookingsPage: vi.fn(() => () => {}),
+  getOverdueDays: () => 0,
 }));
 
 vi.mock("sonner", () => ({
@@ -21,9 +22,9 @@ vi.mock("sonner", () => ({
 const { default: DemoRoomCard } = await import("@/demo/DemoRoomCard");
 const { default: DemoBookingCard } = await import("@/demo/DemoBookingCard");
 const { buildDemoData } = await import("@/demo/fixtures");
-const { default: DemoAdminPage } = await import("@/demo/admin/DemoAdminPage");
-const { default: DemoFoPage } = await import("@/demo/fo/DemoFoPage");
-const { default: DemoGuestPage } = await import("@/demo/guest/DemoGuestPage");
+const { default: DemoAdminRooms } = await import("@/demo/admin/DemoAdminRooms");
+const { default: DemoFoHousekeeping } = await import("@/demo/fo/DemoFoHousekeeping");
+const { default: DemoGuestStay } = await import("@/demo/guest/DemoGuestStay");
 const { default: RoomScheduleTape } = await import("@/components/dashboard/RoomScheduleTape");
 const { subscribeToBookingsPage } = await import("@/services/bookingsService");
 const { buildRequests, ACTIVE_STATUS_TEXT } = await import("@/lib/housekeeping-requests");
@@ -104,9 +105,9 @@ describe("DemoRoomCard", () => {
     expect(onToggleFavorite).toHaveBeenCalledWith("demo-103");
   });
 
-  it("view action links to the real detail page in preview mode", () => {
+  it("view action stays inside the demo tree", () => {
     const el = renderCard();
-    const link = el.querySelector('a[href="/rooms/demo-103?demo=1"]');
+    const link = el.querySelector('a[href="/demo/guest/rooms/demo-103"]');
     expect(link).not.toBeNull();
   });
 });
@@ -164,7 +165,7 @@ describe("demo admin rooms", () => {
       useEffect(() => {
         if (!role) setRole("admin");
       }, [role, setRole]);
-      return createElement(DemoAdminPage);
+      return createElement(DemoAdminRooms);
     }
     container = document.createElement("div");
     document.body.appendChild(container);
@@ -178,7 +179,7 @@ describe("demo admin rooms", () => {
     return container;
   }
 
-  it("rooms tab renders all six fixture rooms in a real view", async () => {
+  it("renders every fixture room in the real grid view", async () => {
     const el = await renderAdmin();
     for (const name of ["Sunrise Single", "Cebu Suite", "Presidential Suite"]) {
       expect(el.textContent).toContain(name);
@@ -222,7 +223,7 @@ describe("demo FO housekeeping", () => {
         if (!role) setRole("fo");
       }, [role, setRole]);
       probeCtx = useDemo();
-      return createElement(DemoFoPage);
+      return createElement(DemoFoHousekeeping);
     }
     container = document.createElement("div");
     document.body.appendChild(container);
@@ -234,16 +235,6 @@ describe("demo FO housekeeping", () => {
       );
     });
     return container;
-  }
-
-  function clickText(el, text) {
-    const btn = [...el.querySelectorAll("button")].find((b) =>
-      (b.textContent || "").includes(text),
-    );
-    if (!btn) throw new Error(`button not found: ${text}`);
-    act(() => {
-      btn.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    });
   }
 
   function clickInRow(el, rowText, btnText) {
@@ -262,11 +253,12 @@ describe("demo FO housekeeping", () => {
   }
 
   it("full cleaning cycle runs on the real list view", async () => {
-    const el = await renderFoHousekeeping();    act(() => {
+    const el = await renderFoHousekeeping();
+    act(() => {
       probeCtx.guest.demoRequestHousekeeping({ bookingId: "demo-bk-checkedin", note: "Fresh towels" });
     });
-    clickText(el, "Housekeeping");
-    expect(el.textContent).toContain("Verification Photos");
+    expect(el.textContent).toContain("Photos");
+    expect(el.textContent).toContain("0/5");
     expect(el.textContent).toContain("Leyte Suite");
     expect(el.querySelector('input[type="file"]')).toBeNull();
     clickInRow(el, "Leyte Suite", "Start Clean");
@@ -368,7 +360,7 @@ describe("demo guest housekeeping", () => {
         if (!role) setRole("guest");
       }, [role, setRole]);
       probeCtx = useDemo();
-      return createElement(DemoGuestPage);
+      return createElement(DemoGuestStay);
     }
     container = document.createElement("div");
     document.body.appendChild(container);
@@ -382,16 +374,6 @@ describe("demo guest housekeeping", () => {
     return container;
   }
 
-  function openHk(el) {
-    const tab = [...el.querySelectorAll("button")].find((b) =>
-      (b.textContent || "").trim() === "Housekeeping",
-    );
-    if (!tab) throw new Error("Housekeeping tab not found");
-    act(() => {
-      tab.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    });
-  }
-
   it("groups one request cycle from the log stream", () => {
     const logs = buildDemoData(new Date()).housekeepingLogs
       .filter((l) => l.roomId === "demo-104");
@@ -403,7 +385,6 @@ describe("demo guest housekeeping", () => {
 
   it("shows the active request, then completed history", async () => {
     const el = await renderGuestHk();
-    openHk(el);
     expect(el.textContent).toContain("currently refreshing");
     act(() => {
       probeCtx.fo.demoAdvanceCleaning({ requestId: "demo-req-1" });

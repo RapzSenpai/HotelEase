@@ -12,8 +12,10 @@ import {
   activateRoom,
   createRoom,
   listRooms,
+  subscribeToRooms,
   updateRoom} from "@/services/roomsService";
 import { getRoomCapacity, ROOM_TYPE_CAPACITY_DEFAULTS } from "@/lib/roomCapacity";
+import { computeRoomStats } from "@/lib/room-stats";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -108,8 +110,22 @@ export default function AdminRoomManagementPage() {
     setForm(initialForm());
     setSubmitError(null);
     setFormOpen(false);
-    refresh();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Live inventory: stats and table follow room writes (check-in,
+    // housekeeping moves) without a manual refresh.
+    setLoading(true);
+    setError(null);
+    const unsub = subscribeToRooms((data, err) => {
+      if (err) {
+        setError(err?.message || "Failed to load rooms.");
+        setLoading(false);
+        return;
+      }
+      setRooms(data);
+      setLoading(false);
+    });
+    return () => {
+      if (typeof unsub === "function") unsub();
+    };
   }, []);
 
   // ---- derived lists for filters ----
@@ -125,18 +141,8 @@ export default function AdminRoomManagementPage() {
     return Array.from(set).sort((a, b) => Number(a) - Number(b));
   }, [rooms]);
 
-  // ---- stats ----
-  const stats = useMemo(() => {
-    const total = rooms.length;
-    const active = rooms.filter((r) => r.isActive !== false);
-    const available = active.filter((r) => r.status === "Available").length;
-    const occupied = active.filter((r) => r.status === "Occupied").length;
-    const reserved = active.filter((r) => r.status === "Reserved").length;
-    const cleaning = active.filter((r) => r.status === "Being Cleaned" || r.status === "Dirty / Needs Cleaning").length;
-    const outOfOrder = active.filter((r) => r.status === "Out of Order").length;
-    const archived = rooms.filter((r) => r.isActive === false).length;
-    return { total, available, occupied, reserved, cleaning, outOfOrder, archived };
-  }, [rooms]);
+  // ---- stats (definitions in lib/room-stats) ----
+  const stats = useMemo(() => computeRoomStats(rooms), [rooms]);
 
   // ---- filtered + sorted rooms ----
   const filteredRooms = useMemo(() => {

@@ -10,7 +10,7 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle} from "@/components/ui/dialog";
-import { subscribeToBookingsPage } from "@/services/bookingsService";
+import { getOverdueDays, subscribeToBookingsPage } from "@/services/bookingsService";
 import { toJsDate } from "@/lib/time-utils";
 
 const WINDOW_DAYS = 14;
@@ -112,10 +112,18 @@ export default function RoomScheduleTape({ rooms = [], bookings: bookingsProp, o
       const checkInDay = startOfDay(ci).getTime();
       const checkoutDay = startOfDay(co).getTime();
       const startIdx = Math.max(0, Math.floor((checkInDay - winStart.getTime()) / DAY_MS));
-      const endIdx = Math.min(WINDOW_DAYS, Math.floor((checkoutDay - winStart.getTime()) / DAY_MS));
+      // Single presence flag — day count lives in tooltip/dialog, not N dots.
+      const overdueDays = b.status === "Checked In" ? getOverdueDays(b.checkOutDate) : 0;
+      let endIdx = Math.min(WINDOW_DAYS, Math.floor((checkoutDay - winStart.getTime()) / DAY_MS));
+      // Overdue stays remain visible through today even when the checkout
+      // day has slid out of the window; non-overdue ranges unchanged.
+      if (overdueDays > 0) {
+        const todayIdx = Math.floor((startOfDay(new Date()).getTime() - winStart.getTime()) / DAY_MS);
+        endIdx = Math.min(WINDOW_DAYS, Math.max(endIdx, todayIdx + 1));
+      }
       if (endIdx <= startIdx) continue;
       if (!map.has(b.roomId)) map.set(b.roomId, []);
-      map.get(b.roomId).push({ booking: b, startIdx, endIdx });
+      map.get(b.roomId).push({ booking: b, startIdx, endIdx, overdueDays, isOverdue: overdueDays > 0 });
     }
     // Stack overlapping chips into lanes so same-room bookings never cover each other.
     for (const bars of map.values()) {
@@ -144,6 +152,10 @@ export default function RoomScheduleTape({ rooms = [], bookings: bookingsProp, o
   }, [lanesByRoom]);
 
   const rangeLabel = `${fmtDay(winStart)} – ${fmtDay(new Date(winEnd.getTime() - DAY_MS))}`;
+  const selectedOverdueDays =
+    selected?.booking?.status === "Checked In"
+      ? getOverdueDays(selected.booking.checkOutDate)
+      : 0;
 
   return (
     <Card>
@@ -174,6 +186,9 @@ export default function RoomScheduleTape({ rooms = [], bookings: bookingsProp, o
             </span>
             <span className="inline-flex items-center gap-1.5">
               <span className="h-2.5 w-2.5 rounded-sm bg-success/70" /> Available
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-destructive" /> Overdue
             </span>
           </div>
         </div>
@@ -275,11 +290,19 @@ export default function RoomScheduleTape({ rooms = [], bookings: bookingsProp, o
                             key={bar.booking.id}
                             type="button"
                             onClick={() => setSelected({ booking: bar.booking, room })}
-                            title={`${chipLabel(bar.booking)} · ${fmtDay(toJsDate(bar.booking.checkInDate))} → ${fmtDay(toJsDate(bar.booking.checkOutDate))}`}
-                            className={`absolute rounded-md border px-2 text-left text-[11px] font-medium truncate transition-shadow hover:shadow-md hover:brightness-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${chipStyle(bar.booking.status, room.status)}`}
+                            title={`${chipLabel(bar.booking)} · ${fmtDay(toJsDate(bar.booking.checkInDate))} → ${fmtDay(toJsDate(bar.booking.checkOutDate))}${bar.isOverdue ? ` · Overdue ${bar.overdueDays} day(s)` : ""}`}
+                            aria-label={`${chipLabel(bar.booking)}${bar.isOverdue ? `, overdue ${bar.overdueDays} day(s)` : ""}`}
+                            className={`absolute rounded-md border px-2 text-left text-[11px] font-medium truncate transition-shadow hover:shadow-md hover:brightness-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${chipStyle(bar.booking.status, room.status)}${bar.isOverdue ? " relative pr-5" : ""}`}
                             style={{ left: `${left}%`, width: `${width}%`, top: 4 + top, height: 24 }}
                           >
                             {chipLabel(bar.booking)}
+                            {bar.isOverdue && (
+                              <span
+                                aria-hidden="true"
+                                title={`Overdue ${bar.overdueDays} day(s)`}
+                                className="absolute right-1.5 top-1/2 h-2 w-2 -translate-y-1/2 rounded-full bg-destructive ring-1 ring-white/80"
+                              />
+                            )}
                           </button>
                         );
                       })}
@@ -309,6 +332,11 @@ export default function RoomScheduleTape({ rooms = [], bookings: bookingsProp, o
               <DialogDescription>
                 {selected ? `${fmtDay(toJsDate(selected.booking.checkInDate))} → ${fmtDay(toJsDate(selected.booking.checkOutDate))}` : ""}
               </DialogDescription>
+              {selectedOverdueDays > 0 && (
+                <p className="text-xs font-semibold text-destructive">
+                  Overdue {selectedOverdueDays} day(s) — past 12:00 NN checkout
+                </p>
+              )}
             </DialogHeader>
             {selected && (
               <div className="space-y-3 text-sm">

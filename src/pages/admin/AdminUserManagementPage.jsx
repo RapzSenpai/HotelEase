@@ -81,7 +81,7 @@ export default function AdminUserManagementPage() {
       countUsers()
         .then((v) => { if (!cancelled) setTotalCount(v); })
         .catch(() => { if (!cancelled) setTotalCount(null); });
-      countUsers()
+      countUsers({ role: "admin" })
         .then((v) => { if (!cancelled) setAdminCount(v); })
         .catch(() => { if (!cancelled) setAdminCount(null); });
     }

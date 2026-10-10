@@ -83,7 +83,7 @@ export default function RoomsFilterBar({
           {filters.searchQuery && (
             <button
               onClick={() => onChange.search("")}
-              className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-muted"
+              className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-surface-hover"
             >
               <X className="h-3.5 w-3.5 text-foreground/40" />
             </button>
@@ -94,14 +94,14 @@ export default function RoomsFilterBar({
         <div className="flex items-center border border-border rounded-lg overflow-hidden">
           <button
             onClick={() => onChange.view("compact")}
-            className={`p-2.5 transition-colors ${filters.viewMode === "compact" ? "bg-primary/10 text-primary" : "text-foreground/40 hover:bg-muted"}`}
+            className={`p-2.5 transition-colors ${filters.viewMode === "compact" ? "bg-primary/10 text-primary" : "text-foreground/40 hover:bg-surface-hover"}`}
             title="Compact view"
           >
             <List className="h-4 w-4" />
           </button>
           <button
             onClick={() => onChange.view("grid")}
-            className={`p-2.5 transition-colors ${filters.viewMode === "grid" ? "bg-primary/10 text-primary" : "text-foreground/40 hover:bg-muted"}`}
+            className={`p-2.5 transition-colors ${filters.viewMode === "grid" ? "bg-primary/10 text-primary" : "text-foreground/40 hover:bg-surface-hover"}`}
             title="Grid view"
           >
             <LayoutGrid className="h-4 w-4" />
@@ -152,7 +152,7 @@ export default function RoomsFilterBar({
         {hasActiveFilters && (
           <button
             onClick={onClear}
-            className="h-8 px-3 rounded-lg text-xs font-medium text-foreground/50 hover:text-foreground hover:bg-muted transition-colors"
+            className="h-8 px-3 rounded-lg text-xs font-medium text-foreground/50 hover:text-foreground hover:bg-surface-hover transition-colors"
           >
             Clear filters
           </button>

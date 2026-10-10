@@ -74,7 +74,7 @@ export default function RoomFormSlideOver({
             <button
               onClick={onClose}
               aria-label="Close"
-              className="p-1.5 rounded-md hover:bg-muted transition-colors"
+              className="p-1.5 rounded-md hover:bg-surface-hover transition-colors"
             >
               <X className="h-4 w-4" />
             </button>

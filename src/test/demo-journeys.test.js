@@ -6,9 +6,9 @@ import { DemoProvider, useDemo } from "@/demo/DemoContext";
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
-const { default: DemoGuestPage } = await import("@/demo/guest/DemoGuestPage");
-const { default: DemoFoPage } = await import("@/demo/fo/DemoFoPage");
-const { default: DemoAdminPage } = await import("@/demo/admin/DemoAdminPage");
+const { default: DemoGuestRooms } = await import("@/demo/guest/DemoGuestRooms");
+const { default: DemoFoPayments } = await import("@/demo/fo/DemoFoPayments");
+const { default: DemoAdminAnalytics } = await import("@/demo/admin/DemoAdminAnalytics");
 
 let root = null;
 let container = null;
@@ -25,7 +25,7 @@ function GuestWithRole() {
   useEffect(() => {
     if (!role) setRole("guest");
   }, [role, setRole]);
-  return createElement(DemoGuestPage);
+  return createElement(DemoGuestRooms);
 }
 
 async function renderGuest() {
@@ -55,10 +55,12 @@ describe("demo entry", () => {
 });
 
 describe("guest book journey", () => {
-  it("shows Rooms, Bookings, Reviews, Housekeeping tabs", async () => {
+  it("opens as a room catalogue, not a dashboard of tabs", async () => {
     const text = await renderGuest();
-    for (const tab of ["Rooms", "My Bookings", "Reviews", "Housekeeping"]) {
-      expect(text).toContain(tab);
+    expect(text).toContain("Our rooms");
+    expect(text).toContain("Your stay so far");
+    for (const room of ["Sunrise Single", "Cebu Suite", "Presidential Suite"]) {
+      expect(text).toContain(room);
     }
   });
 });
@@ -68,7 +70,7 @@ function FoWithRole() {
   useEffect(() => {
     if (!role) setRole("fo");
   }, [role, setRole]);
-  return createElement(DemoFoPage);
+  return createElement(DemoFoPayments);
 }
 
 async function renderFo() {
@@ -90,11 +92,10 @@ async function renderFo() {
 }
 
 describe("fo payment guard", () => {
-  it("shows Dashboard, Bookings, Payments, Housekeeping tabs", async () => {
+  it("renders the payments screen with the balance line", async () => {
     const text = await renderFo();
-    for (const tab of ["Dashboard", "Bookings", "Payments", "Housekeeping"]) {
-      expect(text).toContain(tab);
-    }
+    expect(text).toContain("Record payment (demo)");
+    expect(text).toContain("Balance");
   });
 
   it("rejects amounts above the fixture balance", async () => {
@@ -111,7 +112,7 @@ function AdminWithRole() {
   useEffect(() => {
     if (!role) setRole("admin");
   }, [role, setRole]);
-  return createElement(DemoAdminPage);
+  return createElement(DemoAdminAnalytics);
 }
 
 async function renderAdmin() {
@@ -132,10 +133,11 @@ async function renderAdmin() {
   return text;
 }
 
-describe("admin demo actions", () => {  it("shows Rooms, Users, Analytics tabs", async () => {
+describe("admin demo actions", () => {
+  it("shows the sample-data aggregates", async () => {
     const text = await renderAdmin();
-    for (const tab of ["Rooms", "Users", "Analytics"]) {
-      expect(text).toContain(tab);
+    for (const label of ["Sample rooms", "Sample bookings", "Occupancy now", "Room type"]) {
+      expect(text).toContain(label);
     }
   });
 
@@ -160,14 +162,21 @@ describe("demo smoke", () => {
     expect(links.every((l) => l.startsWith("/demo/"))).toBe(true);
   });
 
-  it("role pages redirect to the picker when no role is selected", async () => {
+  // Deep links are the point of the demo routes: /demo/guest, /demo/fo and
+  // /demo/admin all render on their own, with the shell inferring the role from
+  // the path. A hard redirect back to the picker is what used to break that.
+  it("no demo page redirects a role path back to the picker", async () => {
     const fs = await import("node:fs");
-    const guest = fs.readFileSync("src/demo/guest/DemoGuestPage.jsx", "utf8");
-    const fo = fs.readFileSync("src/demo/fo/DemoFoPage.jsx", "utf8");
-    const admin = fs.readFileSync("src/demo/admin/DemoAdminPage.jsx", "utf8");
-    for (const src of [guest, fo, admin]) {
-      expect(src.includes('"/demo"') || src.includes("'/demo'")).toBe(true);
-    }
+    const pathMod = await import("node:path");
+    const files = fs
+      .readdirSync("src/demo", { recursive: true })
+      .filter((f) => String(f).endsWith(".jsx"));
+    const redirects = files.filter((f) =>
+      /<Navigate[^>]*to=["']\/demo["']/.test(
+        fs.readFileSync(pathMod.join("src/demo", String(f)), "utf8"),
+      ),
+    );
+    expect(redirects).toEqual([]);
   });
 });
 

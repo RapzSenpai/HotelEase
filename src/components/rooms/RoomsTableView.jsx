@@ -1,5 +1,4 @@
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Table,
@@ -10,7 +9,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { BedDouble, Edit } from "lucide-react";
-import RoomStatusBadge from "@/components/rooms/RoomStatusBadge";
+import RoomsStatusLegend from "@/components/rooms/RoomsStatusLegend";
+import { statusVisual } from "@/lib/room-stats";
 import { getRoomCapacity } from "@/lib/roomCapacity";
 
 /**
@@ -24,7 +24,8 @@ import { getRoomCapacity } from "@/lib/roomCapacity";
 export default function RoomsTableView({ rooms, onEdit, onArchive, onRestore }) {
   return (
     <Card>
-      <CardContent className="pt-6">
+      <CardContent className="space-y-3 pt-6">
+        <RoomsStatusLegend />
         <Table>
           <TableHeader>
             <TableRow>
@@ -43,6 +44,8 @@ export default function RoomsTableView({ rooms, onEdit, onArchive, onRestore }) 
               const firstPhoto = Array.isArray(r.photos) && r.photos.length > 0 ? r.photos[0] : null;
               const photoCount = Array.isArray(r.photos) ? r.photos.length : 0;
               const cap = getRoomCapacity(r);
+              const visual = statusVisual(r.isActive === false ? "Archived" : r.status);
+              const StatusIcon = visual.Icon;
               return (
                 <TableRow
                   key={r.id}
@@ -70,11 +73,31 @@ export default function RoomsTableView({ rooms, onEdit, onArchive, onRestore }) 
                   <TableCell className="text-sm text-foreground/60">{r.type || "—"}</TableCell>
                   <TableCell className="text-sm text-foreground/60">{r.floor || "—"}</TableCell>
                   <TableCell>
-                    {r.isActive !== false ? (
-                      <RoomStatusBadge status={r.status} />
-                    ) : (
-                      <Badge variant="outline" className="text-foreground/40 bg-muted/20 border-border/50 text-xs">Archived</Badge>
-                    )}
+                    <span className="flex justify-center">
+                      <span
+                        title={
+                          r.isActive === false
+                            ? "Archived"
+                            : `${visual.label}${r.isMidStayRequest === true ? " · Mid-Stay Request" : ""}`
+                        }
+                        role="img"
+                        aria-label={
+                          r.isActive === false
+                            ? "Archived"
+                            : `${visual.label}${r.isMidStayRequest === true ? ", mid-stay request" : ""}`
+                        }
+                        className="inline-flex items-center gap-1"
+                      >
+                        <StatusIcon className={`h-4 w-4 shrink-0 ${visual.className}`} />
+                        {r.isMidStayRequest === true && r.isActive !== false ? (
+                          <span
+                            title="Mid-Stay Request"
+                            aria-hidden="true"
+                            className="h-2 w-2 shrink-0 rounded-full bg-amber-600"
+                          />
+                        ) : null}
+                      </span>
+                    </span>
                   </TableCell>
                   <TableCell className="text-sm font-semibold text-primary">
                     PHP {Number(r.ratePerNight ?? 0).toLocaleString()}

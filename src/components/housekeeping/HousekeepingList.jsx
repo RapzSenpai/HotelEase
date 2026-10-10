@@ -24,7 +24,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import CleaningTimer from "@/components/rooms/CleaningTimer";
-import HousekeepingPhotoUpload from "@/components/housekeeping/HousekeepingPhotoUpload";
+import CleanerAssignInput from "@/components/housekeeping/CleanerAssignInput";
+import HousekeepingPhotoDialog, {
+  PhotoCountTrigger,
+} from "@/components/housekeeping/HousekeepingPhotoDialog";
 
 // Urgency (>2h wait) comes from the parent's display-only URGENT prefix
 // (FoHousekeepingPage) — read it here, don't recompute with Date.now().
@@ -64,7 +67,6 @@ function stripUrgentPrefix(text) {
 export default function HousekeepingList({
   rooms,
   getAssignmentForRoom,
-  staffUsers,
   onReassign,
   verificationPhotosByRoom,
   onVerificationPhotosChange,
@@ -79,6 +81,22 @@ export default function HousekeepingList({
   const isMidstay = mode === "midstay";
 
   const [requestRoom, setRequestRoom] = useState(null);
+  const [photoRoom, setPhotoRoom] = useState(null);
+
+  function photosFor(room) {
+    const fromProp = verificationPhotosByRoom?.[room.id];
+    if (Array.isArray(fromProp)) return fromProp;
+    return Array.isArray(room.photoUrls) ? room.photoUrls : [];
+  }
+
+  const photoDialogPhotos = photoRoom ? photosFor(photoRoom) : [];
+  const photoDialogEditable = photoRoom
+    ? photoRoom.status === "Dirty / Needs Cleaning" ||
+      photoRoom.status === "Being Cleaned"
+    : false;
+  const photoDialogTitle = photoRoom
+    ? `${photoRoom.name || photoRoom.type || "Room"}${photoRoom.roomNumber ? ` · #${photoRoom.roomNumber}` : ""}`
+    : "Verification photos";
 
   const requestDialogDate = requestRoom
     ? toDateSafe(requestRoom.midStayRequestedAt)
@@ -119,6 +137,7 @@ export default function HousekeepingList({
               <TableHead className="h-12 px-5 text-[11px] uppercase tracking-wide text-foreground/60">Wait</TableHead>
               <TableHead className="h-12 px-5 text-[11px] uppercase tracking-wide text-foreground/60">Status</TableHead>
               <TableHead className="h-12 px-5 text-[11px] uppercase tracking-wide text-foreground/60">Assigned</TableHead>
+              <TableHead className="h-12 px-5 text-[11px] uppercase tracking-wide text-foreground/60">Photos</TableHead>
               <TableHead className="h-12 px-5 text-right text-[11px] uppercase tracking-wide text-foreground/60">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -235,24 +254,13 @@ export default function HousekeepingList({
                     </span>
                   </TableCell>
 
-                  {/* Assigned */}
+                  {/* Assigned cleaner (name, no account) */}
                   <TableCell className="px-5 py-3 align-middle">
-                    {(isDirty || isCleaning) && staffUsers.length > 0 ? (
-                      <select
-                        value={assignment?.userId || ""}
-                        title={assignment?.name || "Assign staff"}
-                        onChange={(e) => onReassign(room.id, e.target.value)}
-                        className="h-8 w-full min-w-0 rounded-lg border border-border bg-background px-2 text-xs text-foreground shadow-sm transition-colors hover:border-border/80 focus:outline-none focus:ring-2 focus:ring-primary/20"
-                      >
-                        <option value="" disabled>
-                          Select Staff
-                        </option>
-                        {staffUsers.map((staff) => (
-                          <option key={staff.id} value={staff.id}>
-                            {staff.fullName || staff.email || staff.id}
-                          </option>
-                        ))}
-                      </select>
+                    {isDirty || isCleaning ? (
+                      <CleanerAssignInput
+                        value={assignment?.name || room.assignedToName || ""}
+                        onCommit={(name) => onReassign(room.id, name)}
+                      />
                     ) : (
                       <span
                         className="block truncate text-[13px] font-medium text-foreground/70"
@@ -263,6 +271,15 @@ export default function HousekeepingList({
                         )}
                       </span>
                     )}
+                  </TableCell>
+
+                  {/* Photos — compact count, dialog for view/manage */}
+                  <TableCell className="px-5 py-3 align-middle">
+                    <PhotoCountTrigger
+                      count={photosFor(room).length}
+                      onClick={() => setPhotoRoom(room)}
+                      label={`View photos for ${room.name || room.roomNumber || "room"}`}
+                    />
                   </TableCell>
 
                   {/* Actions */}
@@ -401,7 +418,7 @@ export default function HousekeepingList({
               <TableHead className="h-12 px-5 text-[11px] uppercase tracking-wide text-foreground/60">Room</TableHead>
               <TableHead className="h-12 px-5 text-[11px] uppercase tracking-wide text-foreground/60">Status</TableHead>
               <TableHead className="h-12 px-5 text-[11px] uppercase tracking-wide text-foreground/60">Assigned Staff</TableHead>
-              <TableHead className="h-12 px-5 text-[11px] uppercase tracking-wide text-foreground/60">Verification Photos</TableHead>
+              <TableHead className="h-12 px-5 text-[11px] uppercase tracking-wide text-foreground/60">Photos</TableHead>
               <TableHead className="h-12 px-5 text-right text-[11px] uppercase tracking-wide text-foreground/60">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -478,23 +495,13 @@ export default function HousekeepingList({
                     ) : null}
                   </TableCell>
 
-                  {/* Assigned Staff — primary place for assignment in table view */}
+                  {/* Assigned cleaner (name, no account) */}
                   <TableCell className="px-5 py-3 align-middle">
-                    {(isDirty || isCleaning) && staffUsers.length > 0 ? (
-                      <select
-                        value={assignment?.userId || ""}
-                        onChange={(e) => onReassign(room.id, e.target.value)}
-                        className="h-8 w-full min-w-0 rounded-lg border border-border bg-background px-2 text-xs text-foreground shadow-sm transition-colors hover:border-border/80 focus:outline-none focus:ring-2 focus:ring-primary/20"
-                      >
-                        <option value="" disabled>
-                          Select Staff
-                        </option>
-                        {staffUsers.map((staff) => (
-                          <option key={staff.id} value={staff.id}>
-                            {staff.fullName || staff.email || staff.id}
-                          </option>
-                        ))}
-                      </select>
+                    {isDirty || isCleaning ? (
+                      <CleanerAssignInput
+                        value={assignment?.name || room.assignedToName || ""}
+                        onCommit={(name) => onReassign(room.id, name)}
+                      />
                     ) : (
                       <span
                         className="block truncate text-[13px] font-medium text-foreground/70"
@@ -509,45 +516,13 @@ export default function HousekeepingList({
                     )}
                   </TableCell>
 
-                  {/* Verification Photos column */}
+                  {/* Photos — compact count, dialog for view/manage */}
                   <TableCell className="px-5 py-3 align-middle">
-                    {isCleaning && disableUploads ? (
-                      <span className="text-[11px] italic text-foreground/40">
-                        Photo proof disabled in demo
-                      </span>
-                    ) : isCleaning ? (
-                      <HousekeepingPhotoUpload
-                        photos={draftPhotos}
-                        onChange={(updatedPhotos) =>
-                          onVerificationPhotosChange(room.id, updatedPhotos)
-                        }
-                        label="Upload proof"
-                        maxPhotos={4}
-                        compact
-                      />
-                    ) : savedPhotos.length > 0 ? (
-                      <div className="flex flex-wrap gap-1.5">
-                        {savedPhotos.map((url, idx) => (
-                          <a
-                            key={url}
-                            href={url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="block h-9 w-9 overflow-hidden rounded-md border border-border outline outline-1 outline-black/10 transition-opacity hover:opacity-80"
-                          >
-                            <img
-                              src={url}
-                              alt={`Verification ${idx + 1}`}
-                              className="h-full w-full object-cover"
-                            />
-                          </a>
-                        ))}
-                      </div>
-                    ) : (
-                      <span className="text-xs italic text-foreground/35">
-                        No photos
-                      </span>
-                    )}
+                    <PhotoCountTrigger
+                      count={(draftPhotos.length > 0 ? draftPhotos : savedPhotos).length}
+                      onClick={() => setPhotoRoom(room)}
+                      label={`View photos for ${room.name || room.roomNumber || "room"}`}
+                    />
                   </TableCell>
 
                   {/* Actions column */}
@@ -613,6 +588,19 @@ export default function HousekeepingList({
         )}
         </CardContent>
       </Card>
+      <HousekeepingPhotoDialog
+        open={!!photoRoom}
+        onOpenChange={(open) => {
+          if (!open) setPhotoRoom(null);
+        }}
+        title={photoDialogTitle}
+        photos={photoDialogPhotos}
+        editable={photoDialogEditable}
+        disableUploads={disableUploads}
+        onChange={(next) => {
+          if (photoRoom) onVerificationPhotosChange(photoRoom.id, next);
+        }}
+      />
     </div>
   );
 }
