@@ -14,10 +14,16 @@ export default function CheckoutFolioPanel({
   booking,
   balance,
   paid,
+  conflict = null,
   onExtendStay,
   onAddFee,
 }) {
   const paidAmount = paid ?? (booking.totalCost ?? 0) - balance;
+  const conflictCheckIn = conflict?.booking?.checkInDate?.toDate
+    ? conflict.booking.checkInDate.toDate().toLocaleDateString()
+    : conflict?.booking?.checkInDate
+      ? new Date(conflict.booking.checkInDate).toLocaleDateString()
+      : "";
   return (
     <>
       {/* Overdue Warning Callout */}
@@ -36,6 +42,19 @@ export default function CheckoutFolioPanel({
             </strong>
             . You can contact the guest, add an overstay penalty fee, extend their stay if the room is free, or finalize their checkout.
           </p>
+          {conflict ? (
+            <p className="text-xs text-foreground/80 leading-relaxed rounded-lg border border-destructive/30 bg-background/50 p-2">
+              <strong>Room conflict:</strong> this room is promised to{" "}
+              <strong>{conflict.guestName}</strong>
+              {conflictCheckIn ? (
+                <>
+                  {" "}from <strong>{conflictCheckIn}</strong>
+                </>
+              ) : null}
+              . Coordinate checkout or offer a room change — adding a fee does
+              not reserve the room.
+            </p>
+          ) : null}
           <div className="flex flex-wrap gap-2 pt-1">
             <Button
               size="sm"

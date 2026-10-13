@@ -1,5 +1,6 @@
 import {
   collection,
+  deleteField,
   doc,
   getDoc,
   getDocs,
@@ -296,14 +297,48 @@ export async function checkOutBooking(bookingId) {
     const roomSnap = await transaction.get(roomRef);
     if (!roomSnap.exists()) throw new Error("Room not found.");
 
+    const roomData = roomSnap.data() || {};
+    // An open mid-stay request belongs to the checking-out guest — clear it so
+    // the room lands in Turnover, not Mid-Stay. (Stale-flag cleanup otherwise
+    // only runs on the *next* request; see requestMidStayHousekeeping.)
+    const wasMidStay = !!roomData.isMidStayRequest;
+
     transaction.update(bookingRef, {
       status: "Checked Out",
       updatedAt: serverTimestamp()});
 
-    transaction.update(roomRef, {
+    const roomUpdate = {
       status: ROOM_STATUS.DIRTY,
       updatedAt: serverTimestamp(),
-      statusChangedAt: serverTimestamp()});
+      statusChangedAt: serverTimestamp()};
+    if (wasMidStay) {
+      roomUpdate.isMidStayRequest = deleteField();
+      roomUpdate.midStayNote = deleteField();
+      roomUpdate.midStayGuestId = deleteField();
+      roomUpdate.midStayGuestName = deleteField();
+      roomUpdate.midStayBookingId = deleteField();
+      roomUpdate.midStayRequestedAt = deleteField();
+      roomUpdate.midStayRequestId = deleteField();
+    }
+    transaction.update(roomRef, roomUpdate);
+
+    if (wasMidStay) {
+      const logRef = doc(collection(db, getCol("housekeeping_logs")));
+      transaction.set(logRef, {
+        roomId,
+        bookingId: roomData.midStayBookingId || bookingId,
+        requestId: roomData.midStayRequestId || null,
+        fromStatus: roomData.status || "Unknown",
+        toStatus: ROOM_STATUS.DIRTY,
+        changedByRole: "fo",
+        changedByUserId: null,
+        changedByName: "",
+        isMidStayRequest: true,
+        note: "[Mid-Stay superseded by checkout — converted to turnover]",
+        photoUrls: [],
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()});
+    }
 
     return { booking: { id: bookingId, ...booking }, ok: true };
   }).then(async (result) => {

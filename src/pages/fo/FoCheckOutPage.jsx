@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import {
   listBookingsByStatuses,
+  listBookingsForRoom,
   checkOutBooking,
   extendStayBooking,
   addOverstayFee,
@@ -17,6 +18,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { trackEvent, GA_EVENTS } from "@/services/gaService";
 import { toast } from "sonner";
 import { roomLabel } from "@/lib/room-label";
+import { conflictGuestName, findOverstayConflict } from "@/lib/overstay-conflict";
 import CheckoutBookingList from "@/components/fo/CheckoutBookingList";
 import CheckoutExtendStayDialog from "@/components/fo/CheckoutExtendStayDialog";
 import CheckoutOverstayFeeDialog from "@/components/fo/CheckoutOverstayFeeDialog";
@@ -185,6 +187,10 @@ export default function FoCheckOutPage() {
 
   const [filterMode, setFilterMode] = useState("all"); // "all" | "overdue"
 
+  // Next-guest conflict for the selected overdue stay (read-only warning —
+  // extending already blocks, the fee path does not, so FO needs to see it).
+  const [roomConflict, setRoomConflict] = useState(null);
+
   // ── Derived ───────────────────────────────────────────────────────────────
   const roomById = useMemo(() => {
     const map = new Map();
@@ -236,6 +242,33 @@ export default function FoCheckOutPage() {
     const total = Number(selectedBooking?.totalCost ?? 0);
     return Math.max(0, total - selectedPaid);
   }, [selectedBooking, selectedPaid]);
+
+  // Look up the next booking for the same room only for overdue stays — one
+  // cheap query per selection, cleared otherwise.
+  useEffect(() => {
+    if (!selectedBooking?.isOverdue || !selectedBooking?.roomId) {
+      setRoomConflict(null);
+      return;
+    }
+    let isMounted = true;
+    async function loadConflict() {
+      try {
+        const roomBookings = await listBookingsForRoom(selectedBooking.roomId);
+        if (!isMounted) return;
+        const hit = findOverstayConflict(roomBookings, selectedBooking);
+        setRoomConflict(
+          hit
+            ? { booking: hit, guestName: conflictGuestName(hit, guestsMapRef.current) }
+            : null);
+      } catch {
+        if (isMounted) setRoomConflict(null);
+      }
+    }
+    loadConflict();
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedBooking]);
 
   // Build receipt data from booking and payment records
   function buildReceiptData(booking, paymentRecords) {
@@ -514,6 +547,7 @@ export default function FoCheckOutPage() {
                   booking={selectedBooking}
                   balance={selectedBalance}
                   paid={selectedPaid}
+                  conflict={roomConflict}
                   onExtendStay={() => setExtendDialogOpen(true)}
                   onAddFee={() => setFeeDialogOpen(true)}
                 />
