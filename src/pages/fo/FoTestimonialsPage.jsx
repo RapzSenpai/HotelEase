@@ -1,10 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { formatDateTime } from "@/lib/format";
-import { Check, Star, X, Trash2 } from "lucide-react";
+import { Check, Eye, Star, X, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle} from "@/components/ui/dialog";
 import {
   Table,
   TableBody,
@@ -45,11 +51,40 @@ function RatingStars({ rating }) {
   );
 }
 
+// Same pattern as the Room Management status legend: teaches the icon-only
+// actions so the row stays narrow enough to skip horizontal scrolling.
+function TestimonialActionsLegend() {
+  return (
+    <div
+      aria-label="Testimonial actions legend"
+      className="flex flex-wrap items-center justify-end gap-x-4 gap-y-1 px-1 text-[11px] text-foreground/60"
+    >
+      <span className="inline-flex items-center gap-1.5">
+        <Check className="h-3.5 w-3.5 text-success" />
+        Approve
+      </span>
+      <span className="inline-flex items-center gap-1.5">
+        <X className="h-3.5 w-3.5 text-destructive" />
+        Reject
+      </span>
+      <span className="inline-flex items-center gap-1.5">
+        <Eye className="h-3.5 w-3.5" />
+        View
+      </span>
+      <span className="inline-flex items-center gap-1.5">
+        <Trash2 className="h-3.5 w-3.5 text-destructive" />
+        Delete
+      </span>
+    </div>
+  );
+}
+
 export default function FoTestimonialsPage() {
   const [testimonials, setTestimonials] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState("all");
   const [actingId, setActingId] = useState(null);
+  const [viewing, setViewing] = useState(null);
 
   async function refresh() {
     setLoading(true);
@@ -177,8 +212,9 @@ export default function FoTestimonialsPage() {
       </div>
 
       <Card>
-        <CardContent className="pt-6">
-          <Table>
+        <CardContent className="space-y-3 pt-6">
+          <TestimonialActionsLegend />
+          <Table className="[&_th]:h-9 [&_th]:px-3 [&_th]:text-xs [&_td]:px-3 [&_td]:py-2.5 [&_td]:text-[13px]">
             <TableHeader>
               <TableRow>
                 <TableHead>Guest</TableHead>
@@ -186,7 +222,7 @@ export default function FoTestimonialsPage() {
                 <TableHead>Message</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Date</TableHead>
-                <TableHead>Actions</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -215,38 +251,51 @@ export default function FoTestimonialsPage() {
                     <TableCell>{statusBadge(t.status)}</TableCell>
                     <TableCell>{formatDateTime(t.createdAt)}</TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          onClick={() => setViewing(t)}
+                          title={`View testimonial from ${t.guestName || "Guest"}`}
+                          aria-label={`View testimonial from ${t.guestName || "Guest"}`}
+                          className="text-foreground/70 hover:text-foreground"
+                        >
+                          <Eye className="h-3.5 w-3.5" />
+                        </Button>
                         {t.status === "Pending" && (
                           <>
                             <Button
-                              variant="outline"
-                              size="sm"
+                              variant="ghost"
+                              size="icon-sm"
                               disabled={actingId === t.id}
                               onClick={() => handleApprove(t.id)}
-                              className="border-success/40 bg-success/10 text-foreground hover:bg-success/20"
+                              title={`Approve testimonial from ${t.guestName || "Guest"}`}
+                              aria-label={`Approve testimonial from ${t.guestName || "Guest"}`}
+                              className="text-success hover:text-success hover:bg-success/10"
                             >
-                              <Check className="mr-1 h-3.5 w-3.5" />
-                              Approve
+                              <Check className="h-3.5 w-3.5" />
                             </Button>
                             <Button
-                              variant="outline"
-                              size="sm"
+                              variant="ghost"
+                              size="icon-sm"
                               disabled={actingId === t.id}
                               onClick={() => handleReject(t.id)}
-                              className="border-destructive/40 bg-destructive/10 text-foreground hover:bg-destructive/20"
+                              title={`Reject testimonial from ${t.guestName || "Guest"}`}
+                              aria-label={`Reject testimonial from ${t.guestName || "Guest"}`}
+                              className="text-destructive hover:text-destructive hover:bg-destructive/10"
                             >
-                              <X className="mr-1 h-3.5 w-3.5" />
-                              Reject
+                              <X className="h-3.5 w-3.5" />
                             </Button>
                           </>
                         )}
                         <Button
                           variant="ghost"
-                          size="sm"
+                          size="icon-sm"
                           disabled={actingId === t.id}
                           onClick={() => handleDelete(t.id)}
+                          title={`Delete testimonial from ${t.guestName || "Guest"}`}
+                          aria-label={`Delete testimonial from ${t.guestName || "Guest"}`}
                           className="text-destructive/70 hover:text-destructive hover:bg-destructive/10"
-                          title="Delete testimonial"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </Button>
@@ -259,6 +308,25 @@ export default function FoTestimonialsPage() {
           </Table>
         </CardContent>
       </Card>
+
+      <Dialog open={Boolean(viewing)} onOpenChange={(open) => !open && setViewing(null)}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Testimonial from {viewing?.guestName || "Guest"}</DialogTitle>
+            <DialogDescription className="flex flex-wrap items-center gap-2">
+              {statusBadge(viewing?.status)}
+              <span>{formatDateTime(viewing?.createdAt)}</span>
+            </DialogDescription>
+          </DialogHeader>
+
+          <RatingStars rating={viewing?.rating} />
+
+          <div className="space-y-2 rounded-md border border-border bg-muted/10 p-4">
+            <p className="text-xs font-medium uppercase tracking-wide text-foreground/50">Message</p>
+            <p className="text-sm text-foreground/80 whitespace-pre-wrap">{viewing?.message}</p>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

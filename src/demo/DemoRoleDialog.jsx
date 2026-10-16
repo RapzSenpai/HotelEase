@@ -11,7 +11,6 @@ import { Button } from "@/components/ui/button";
 import { useDemo } from "./DemoContext";
 
 const ROLES = [
-  { id: "guest", label: "Guest", hint: "Browse, book, review, housekeeping", to: "/demo/guest" },
   { id: "fo", label: "Front Office", hint: "Dashboard, bookings, payments", to: "/demo/fo" },
   { id: "admin", label: "Admin", hint: "Rooms, users, analytics", to: "/demo/admin" },
 ];
@@ -45,7 +44,8 @@ export default function DemoRoleDialog({ open, onOpenChange, onPick }) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      {/* Mobile: 1rem side margins + viewport-bounded scroll; sm+ keeps the desktop look. */}
+      <DialogContent className="w-[calc(100%-2rem)] max-w-md max-h-[calc(100dvh-2rem)] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Try the demo</DialogTitle>
           <DialogDescription>
@@ -58,7 +58,7 @@ export default function DemoRoleDialog({ open, onOpenChange, onPick }) {
             <Button
               key={role.id}
               variant="outline"
-              className="h-auto w-full justify-start gap-3 px-4 py-3 text-left"
+              className="h-auto w-full flex-col items-start gap-1 px-4 py-3 text-left sm:flex-row sm:items-center sm:gap-3"
               onClick={() => pick(role)}
             >
               <span className="font-semibold">{role.label}</span>

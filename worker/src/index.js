@@ -14,10 +14,17 @@
  *                         markers left behind by a failed client cleanup
  *                         (FIREBASE_SERVICE_ACCOUNT)
  *   POST /insights      → one-shot analyst report over an admin-built data
- *                         snapshot { context } (GROQ_API_KEY secret)
+ *                         snapshot { context } (GROQ_API_KEY secret; verified
+ *                         admin role required)
+ *   POST /briefing      → ranked ops to-do items over { context } (same
+ *                         secret and admin gate as /insights)
  *   POST /admin-chat    → multi-turn ops assistant over { messages, context };
  *                         may emit ```chart JSON blocks for the UI to render
- *   POST (default)      → forwards { messages } to Groq (GROQ_API_KEY secret)
+ *                         (same secret and admin gate)
+ *   POST (default)      → guest concierge chat: forwards { messages } to Groq
+ *                         with server-side booking tools (availability +
+ *                         quotes), emits ```rooms / ```booking-summary blocks
+ *                         (GROQ_API_KEY secret; see handlers/chat.js)
  *
  * Set secrets (never in code / git):
  *   npx wrangler login
@@ -35,6 +42,7 @@
 import { getAllowedOrigin, json } from "./http.js";
 import { rateLimited } from "./rate-limit.js";
 import { resolveAiIdentity, resolveBookingClaimIdentity } from "./firebase-jwt.js";
+import { isAdminUser } from "./admin-auth.js";
 import { getGoogleAccessToken } from "./google-auth.js";
 import { getAiDailyCount, incrementAiDailyCount } from "./ai-limits.js";
 import { expireStaleHolds, sweepOrphanMarkers,
@@ -61,6 +69,14 @@ function hashString(s) {
     h = ((h << 5) + h + s.charCodeAt(i)) >>> 0;
   }
   return h.toString(16);
+}
+
+// Daily counters are keyed by UTC date (ai-limits.js); report the exact moment
+// they roll over so clients can show "resets at ...".
+function nextUtcMidnightIso() {
+  const next = new Date();
+  next.setUTCHours(24, 0, 0, 0);
+  return next.toISOString();
 }
 
 export default {
@@ -189,9 +205,27 @@ export default {
       return send(json({ error: "Rate limit exceeded. Please slow down.", code: "RATE_LIMIT" }, 429));
     }
 
-    // Admin-only AI features require a verified signed-in user.
-    if (!identity.uid && (path === "/insights" || path === "/admin-chat" || path === "/briefing")) {
+    // Admin-only AI features require a verified signed-in user...
+    const isAdminPath = path === "/insights" || path === "/admin-chat" || path === "/briefing";
+    if (!identity.uid && isAdminPath) {
       return send(json({ error: "Sign in required to use this feature.", code: "AUTH_REQUIRED" }, 401));
+    }
+
+    // ...and the admin role itself: the ID token proves a signed-in user,
+    // not the role, so it is read from Firestore (verdict cached per
+    // isolate, 5 min). Gated before daily counting so non-admins never
+    // spend quota; an unverifiable check fails closed with a retryable 503.
+    if (isAdminPath) {
+      let allowed;
+      try {
+        allowed = await isAdminUser(workerEnv, identity.uid);
+      } catch (e) {
+        console.error("[admin-gate] role check failed:", String(e?.message || e).slice(0, 200));
+        return send(json({ error: "Admin check unavailable. Try again shortly.", code: "ADMIN_CHECK_UNAVAILABLE" }, 503));
+      }
+      if (!allowed) {
+        return send(json({ error: "Admin access required.", code: "FORBIDDEN" }, 403));
+      }
     }
 
     // Daily budget (KV-backed). Counted before the Groq call so parallel
@@ -208,6 +242,7 @@ export default {
             ? "You've reached your AI assistant limit for today."
             : "You've used your free AI messages for today.",
           code: "DAILY_CAP",
+          resetAt: nextUtcMidnightIso(),
         },
         402,
       ));
@@ -221,10 +256,18 @@ export default {
       return send(await handleBriefingRequest(request, workerEnv));
     }
     if (path === "/admin-chat") {
-      return send(await handleAdminChatRequest(request, workerEnv));
+      return send(await handleAdminChatRequest(request, workerEnv, {
+        // This message was just counted; what's left for the rest of the day.
+        remainingToday: Math.max(0, dailyCap - usedToday - 1),
+        dailyLimit: dailyCap,
+      }));
     }
 
-    return send(await handleChatRequest(request, workerEnv));
+    return send(await handleChatRequest(request, workerEnv, {
+      // This message was just counted; what's left for the rest of the day.
+      remainingToday: Math.max(0, dailyCap - usedToday - 1),
+      dailyLimit: dailyCap,
+    }));
   },
 
   // Cron (see [triggers] in wrangler.toml). Hourly invocations run the

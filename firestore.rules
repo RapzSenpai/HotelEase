@@ -538,8 +538,42 @@ service cloud.firestore {
                        (request.resource.data.get('guestId', null) == null ||
                         request.resource.data.get('guestId', null) is string) &&
                        request.resource.data.createdAt == request.time;
-      // FO reads + replies here (the /fo/messages inbox); only admins delete.
-      allow read, update: if (isProdFOOrAdmin() && !isAnonymous());
+      // Staff-composed outbound messages (New Message / Sent tab). Added as a
+      // second create branch so the public intake rule above stays untouched.
+      // Shape mirrors messageService.sendMessageToGuest exactly.
+      allow create: if isProdFOOrAdmin() && !isAnonymous() &&
+                       request.resource.data.keys().hasOnly(
+                         ['id', 'direction', 'toName', 'toEmail', 'subject',
+                          'message', 'status', 'sentBy', 'sentByName',
+                          'emailSent', 'createdAt']) &&
+                       request.resource.data.direction == 'outgoing' &&
+                       request.resource.data.status == 'sent' &&
+                       request.resource.data.toEmail is string &&
+                       request.resource.data.toEmail.size() <= 254 &&
+                       request.resource.data.toEmail.matches('^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$') &&
+                       request.resource.data.toName is string &&
+                       request.resource.data.toName.size() >= 1 &&
+                       request.resource.data.toName.size() <= 100 &&
+                       request.resource.data.subject is string &&
+                       request.resource.data.subject.size() >= 1 &&
+                       request.resource.data.subject.size() <= 200 &&
+                       request.resource.data.message is string &&
+                       request.resource.data.message.size() >= 1 &&
+                       request.resource.data.message.size() <= 5000 &&
+                       request.resource.data.sentBy == request.auth.uid &&
+                       request.resource.data.sentByName is string &&
+                       request.resource.data.sentByName.size() <= 100 &&
+                       request.resource.data.emailSent is bool &&
+                       request.resource.data.createdAt == request.time;
+      // Outgoing records may only advance their delivery audit flag.
+      allow read: if isProdFOOrAdmin() && !isAnonymous();
+      allow update: if isProdFOOrAdmin() && !isAnonymous() &&
+                       (resource.data.get('direction', null) != 'outgoing' ||
+                        (request.resource.data.direction == resource.data.direction &&
+                         request.resource.data.sentBy == resource.data.sentBy &&
+                         resource.data.emailSent == false &&
+                         request.resource.data.emailSent == true &&
+                         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['emailSent'])));
       allow delete: if isAdmin();
     }
 

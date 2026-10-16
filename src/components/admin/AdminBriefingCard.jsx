@@ -14,8 +14,8 @@ import {
   ChevronRight,
   ClipboardList,
   Info,
+  ListChecks,
   Loader2,
-  Sparkles,
   X} from "lucide-react";
 
 const SEVERITY_STYLES = {
@@ -46,6 +46,15 @@ function readDismissed() {
   }
 }
 
+/** Human-readable snapshot timestamp for the card's data-provenance line. */
+function formatStamp(iso) {
+  if (!iso) return "just now";
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime())
+    ? "just now"
+    : d.toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
+}
+
 /**
  * Ops Briefing — ranked, AI-generated to-do cards derived from the live
  * snapshot (rightNow queues + 30-day trends). Every item cites numbers and
@@ -56,6 +65,7 @@ export default function AdminBriefingCard() {
   const [hasRun, setHasRun] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [dataAsOf, setDataAsOf] = useState(null);
   const [dismissed, setDismissed] = useState(readDismissed);
 
   useEffect(() => {
@@ -71,6 +81,10 @@ export default function AdminBriefingCard() {
       const context = await buildAdminContext({ force: true });
       const result = await generateOpsBriefing(context);
       setItems(result);
+      setDataAsOf({
+        at: context?.generatedAt ?? null,
+        from: context?.period?.current?.from ?? null,
+        to: context?.period?.current?.to ?? null});
       setHasRun(true);
     } catch (e) {
       setError(e?.message || "Failed to generate briefing.");
@@ -102,8 +116,8 @@ export default function AdminBriefingCard() {
             Ops Briefing
           </CardTitle>
           <CardDescription>
-            AI ranks what needs attention right now — with the numbers and the
-            page to act on.
+            Ranks what needs attention today. Every item shows the numbers
+            behind it and links to the page where you handle it.
           </CardDescription>
         </div>
         <Button
@@ -119,7 +133,7 @@ export default function AdminBriefingCard() {
             </>
           ) : (
             <>
-              <Sparkles className="h-4 w-4" />
+              <ListChecks className="h-4 w-4" />
               {hasRun ? "Re-run" : "Run Briefing"}
             </>
           )}
@@ -196,6 +210,12 @@ export default function AdminBriefingCard() {
               );
             })
           )}
+          {dataAsOf ? (
+            <p className="pt-1 text-[11px] text-muted-foreground">
+              Data as of {formatStamp(dataAsOf.at)}
+              {dataAsOf.from && dataAsOf.to ? ` · window ${dataAsOf.from} to ${dataAsOf.to}` : ""}
+            </p>
+          ) : null}
         </CardContent>
       ) : null}
 
@@ -203,8 +223,8 @@ export default function AdminBriefingCard() {
         <CardContent className="pt-0">
           <p className="text-xs text-muted-foreground">
             Checks expiring payment holds, approval queues, cancellations, room
-            statuses, arrivals, and trend shifts — then tells you what to do
-            first.
+            statuses, arrivals, refund backlog, alerts, and error trends, then
+            ranks what to fix first.
           </p>
         </CardContent>
       ) : null}

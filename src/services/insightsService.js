@@ -10,11 +10,15 @@
  * free-text feedback ever leave the browser.
  */
 
-import { collection, getDocs } from "firebase/firestore";
+import { collection, getDocs, limit, orderBy, query } from "firebase/firestore";
 import { db } from "@/firebase/firebase.config";
 import { getCol } from "@/lib/db-utils";
 import { listRooms } from "@/services/roomsService";
 import { getAiAuthHeaders, AiRequestError } from "@/lib/aiAuth";
+import { diffAvailability } from "@/services/availabilityReconciliation";
+import { isOnlineNow } from "@/services/presenceService";
+import { getMaintenanceStatus } from "@/services/maintenanceService";
+import { isPersonDoc } from "@/services/userService";
 
 const GROQ_PROXY_URL = import.meta.env.VITE_GROQ_PROXY_URL;
 
@@ -37,8 +41,21 @@ async function fetchAll(name) {
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
 
+async function fetchRecent(name, count) {
+  // error_logs / audit_logs grow without bound; keep the newest `count` only
+  // (timestamp is an ISO string, so lexicographic order matches time order).
+  // Window counts below can undercount when more than `count` entries land
+  // inside the window — acceptable next to an unbounded read per cache miss.
+  const snap = await getDocs(query(col(name), orderBy("timestamp", "desc"), limit(count)));
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+
 function toDate(value) {
-  const d = value?.toDate?.();
+  if (value == null) return null;
+  let d = null;
+  if (typeof value.toDate === "function") d = value.toDate();
+  else if (value instanceof Date) d = value;
+  else if (typeof value === "string" || typeof value === "number") d = new Date(value);
   return d instanceof Date && !Number.isNaN(d.getTime()) ? d : null;
 }
 
@@ -137,6 +154,180 @@ function summarizeBookings(bookings, roomsById, fromMs, toMs) {
       .map((r) => ({ ...r, estRevenue: Math.round(r.estRevenue) }))};
 }
 
+// ── Context v2 section helpers (pure — exported for tests) ─────────────────
+// PII rule: counts, enums, and system-generated alert titles only — never
+// names, emails, ids, error message text, or stacks.
+
+const ROLE_KEYS = ["guest", "fo", "admin"];
+
+export function summarizeAccounts(users = [], nowMs = Date.now()) {
+  const byRole = { guest: 0, fo: 0, admin: 0 };
+  let total = 0;
+  let withCreatedAt = 0;
+  let newLast30d = 0;
+  let activeNow = 0;
+  const from = nowMs - WINDOW_DAYS * DAY_MS;
+
+  for (const u of users) {
+    if (!u || !isPersonDoc(u.id)) continue;
+    total += 1;
+    const role = String(u.role ?? "");
+    if (ROLE_KEYS.includes(role)) byRole[role] += 1;
+
+    const created = toDate(u.createdAt)?.getTime() ?? null;
+    if (created != null) {
+      withCreatedAt += 1;
+      if (created >= from && created <= nowMs) newLast30d += 1;
+    }
+    if (isOnlineNow(u)) activeNow += 1;
+  }
+
+  return {
+    total,
+    byRole,
+    // null = no user doc carries a createdAt yet (legacy data) — report the
+    // gap honestly instead of inventing a zero trend.
+    newLast30d: withCreatedAt > 0 ? newLast30d : null,
+    activeNow};
+}
+
+const ALERT_SEVERITY_RANK = { critical: 0, high: 1, medium: 2, low: 3 };
+
+export function summarizeAlerts(alerts = [], nowMs = Date.now()) {
+  const unresolvedBySeverity = { critical: 0, high: 0, medium: 0, low: 0 };
+  let unresolvedTotal = 0;
+  let resolvedLast30d = 0;
+  const unresolved = [];
+  const from = nowMs - WINDOW_DAYS * DAY_MS;
+
+  for (const a of alerts) {
+    if (!a) continue;
+    if (a.status === "unresolved") {
+      unresolvedTotal += 1;
+      if (ALERT_SEVERITY_RANK[a.severity] != null) unresolvedBySeverity[a.severity] += 1;
+      unresolved.push(a);
+    } else if (a.status === "resolved") {
+      const t = toDate(a.resolvedAt)?.getTime() ?? null;
+      if (t != null && t >= from && t <= nowMs) resolvedLast30d += 1;
+    }
+  }
+
+  const topUnresolved = unresolved
+    .map((a) => {
+      const created = toDate(a.createdAt)?.getTime() ?? null;
+      return {
+        severity: ALERT_SEVERITY_RANK[a.severity] != null ? a.severity : "unknown",
+        // Collapsed + clipped: a long or hand-written title cannot smuggle
+        // free text into the prompt.
+        title: String(a.title ?? "").replace(/\s+/g, " ").trim().slice(0, 80),
+        ageDays: created == null ? null : Math.max(0, Math.floor((nowMs - created) / DAY_MS))};
+    })
+    .sort((x, y) =>
+      (ALERT_SEVERITY_RANK[x.severity] ?? 9) - (ALERT_SEVERITY_RANK[y.severity] ?? 9) ||
+      (y.ageDays ?? -1) - (x.ageDays ?? -1))
+    .slice(0, 3);
+
+  return { unresolvedTotal, unresolvedBySeverity, topUnresolved, resolvedLast30d };
+}
+
+export function summarizeRefunds(refunds = [], nowMs = Date.now()) {
+  const out = {
+    pendingCount: 0,
+    pendingAmount: 0,
+    stuckPending7d: 0,
+    approvedCount: 0,
+    approvedAmount: 0,
+    paidLast30d: { count: 0, total: 0 },
+    rejectedLast30d: 0};
+  const from = nowMs - WINDOW_DAYS * DAY_MS;
+  const stuckBefore = nowMs - 7 * DAY_MS;
+
+  for (const r of refunds) {
+    if (!r) continue;
+    const amount = Number(r.amount ?? 0) || 0;
+    const created = toDate(r.createdAt)?.getTime() ?? null;
+    const updated = toDate(r.updatedAt)?.getTime() ?? null;
+
+    if (r.status === "Pending") {
+      out.pendingCount += 1;
+      out.pendingAmount += amount;
+      // Only provably old requests count as stuck; unknown age is not proof.
+      if (created != null && created < stuckBefore) out.stuckPending7d += 1;
+    } else if (r.status === "Approved") {
+      out.approvedCount += 1;
+      out.approvedAmount += amount;
+    } else if (r.status === "Paid") {
+      const t = toDate(r.processedAt)?.getTime() ?? updated;
+      if (t != null && t >= from && t <= nowMs) {
+        out.paidLast30d.count += 1;
+        out.paidLast30d.total += amount;
+      }
+    } else if (r.status === "Rejected") {
+      if (updated != null && updated >= from && updated <= nowMs) out.rejectedLast30d += 1;
+    }
+  }
+
+  out.pendingAmount = Math.round(out.pendingAmount);
+  out.approvedAmount = Math.round(out.approvedAmount);
+  out.paidLast30d.total = Math.round(out.paidLast30d.total);
+  return out;
+}
+
+export function summarizeErrorLogs(errorLogs = [], nowMs = Date.now()) {
+  let errorsLast30d = 0;
+  let errorsLast7d = 0;
+  let errorsPrev7d = 0;
+  let lastErrorMs = null;
+  const byComponent = {};
+  const from30 = nowMs - WINDOW_DAYS * DAY_MS;
+  const from7 = nowMs - 7 * DAY_MS;
+  const from14 = nowMs - 14 * DAY_MS;
+
+  for (const e of errorLogs) {
+    const t = toDate(e?.timestamp)?.getTime() ?? null;
+    if (t != null && t <= nowMs && (lastErrorMs == null || t > lastErrorMs)) lastErrorMs = t;
+    if (t != null && t >= from30 && t <= nowMs) {
+      errorsLast30d += 1;
+      const comp = String(e?.component ?? "").trim().slice(0, 60);
+      if (comp) byComponent[comp] = (byComponent[comp] ?? 0) + 1;
+    }
+    if (t != null && t >= from7 && t <= nowMs) errorsLast7d += 1;
+    else if (t != null && t >= from14 && t < from7) errorsPrev7d += 1;
+  }
+
+  return {
+    errorsLast30d,
+    errorsLast7d,
+    errorsPrev7d,
+    topErrorComponents: Object.entries(byComponent)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([component, count]) => ({ component, count })),
+    lastErrorAt: lastErrorMs == null ? null : new Date(lastErrorMs).toISOString()};
+}
+
+export function summarizeAuditActivity(auditLogs = [], nowMs = Date.now()) {
+  const counts = {};
+  let staffActions7d = 0;
+  const from30 = nowMs - WINDOW_DAYS * DAY_MS;
+  const from7 = nowMs - 7 * DAY_MS;
+
+  for (const log of auditLogs) {
+    const t = toDate(log?.timestamp)?.getTime() ?? null;
+    if (t == null || t < from30 || t > nowMs) continue;
+    const action = String(log.actionType ?? "UNKNOWN");
+    counts[action] = (counts[action] ?? 0) + 1;
+    if (t >= from7) staffActions7d += 1;
+  }
+
+  return {
+    last30d: Object.fromEntries(
+      Object.entries(counts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 8)),
+    staffActions7d};
+}
+
 /**
  * Build the full admin context snapshot consumed by both /insights and
  * /admin-chat. Cached in-memory for CACHE_TTL_MS.
@@ -153,7 +344,22 @@ export async function buildAdminContext({ force = false } = {}) {
   const curFromMs = startOfDay(new Date(curToMs - WINDOW_DAYS * DAY_MS)).getTime();
   const prevFromMs = curFromMs - WINDOW_DAYS * DAY_MS;
 
-  const [bookings, payments, reviews, hkLogs, messages, testimonials, rooms] = await Promise.all([
+  const [
+    bookings,
+    payments,
+    reviews,
+    hkLogs,
+    messages,
+    testimonials,
+    rooms,
+    users,
+    refunds,
+    systemAlerts,
+    errorLogs,
+    auditLogs,
+    markers,
+    maintenance,
+  ] = await Promise.all([
     fetchAll("bookings"),
     fetchAll("payments"),
     fetchAll("reviews"),
@@ -161,6 +367,13 @@ export async function buildAdminContext({ force = false } = {}) {
     fetchAll("messages", null),
     fetchAll("testimonials", null),
     listRooms(),
+    fetchAll("users"),
+    fetchAll("refunds"),
+    fetchAll("system_alerts"),
+    fetchRecent("error_logs", 400),
+    fetchRecent("audit_logs", 300),
+    fetchAll("room_availability"),
+    getMaintenanceStatus(),
   ]);
 
   const roomsById = new Map(rooms.map((r) => [r.id, r]));
@@ -266,6 +479,7 @@ export async function buildAdminContext({ force = false } = {}) {
   let cancellationRequests = 0;
   let arrivalsToday = 0;
   let departuresToday = 0;
+  let overdueCheckOuts = 0;
   const todayStart = startOfDay(now).getTime();
   const todayEnd = todayStart + DAY_MS;
 
@@ -298,6 +512,11 @@ export async function buildAdminContext({ force = false } = {}) {
     ) {
       departuresToday += 1;
     }
+    // Still Checked In past the scheduled date — FO's departure list is the
+    // fix; this only counts them.
+    if (status === "Checked In" && checkOut && checkOut.getTime() < todayStart) {
+      overdueCheckOuts += 1;
+    }
   }
 
   const roomsByStatus = {};
@@ -306,6 +525,14 @@ export async function buildAdminContext({ force = false } = {}) {
     roomsByStatus[s] = (roomsByStatus[s] ?? 0) + 1;
   }
   const roomsNeedingCleaning = roomsByStatus["Dirty / Needs Cleaning"] ?? 0;
+
+  // ── Context v2 sections (accounts / alerts / refunds / system / activity) ──
+  const accountsSection = summarizeAccounts(users, curToMs);
+  const alertsSection = summarizeAlerts(systemAlerts, curToMs);
+  const refundsSection = summarizeRefunds(refunds, curToMs);
+  const errorsSection = summarizeErrorLogs(errorLogs, curToMs);
+  const activitySection = summarizeAuditActivity(auditLogs, curToMs);
+  const integrity = diffAvailability(bookings, markers);
 
   const data = {
     generatedAt: new Date().toISOString(),
@@ -335,7 +562,7 @@ export async function buildAdminContext({ force = false } = {}) {
         .sort((a, b) => b.total - a.total)
         .map((m) => ({ method: m.method, count: m.count, total: Math.round(m.total) }))},
     previousPeriod: {
-      bookingsCreated: previousLite.bookingsCreated,
+      ...previousLite,
       revenue: Math.round(revenuePrevious)},
     dailyActivity: daily.map((d) => ({ ...d, revenue: Math.round(d.revenue) })),
     reviews: {
@@ -350,6 +577,17 @@ export async function buildAdminContext({ force = false } = {}) {
         avgRating: hkRatings30 > 0 ? round1(hkRatingSum30 / hkRatings30) : null},
       messagesByStatus: messageCounts,
       testimonialsByStatus: testimonialCounts},
+    accounts: accountsSection,
+    alerts: alertsSection,
+    refunds: refundsSection,
+    system: {
+      ...errorsSection,
+      // Same bookings-vs-markers diff the admin availability page repairs.
+      availability: {
+        missingMarkers: integrity.missingMarkers.length,
+        orphanMarkers: integrity.orphanMarkers.length},
+      maintenanceMode: maintenance?.enabled === true},
+    activity: activitySection,
     rightNow: {
       pendingApprovals,
       awaitingPayment,
@@ -360,7 +598,10 @@ export async function buildAdminContext({ force = false } = {}) {
       roomsNeedingCleaning,
       roomsByStatus,
       unreadMessages: messageCounts.unread ?? 0,
-      pendingTestimonials: testimonialCounts.Pending ?? 0}};
+      pendingTestimonials: testimonialCounts.Pending ?? 0,
+      overdueCheckOuts,
+      pendingRefunds: refundsSection.pendingCount,
+      unresolvedAlerts: alertsSection.unresolvedTotal}};
 
   contextCache = { key, fetchedAt: Date.now(), data };
   return data;
@@ -379,7 +620,13 @@ function throwUpstreamError(data, status, fallback) {
   } else if (detail) {
     message = `${base} (${detail.slice(0, 140)})`;
   }
-  throw new AiRequestError(message, data?.code || "UPSTREAM", status);
+  // Carry limit metadata (e.g. resetAt on DAILY_CAP) so the widget can show
+  // the capped state without re-parsing the message.
+  const extra = {};
+  for (const key of ["resetAt", "remainingToday", "dailyLimit"]) {
+    if (data?.[key] != null) extra[key] = data[key];
+  }
+  throw new AiRequestError(message, data?.code || "UPSTREAM", status, Object.keys(extra).length ? extra : null);
 }
 
 /**
@@ -430,6 +677,7 @@ export async function generateOpsBriefing(context) {
 /**
  * Send an admin-assistant conversation turn (+ snapshot) to the worker.
  * @param {Array<{ role: 'user' | 'assistant', content: string }>} messages
+ * @returns {Promise<{ content: string, remainingToday: number|null, dailyLimit: number|null }>}
  */
 export async function sendAdminChat(messages, context) {
   if (!GROQ_PROXY_URL) throw new Error("AI proxy URL is not configured.");
@@ -446,5 +694,8 @@ export async function sendAdminChat(messages, context) {
 
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throwUpstreamError(data, res.status, "Admin assistant request failed");
-  return String(data.content ?? "").trim();
+  return {
+    content: String(data.content ?? "").trim(),
+    remainingToday: Number.isFinite(data.remainingToday) ? data.remainingToday : null,
+    dailyLimit: Number.isFinite(data.dailyLimit) ? data.dailyLimit : null};
 }

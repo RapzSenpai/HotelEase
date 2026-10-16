@@ -3,13 +3,15 @@ import { auth } from "@/firebase/firebase.config";
 /**
  * Typed error thrown by AI services so UIs can react to specific limits.
  * codes: DAILY_CAP | AUTH_REQUIRED | RATE_LIMIT | UPSTREAM | UNAVAILABLE
+ * extra: optional fields from the response body (e.g. resetAt on DAILY_CAP).
  */
 export class AiRequestError extends Error {
-  constructor(message, code, status) {
+  constructor(message, code, status, extra = null) {
     super(message);
     this.name = "AiRequestError";
     this.code = code || "UNKNOWN";
     this.status = status;
+    if (extra) Object.assign(this, extra);
   }
 }
 

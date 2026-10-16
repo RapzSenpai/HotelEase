@@ -103,7 +103,12 @@ export default function BookingPage() {
 
   const [checkIn, setCheckIn] = useState(searchParams.get("checkIn") || "");
   const [checkOut, setCheckOut] = useState(searchParams.get("checkOut") || "");
-  const [paxCount, setPaxCount] = useState(1);
+  // pax comes from the concierge's booking-summary handoff; anything invalid
+  // falls back to 1 (the capacity check still blocks over-max counts).
+  const [paxCount, setPaxCount] = useState(() => {
+    const pax = Math.floor(Number(searchParams.get("pax")));
+    return Number.isFinite(pax) && pax >= 1 ? pax : 1;
+  });
   const [specialRequests, setSpecialRequests] = useState("");
   const [step1Error, setStep1Error] = useState(null);
   const [step1Touched, setStep1Touched] = useState(false);

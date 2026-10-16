@@ -4,14 +4,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import RequiredIndicator from "@/components/common/RequiredIndicator";
 import { useAuth } from "@/contexts/AuthContext";
-import { Link, NavLink, useNavigate } from "react-router-dom";
+import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { Eye, EyeOff } from "lucide-react";
 import { mapAuthError } from "@/lib/authErrors";
+import { resolveLoginRedirect } from "@/lib/routing";
 import { useLoginLockout } from "@/hooks/useLoginLockout";
 import { toast } from "sonner";
 
 export default function LoginPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { login, loading, role } = useAuth();
 
   const [email, setEmail] = useState("");
@@ -54,9 +56,9 @@ export default function LoginPage() {
     try {
       await login({ email, password });
       resetAttempts();
-      if (role === "fo") navigate("/fo");
-      else if (role === "admin") navigate("/admin");
-      else navigate("/my-bookings");
+      // Redirection target carried by PrivateRoute or the concierge's
+      // "Sign in to book" handoff (location.state.from). Internal paths only.
+      navigate(resolveLoginRedirect(location.state?.from, role), { replace: true });
     } catch (err) {
       const justLocked = registerFailure();
       if (justLocked) {

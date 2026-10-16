@@ -48,7 +48,7 @@ describe("demo context", () => {
 });
 
 describe("demo entry", () => {
-  it("role dialog offers exactly Guest, FO, Admin", async () => {
+  it("role dialog module loads", async () => {
     const { default: DemoRoleDialog } = await import("@/demo/DemoRoleDialog");
     expect(typeof DemoRoleDialog).toBe("function");
   });

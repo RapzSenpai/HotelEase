@@ -2,13 +2,14 @@ import { useState } from "react";
 import { NavLink, useLocation, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
-import { User, Menu, X, BedDouble, CalendarDays, Heart, LogOut, SprayCan } from "lucide-react";
+import { Menu, X, BedDouble, CalendarDays, Heart, LogOut, SprayCan } from "lucide-react";
 import NotificationBell from "@/components/notifications/NotificationBell";
+import UserAvatar from "@/components/ui/user-avatar";
 import { getLogoHomePath, isStaffRole } from "@/lib/routing";
 import { cn } from "@/lib/utils";
 
 export default function Navbar({ onToggleSidebar }) {
-  const { user, role, logout, loading } = useAuth();
+  const { user, role, logout, loading, profile } = useAuth();
   const location = useLocation();
   const [params] = useSearchParams();
   const [mobileGuestMenuOpen, setMobileGuestMenuOpen] = useState(false);
@@ -30,6 +31,10 @@ export default function Navbar({ onToggleSidebar }) {
   const isDemo =
     location.pathname.startsWith("/demo") || params.get("demo") === "1";
   const homePath = getLogoHomePath(role);
+
+  // Same fallback chain as ProfilePage, so the avatar matches the profile name.
+  const displayName =
+    profile?.fullName || user?.displayName || user?.email?.split("@")[0] || "Guest";
 
   const logo = (
     <>
@@ -175,7 +180,7 @@ export default function Navbar({ onToggleSidebar }) {
                     }`
                   }
                 >
-                  <User className="h-4 w-4" />
+                  <UserAvatar photoUrl={profile?.photoUrl} name={displayName} />
                   Profile
                 </NavLink>
               )}
@@ -275,7 +280,7 @@ export default function Navbar({ onToggleSidebar }) {
                 }`
               }
             >
-              <User className="h-4 w-4" />
+              <UserAvatar photoUrl={profile?.photoUrl} name={displayName} />
               Profile
             </NavLink>
 

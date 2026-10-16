@@ -16,9 +16,9 @@ function parseBriefingArray(text) {
     const parsed = JSON.parse(raw.slice(start, end + 1));
     if (!Array.isArray(parsed)) return [];
     const allowedLinks = new Set([
-      "/fo/bookings", "/fo/check-in", "/fo/check-out", "/fo/housekeeping",
-      "/fo/cancellations", "/admin/messages", "/admin/testimonials",
-      "/admin/room-rates", "/admin",
+      "/admin", "/admin/operations", "/admin/rooms", "/admin/availability",
+      "/admin/alerts", "/admin/audit-logs", "/admin/health", "/admin/users",
+      "/admin/messages", "/admin/testimonials", "/fo/announcements",
     ]);
     return parsed
       .filter(

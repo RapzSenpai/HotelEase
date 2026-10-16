@@ -27,9 +27,12 @@ export function buildOtpBody(otp) {
   </table>`;
 }
 
-export function buildReplyBody(subject, replyMessage) {
+// label keeps the shell generic: "Our Reply" for support replies (default,
+// unchanged output), "Message" for staff-composed outbound messages.
+export function buildReplyBody(subject, replyMessage, label = "Our Reply") {
   const subj = escapeHtml(subject);
   const msg = escapeHtml(replyMessage);
+  const tag = escapeHtml(label);
   return `<table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 16px;">
     <tr>
       <td style="background-color:#FAFAF8;border-left:4px solid #F5C518;padding:12px 16px;border-radius:0 8px 8px 0;">
@@ -39,7 +42,7 @@ export function buildReplyBody(subject, replyMessage) {
     </tr>
     <tr>
       <td style="background-color:#F5F9FE;border-left:4px solid #3B82F6;padding:16px;border-radius:0 8px 8px 0;">
-        <p style="margin:0 0 6px;color:#3B82F6;font-size:11px;text-transform:uppercase;letter-spacing:1px;font-weight:600;">Our Reply</p>
+        <p style="margin:0 0 6px;color:#3B82F6;font-size:11px;text-transform:uppercase;letter-spacing:1px;font-weight:600;">${tag}</p>
         <p style="margin:0;color:#1C1C1E;font-size:14px;line-height:1.7;white-space:pre-wrap;">${msg}</p>
       </td>
     </tr>

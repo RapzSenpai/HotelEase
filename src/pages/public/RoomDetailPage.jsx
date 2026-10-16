@@ -648,7 +648,10 @@ export default function RoomDetailPage() {
           onBookNow={handleBookNow}
         />
       )}
-      <ChatbotWidget positionClass="bottom-28 right-6" />
+      <ChatbotWidget
+        positionClass="bottom-28 right-6"
+        roomContext={room ? { roomId, name: room.name || room.type || "" } : null}
+      />
     </>
   );
 }

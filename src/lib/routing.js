@@ -5,6 +5,27 @@ export function getLogoHomePath(role) {
   return "/";
 }
 
+/**
+ * Where LoginPage sends the user after a successful login.
+ * `from` (react-router location.state.from, e.g. PrivateRoute or the
+ * concierge's sign-in handoff) wins only when it is a safe internal path —
+ * "//host" and "/\host" are rejected because the browser resolves them
+ * cross-origin. Otherwise the historical per-role default applies; note the
+ * fallback is /my-bookings (not getHomePathForRole) because role state can
+ * still be stale right after login.
+ */
+export function resolveLoginRedirect(from, role) {
+  const isSafePath =
+    typeof from === "string" &&
+    from.startsWith("/") &&
+    !from.startsWith("//") &&
+    !from.startsWith("/\\");
+  if (isSafePath) return from;
+  if (role === "fo") return "/fo";
+  if (role === "admin") return "/admin";
+  return "/my-bookings";
+}
+
 /** Default post-login / post-auth redirect for each role. */
 export function getHomePathForRole(role) {
   if (role === "fo") return "/fo";

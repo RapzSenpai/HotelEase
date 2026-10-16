@@ -82,7 +82,6 @@ describe("demo entry", () => {
   // The bug this pins: picking a role used to route to /demo, which mounted the
   // same picker again, so the visitor had to click twice.
   for (const [label, path] of [
-    ["Guest", "/demo/guest"],
     ["Front Office", "/demo/fo"],
     ["Admin", "/demo/admin"],
   ]) {
@@ -95,6 +94,17 @@ describe("demo entry", () => {
       expect(document.body.textContent).not.toContain("Pick a role to start.");
     });
   }
+
+  it("no longer offers a Guest demo choice", async () => {
+    await renderLanding();
+    clickText("Try Demo");
+
+    const dialog = document.querySelector('[data-slot="dialog-content"]');
+    const labels = [...dialog.querySelectorAll("button")].map((b) => b.textContent || "");
+    expect(labels.some((text) => text.includes("Front Office"))).toBe(true);
+    expect(labels.some((text) => text.includes("Admin"))).toBe(true);
+    expect(labels.some((text) => text.includes("Guest"))).toBe(false);
+  });
 
   it("closing the /demo picker returns home instead of stranding", async () => {
     container = document.createElement("div");

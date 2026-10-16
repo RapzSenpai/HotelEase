@@ -6,8 +6,10 @@ import { ADMIN_CHAT_SYSTEM_PROMPT } from "../prompts.js";
 /**
  * Multi-turn admin assistant. The client supplies its own conversation
  * history; the snapshot is injected fresh into the system prompt each call.
+ * `meta` carries quota info from the router; when present it is echoed back
+ * so the widget can show remaining messages and the capped state.
  */
-export async function handleAdminChatRequest(request, workerEnv) {
+export async function handleAdminChatRequest(request, workerEnv, meta = {}) {
   const apiKey = workerEnv.GROQ_API_KEY;
   if (!apiKey) {
     return json({ error: "Groq proxy is not configured (missing GROQ_API_KEY secret)." }, 500);
@@ -58,7 +60,12 @@ export async function handleAdminChatRequest(request, workerEnv) {
       ],
       { maxTokens: 2000, temperature: 0.3 },
     );
-    return json({ content });
+    return json({
+      content,
+      ...(Number.isFinite(meta.remainingToday)
+        ? { remainingToday: meta.remainingToday, dailyLimit: meta.dailyLimit }
+        : {}),
+    });
   } catch (e) {
     if (e.status) return json({ error: "Groq upstream error.", detail: String(e.message || e) }, e.status);
     return json({ error: "Failed to reach Groq.", detail: String(e) }, 502);

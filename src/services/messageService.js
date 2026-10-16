@@ -25,7 +25,9 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MESSAGE_COOLDOWN_MS = 30_000;
 const LAST_SENT_KEY = "hotelease_last_message_at";
 
-async function sendReplyEmail({ toEmail, name, subject, replyMessage }) {
+// Shared generic EmailJS shell (template_mt0d9ao): replies, verification
+// codes, and staff outbound messages all fill the same {{bodyHTML}} slot.
+async function sendGenericEmail({ toEmail, toName, subject, eyebrow, bodyHTML }) {
   const serviceId = import.meta.env.VITE_EMAILJS_SERVICE_ID;
   const templateId = import.meta.env.VITE_EMAILJS_REPLY_TEMPLATE_ID;
   const publicKey = import.meta.env.VITE_EMAILJS_PUBLIC_KEY;
@@ -34,14 +36,20 @@ async function sendReplyEmail({ toEmail, name, subject, replyMessage }) {
     throw new Error("EmailJS is not configured. Make sure VITE_EMAILJS_REPLY_TEMPLATE_ID is set in .env");
   }
 
-  const templateParams = {
-    to_email: toEmail,
-    to_name: name,
+  await emailjs.send(
+    serviceId,
+    templateId,
+    { to_email: toEmail, to_name: toName, subject, eyebrow, bodyHTML },
+    publicKey);
+}
+
+function sendReplyEmail({ toEmail, name, subject, replyMessage }) {
+  return sendGenericEmail({
+    toEmail,
+    toName: name,
     subject: `Re: ${subject}`,
     eyebrow: "Support Reply",
-    bodyHTML: buildReplyBody(subject, replyMessage)};
-
-  await emailjs.send(serviceId, templateId, templateParams, publicKey);
+    bodyHTML: buildReplyBody(subject, replyMessage)});
 }
 
 export async function submitMessage({ name, email, subject, message, guestId = null, honeypot = "" }) {
@@ -178,4 +186,65 @@ export async function replyToMessage(messageId, replyMessage) {
       emailSent: false,
       reason: error?.message || "Email service is unavailable."};
   }
+}
+
+// Staff-composed outbound message (New Message tab): recorded before the
+// best-effort email attempt so a delivery result can update its audit flag.
+export async function sendMessageToGuest({ toEmail, toName, subject, message, sentBy, sentByName }) {
+  const cleanToEmail = String(toEmail || "").trim();
+  const cleanSubject = String(subject || "").trim();
+  const cleanMessage = String(message || "").trim();
+  const cleanToName = String(toName || "").trim().slice(0, 100) || "Guest";
+  const cleanSentByName = String(sentByName || "").trim().slice(0, 100) || "Staff";
+
+  if (!cleanToEmail || !EMAIL_RE.test(cleanToEmail)) {
+    throw new Error("Please enter a valid recipient email.");
+  }
+  if (!cleanSubject) throw new Error("Subject is required.");
+  if (cleanSubject.length > 200) throw new Error("Subject must be at most 200 characters.");
+  if (cleanMessage.length < 20 || cleanMessage.length > 2000) {
+    throw new Error("Message must be between 20 and 2000 characters.");
+  }
+  if (!sentBy) throw new Error("Missing sender for the outgoing message.");
+
+  const col = getCol(MESSAGES_COL);
+  const ref = doc(collection(db, col));
+  await setDoc(ref, {
+    id: ref.id,
+    direction: "outgoing",
+    toName: cleanToName,
+    toEmail: cleanToEmail,
+    subject: cleanSubject,
+    message: cleanMessage,
+    status: "sent",
+    sentBy,
+    sentByName: cleanSentByName,
+    emailSent: false,
+    createdAt: serverTimestamp()});
+
+  let emailSent = false;
+  if (col === MESSAGES_COL) {
+    try {
+      await sendGenericEmail({
+        toEmail: cleanToEmail,
+        toName: cleanToName,
+        subject: cleanSubject,
+        eyebrow: "Message from HotelEase",
+        bodyHTML: buildReplyBody(cleanSubject, cleanMessage, "Message")});
+      emailSent = true;
+    } catch (error) {
+      console.error("Outgoing message email failed:", error);
+    }
+
+    if (emailSent) {
+      try {
+        await updateDoc(ref, { emailSent: true });
+      } catch (error) {
+        console.error("Outgoing message delivery status update failed:", error);
+        return { ok: true, emailSent: true, auditUpdateFailed: true };
+      }
+    }
+  }
+
+  return { ok: true, emailSent };
 }

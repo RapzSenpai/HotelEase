@@ -1,47 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Bot, X, Copy, Check, ArrowUp, RotateCcw, Megaphone, Mail, ClipboardList } from "lucide-react";
+import { Bot, X, Sparkles, Copy, Check, ArrowUp, RotateCcw, Megaphone, Mail, ClipboardList } from "lucide-react";
 import { buildAdminContext, sendAdminChat } from "@/services/insightsService";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import AssistantChart from "@/components/admin/AssistantChart";
-
-const STATIC_PROMPTS = [
-  { label: "Summarize this month", prompt: "Summarize hotel performance for the current period." },
-  { label: "Top earning rooms?", prompt: "Which rooms are earning the most?" },
-  { label: "Any red flags?", prompt: "Are there any potential issues I should look into?" },
-  { label: "Chart revenue trend", prompt: "Show me a chart of the daily revenue trend." },
-];
-
-// Grounded in the live snapshot: only surface prompts for conditions that
-// actually exist right now, falling back to evergreen ones.
-function computePrompts(ctx) {
-  const now = ctx?.rightNow ?? {};
-  const prompts = [];
-  if (now.expiringHolds24h > 0) {
-    prompts.push({
-      label: `${now.expiringHolds24h} payment hold${now.expiringHolds24h === 1 ? "" : "s"} expiring soon`,
-      prompt: "Payment holds are expiring within 24 hours. What should I do, in order?"});
-  }
-  if (now.pendingApprovals > 0) {
-    prompts.push({
-      label: `${now.pendingApprovals} booking${now.pendingApprovals === 1 ? "" : "s"} awaiting approval`,
-      prompt: "Summarize the pending approvals and any risks around them."});
-  }
-  if (now.cancellationRequests > 0) {
-    prompts.push({
-      label: `${now.cancellationRequests} cancellation request${now.cancellationRequests === 1 ? "" : "s"}`,
-      prompt: "Review the cancellation requests and recommend what to do."});
-  }
-  if (now.roomsNeedingCleaning > 0) {
-    prompts.push({
-      label: `${now.roomsNeedingCleaning} room${now.roomsNeedingCleaning === 1 ? "" : "s"} need cleaning`,
-      prompt: "Housekeeping status: which rooms need attention and in what order?"});
-  }
-  prompts.push({ label: "Draft an announcement", prompt: "Draft a short announcement for guests based on what is happening in the hotel right now." });
-  prompts.push({ label: "Chart revenue trend", prompt: "Show me a chart of the daily revenue trend." });
-  return prompts.slice(0, 4);
-}
 
 function parseActionBlock(code) {
   try {
@@ -130,7 +93,15 @@ function AssistantActionCard({ action }) {
 }
 
 const WELCOME =
-  "Ops Assistant online. I can see live operations (approval queues, expiring payment holds, room statuses) plus 60 days of booking, revenue, review, and housekeeping data. Ask anything, request a chart, or ask me to draft an announcement.";
+  "Ops Assistant online. I can see live operations (approval queues, expiring payment holds, room status), accounts, alerts, refunds, system health, and 60 days of trends. Ask anything, request a chart, or ask me to draft an announcement.";
+
+/** "8:00 AM" in the viewer's local time, or null when resetAt is unusable. */
+function formatResetTime(iso) {
+  if (!iso) return null;
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+}
 
 const markdownComponents = {
   p: ({ children }) => <p className="leading-relaxed">{children}</p>,
@@ -202,13 +173,14 @@ function ActionBar({ content, onRegenerate }) {
 
 function EmptyState({ contextReady }) {
   return (
-    <div className="flex flex-1 flex-col items-center px-6 pt-4 text-center">
-      <div className="mt-auto" />
-      <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
-        <Bot className="h-5 w-5 text-primary" />
-      </div>
-      <p className="mb-auto text-sm font-medium text-foreground">
+    <div className="flex flex-1 flex-col items-center justify-center px-8 py-12 text-center">
+      <p className="text-sm font-semibold text-foreground">
         {contextReady ? "What would you like to know?" : "Loading hotel data…"}
+      </p>
+      <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+        {contextReady
+          ? "Live operations, accounts, alerts, refunds, and 60 days of trends."
+          : "Fetching the latest snapshot…"}
       </p>
     </div>
   );
@@ -220,7 +192,9 @@ export default function AdminAssistantWidget() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [contextReady, setContextReady] = useState(true);
-  const [dynamicPrompts, setDynamicPrompts] = useState([]);
+  const [capped, setCapped] = useState(false);
+  const [quota, setQuota] = useState(null);
+  const [resetAt, setResetAt] = useState(null);
   const listRef = useRef(null);
   const inputRef = useRef(null);
 
@@ -230,12 +204,14 @@ export default function AdminAssistantWidget() {
     setMessages([{ id: "welcome", role: "assistant", content: WELCOME }]);
     setInput("");
     setLoading(false);
+    setCapped(false);
+    setQuota(null);
+    setResetAt(null);
     let cancelled = false;
     setContextReady(false);
     buildAdminContext()
-      .then((ctx) => {
+      .then(() => {
         if (cancelled) return;
-        setDynamicPrompts(computePrompts(ctx));
         setContextReady(true);
       })
       .catch((e) => {
@@ -255,7 +231,7 @@ export default function AdminAssistantWidget() {
   const appendUserAndReply = useCallback(
     async (text, isRegenerate = false) => {
       const trimmed = text.trim();
-      if (!trimmed || loading || !contextReady) return;
+      if (!trimmed || loading || !contextReady || capped) return;
 
       const historyForApi = messages
         .filter((m) => m.id !== "welcome")
@@ -280,29 +256,38 @@ export default function AdminAssistantWidget() {
 
       try {
         const context = await buildAdminContext();
-        const reply = await sendAdminChat([...historyForApi, { role: "user", content: trimmed }], context);
-        setMessages((prev) => [
-          ...prev,
-          { id: `a-${Date.now()}`, role: "assistant", content: reply || "(Empty response.)" },
-        ]);
-      } catch (e) {
-        let msg = e?.message || "The assistant is unreachable right now.";
-        if (e?.code === "AUTH_REQUIRED" || e?.code === "DAILY_CAP") {
-          msg = `${e.message} If this persists, reload the page to refresh your session.`;
+        const result = await sendAdminChat([...historyForApi, { role: "user", content: trimmed }], context);
+        if (Number.isFinite(result?.remainingToday) && Number.isFinite(result?.dailyLimit)) {
+          setQuota({ remainingToday: result.remainingToday, dailyLimit: result.dailyLimit });
         }
         setMessages((prev) => [
           ...prev,
-          {
-            id: `e-${Date.now()}`,
-            role: "assistant",
-            content: msg,
-            isError: true},
+          { id: `a-${Date.now()}`, role: "assistant", content: result?.content || "(Empty response.)" },
         ]);
+      } catch (e) {
+        if (e?.code === "DAILY_CAP") {
+          // The greyed composer + capped card already say it; no extra bubble.
+          setCapped(true);
+          setResetAt(typeof e.resetAt === "string" ? e.resetAt : null);
+        } else {
+          let msg = e?.message || "The assistant is unreachable right now.";
+          if (e?.code === "AUTH_REQUIRED") {
+            msg = `${msg} If this persists, reload the page to refresh your session.`;
+          }
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: `e-${Date.now()}`,
+              role: "assistant",
+              content: msg,
+              isError: true},
+          ]);
+        }
       } finally {
         setLoading(false);
       }
     },
-    [loading, messages, contextReady]);
+    [loading, messages, contextReady, capped]);
 
   const handleRegenerate = useCallback(() => {
     const lastUserMsg = [...messages].reverse().find((m) => m.role === "user");
@@ -315,6 +300,7 @@ export default function AdminAssistantWidget() {
   };
 
   const isOnlyWelcome = messages.length === 1 && messages[0].id === "welcome";
+  const resetLabel = formatResetTime(resetAt);
 
   return (
     <div className="pointer-events-none fixed bottom-6 right-6 z-[100] flex flex-col items-end">
@@ -326,14 +312,38 @@ export default function AdminAssistantWidget() {
             : "scale-95 opacity-0 translate-y-2 pointer-events-none invisible"
         }`}
       >
-        <div className="flex w-[380px] max-w-[calc(100vw-2rem)] max-h-[min(500px,calc(100vh-160px))] flex-col overflow-hidden rounded-2xl border border-border bg-white shadow-[0_8px_30px_rgba(0,0,0,0.08)]">
+        <div className="flex w-[380px] max-w-[calc(100vw-2rem)] max-h-[min(500px,calc(100vh-160px))] flex-col overflow-hidden rounded-2xl border border-border/60 bg-white shadow-[0_1px_2px_rgba(28,28,30,0.04),0_12px_32px_rgba(28,28,30,0.12)]">
+
+          {/* Header — guest chatbox shape, admin identity */}
+          <div className="flex shrink-0 items-center gap-3 border-b border-border/60 px-5 py-4">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary">
+              <Sparkles className="h-4 w-4 text-primary-foreground" />
+            </span>
+            <div className="min-w-0">
+              <p className="truncate font-playfair text-sm font-semibold leading-tight text-foreground">
+                Ops Assistant
+              </p>
+              <p className="mt-0.5 flex items-center gap-1.5 text-[11px] leading-none text-muted-foreground">
+                <span className="h-1.5 w-1.5 rounded-full bg-success" />
+                Live operations, accounts, alerts, refunds
+              </p>
+            </div>
+            {quota &&
+              Number.isFinite(quota.remainingToday) &&
+              Number.isFinite(quota.dailyLimit) &&
+              (quota.dailyLimit <= 5 || quota.remainingToday <= 5) && (
+                <span className="ml-auto shrink-0 text-[11px] tabular-nums text-muted-foreground">
+                  {quota.remainingToday} of {quota.dailyLimit} left today
+                </span>
+              )}
+          </div>
 
           {/* Messages */}
           <div ref={listRef} className={`min-h-0 flex-1 overflow-y-auto${isOnlyWelcome ? " flex flex-col" : ""}`}>
             {isOnlyWelcome ? (
               <EmptyState contextReady={contextReady} />
             ) : (
-              <div className="space-y-4 px-4 py-4">
+              <div className="space-y-4 px-5 py-4">
                 {messages.map((m) => {
                   if (m.role === "user") {
                     return (
@@ -378,45 +388,56 @@ export default function AdminAssistantWidget() {
             )}
           </div>
 
-          {/* Composer */}
-          <div className="shrink-0 bg-white p-2.5">
-            {isOnlyWelcome && (
-              <div className="flex flex-wrap justify-center gap-2 pb-2 pt-3">
-                {(dynamicPrompts.length > 0 ? dynamicPrompts : STATIC_PROMPTS).map((q) => (
-                  <button
-                    key={q.label}
-                    type="button"
-                    disabled={loading || !contextReady}
-                    onClick={() => appendUserAndReply(q.prompt)}
-                    className="rounded-full border border-border px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:border-primary hover:text-primary disabled:pointer-events-none disabled:opacity-50"
-                  >
-                    {q.label}
-                  </button>
-                ))}
-              </div>
-            )}
-            <form onSubmit={onSubmit}>
-              <div className="flex items-center gap-2 rounded-2xl border border-border bg-background px-3 py-1 transition-all focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/15">
+          {/* Composer — unified container (locked after daily cap) */}
+          {capped ? (
+            <div className="shrink-0 bg-white p-3">
+              <div className="flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-1 opacity-60">
                 <input
-                  ref={inputRef}
-                  value={input}
-                  onChange={(e) => setInput(e.target.value.slice(0, 400))}
-                  placeholder="Ask about revenue, bookings, rooms…"
-                  disabled={loading || !contextReady}
-                  maxLength={400}
-                  className="h-9 flex-1 bg-transparent text-sm text-foreground placeholder:text-foreground/40 focus:outline-none"
+                  disabled
+                  placeholder="Out of messages for today"
+                  className="h-10 flex-1 cursor-not-allowed bg-transparent text-sm text-foreground placeholder:text-foreground/40 focus:outline-none"
                 />
                 <button
-                  type="submit"
-                  disabled={loading || !contextReady || !input.trim()}
-                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground transition-all hover:brightness-110 active:scale-95 disabled:opacity-40"
+                  type="button"
+                  disabled
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground opacity-40"
                   aria-label="Send message"
                 >
                   <ArrowUp className="h-3.5 w-3.5" />
                 </button>
               </div>
-            </form>
-          </div>
+              <div className="mt-2 rounded-xl border border-primary/30 bg-primary/10 p-3 text-center">
+                <p className="text-sm font-medium text-foreground">Daily assistant limit reached</p>
+                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                  {resetLabel ? `Resets at ${resetLabel}.` : "Resets tomorrow."}
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="shrink-0 bg-white p-3">
+              <form onSubmit={onSubmit}>
+                <div className="flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-1 transition-all focus-within:ring-[3px] focus-within:ring-ring/50">
+                  <input
+                    ref={inputRef}
+                    value={input}
+                    onChange={(e) => setInput(e.target.value.slice(0, 400))}
+                    placeholder="Ask about revenue, bookings, rooms…"
+                    disabled={loading || !contextReady}
+                    maxLength={400}
+                    className="h-10 flex-1 bg-transparent text-sm text-foreground placeholder:text-foreground/40 focus:outline-none"
+                  />
+                  <button
+                    type="submit"
+                    disabled={loading || !contextReady || !input.trim()}
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground transition-all hover:brightness-110 active:scale-95 disabled:opacity-40"
+                    aria-label="Send message"
+                  >
+                    <ArrowUp className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
         </div>
       </div>
 
@@ -425,14 +446,13 @@ export default function AdminAssistantWidget() {
         <button
           type="button"
           onClick={() => setOpen((o) => !o)}
-          className="group flex h-14 w-14 items-center justify-center rounded-full shadow-lg transition-all duration-300 hover:shadow-xl hover:scale-105 active:scale-95"
-          style={{ background: "#F5C518" }}
+          className="group flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-[0_6px_20px_rgba(28,28,30,0.18)] transition-all duration-200 hover:scale-105 hover:shadow-[0_8px_28px_rgba(28,28,30,0.22)] active:scale-95"
           aria-label={open ? "Close Ops Assistant" : "Open Ops Assistant"}
         >
           {open ? (
-            <X className="h-5 w-5 transition-transform duration-200" style={{ color: "#1C1C1E" }} />
+            <X className="h-5 w-5 transition-transform duration-200" />
           ) : (
-            <Bot className="h-6 w-6 transition-transform duration-200 group-hover:scale-110" style={{ color: "#1C1C1E" }} />
+            <Bot className="h-6 w-6 transition-transform duration-200 group-hover:scale-110" />
           )}
         </button>
       </div>

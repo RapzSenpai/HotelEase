@@ -1,7 +1,7 @@
 // Moved verbatim from src/index.js — Groq forward, no logic changes.
 import { GROQ_API_URL, MODEL_ID } from "./config.js";
 
-export async function callGroq(apiKey, messages, { maxTokens = 300, temperature = 0.7, extraBody = {} } = {}) {
+async function postGroq(apiKey, messages, { maxTokens = 300, temperature = 0.7, tools = null, extraBody = {} } = {}) {
   const groqRes = await fetch(GROQ_API_URL, {
     method: "POST",
     headers: {
@@ -16,6 +16,7 @@ export async function callGroq(apiKey, messages, { maxTokens = 300, temperature 
       // gpt-oss is a reasoning model: hidden thinking tokens count against
       // max_tokens. "low" keeps answers from being truncated mid-JSON.
       reasoning_effort: "low",
+      ...(tools ? { tools } : {}),
       ...extraBody,
     }),
   });
@@ -28,5 +29,15 @@ export async function callGroq(apiKey, messages, { maxTokens = 300, temperature 
   }
 
   const data = await groqRes.json();
-  return data?.choices?.[0]?.message?.content?.trim() || "";
+  return data?.choices?.[0]?.message || {};
+}
+
+/** Full assistant message — content plus any tool_calls the model made. */
+export async function callGroqMessage(apiKey, messages, options = {}) {
+  return postGroq(apiKey, messages, options);
+}
+
+export async function callGroq(apiKey, messages, options = {}) {
+  const message = await postGroq(apiKey, messages, options);
+  return message.content?.trim() || "";
 }

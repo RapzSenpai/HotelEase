@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { getAdminAnalyticsSummary } from "@/services/analyticsService";
 import { subscribeToActiveUsersByRole } from "@/services/activityService";
+import { listRefunds } from "@/services/refundsService";
+import { summarizeRefunds } from "@/services/insightsService";
 import AiInsightsCard from "@/components/admin/AiInsightsCard";
 import AdminBriefingCard from "@/components/admin/AdminBriefingCard";
+import RefundActivityCard from "@/components/admin/RefundActivityCard";
 import { 
   BarChart, 
   Bar, 
@@ -27,18 +30,31 @@ function formatCurrencyPHP(amount) {
 
 const COLORS = ["#D4AF37", "#1A1A1A", "#4A4A4A", "#8E8E8E"];
 
+const PEAK_RANK_LABELS = ["Top Day", "2nd Busiest", "3rd Busiest"];
+
 export default function AdminAnalyticsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [summary, setSummary] = useState(null);
   const [activeUsers, setActiveUsers] = useState({ total: 0, guest: 0, fo: 0, admin: 0 });
+  const [refundStats, setRefundStats] = useState(null);
+  const [refundCount, setRefundCount] = useState(0);
 
   const refresh = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const data = await getAdminAnalyticsSummary();
+      const [data, refunds] = await Promise.all([
+        getAdminAnalyticsSummary(),
+        // Read-only refund stats; a refunds read failure must not blank the page.
+        listRefunds().catch((e) => {
+          console.error("[Analytics] failed to load refunds", e);
+          return null;
+        }),
+      ]);
       setSummary(data);
+      setRefundStats(refunds ? summarizeRefunds(refunds) : null);
+      setRefundCount(refunds ? refunds.length : 0);
     } catch (e) {
       setError(e?.message || "Failed to load analytics.");
     } finally {
@@ -251,30 +267,37 @@ export default function AdminAnalyticsPage() {
           </div>
 
           {/* Peak Summary List */}
-          <Card>
+          <Card className="overflow-hidden">
             <CardHeader>
               <CardTitle>Peak Booking Periods</CardTitle>
+              <CardDescription>Top check-in days in the last 7 days.</CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="grid gap-4 md:grid-cols-3">
-                {summary.peakBookingDays.length === 0 ? (
-                  <div className="col-span-3 text-center py-6 text-muted-foreground">No bookings recorded in this range.</div>
-                ) : (
-                  summary.peakBookingDays.map((p, idx) => (
-                    <div key={p.date} className="flex items-center gap-4 p-4 rounded-xl bg-muted/10">
-                      <div className="w-8 h-8 rounded-full bg-primary/20 text-primary flex items-center justify-center font-bold text-sm">
-                        {idx + 1}
-                      </div>
-                      <div>
-                        <div className="font-medium">{new Date(p.date).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })}</div>
-                        <div className="text-xs text-muted-foreground">{p.count} New Bookings</div>
+            {(summary.peakBookingDays || []).every((p) => (p.count ?? 0) === 0) ? (
+              <div className="border-t border-border px-4 py-6 text-center text-sm text-muted-foreground">
+                No bookings in the last 7 days.
+              </div>
+            ) : (
+              <div className="grid divide-y divide-border border-t border-border md:grid-cols-3 md:divide-x md:divide-y-0">
+                {(summary.peakBookingDays || []).map((p, idx) => (
+                  <div key={p.date} className="flex items-center gap-3 px-4 py-4">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary font-bold text-sm">
+                      {idx + 1}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-xs text-foreground/50">{PEAK_RANK_LABELS[idx] ?? `#${idx + 1}`}</div>
+                      <div className="text-xl font-semibold leading-tight tracking-tight">{p.count}</div>
+                      <div className="truncate text-[11px] text-foreground/50">
+                        new bookings on {new Date(p.date).toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" })}
                       </div>
                     </div>
-                  ))
-                )}
+                  </div>
+                ))}
               </div>
-            </CardContent>
+            )}
           </Card>
+
+          {/* Refund activity (read-only; Front Office processes payouts) */}
+          <RefundActivityCard stats={refundStats} totalCount={refundCount} />
 
           {/* Ops Briefing + AI Insights */}
           <AdminBriefingCard />
