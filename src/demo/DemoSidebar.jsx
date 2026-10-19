@@ -1,5 +1,6 @@
-import { NavLink, useNavigate } from "react-router-dom";
-import { LogOut } from "lucide-react";
+import { useEffect } from "react";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
+import { LogOut, X } from "lucide-react";
 import { ADMIN_LINKS, FO_LINKS } from "@/lib/nav-links";
 import { useDemo } from "./DemoContext";
 import { demoPath } from "./routes";
@@ -28,8 +29,9 @@ function Badge({ type, value }) {
   );
 }
 
-export default function DemoSidebar({ role }) {
+export default function DemoSidebar({ role, open, onClose }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const { data, inbox } = useDemo();
   const groups = role === "admin" ? ADMIN_LINKS : FO_LINKS;
 
@@ -49,18 +51,22 @@ export default function DemoSidebar({ role }) {
     pendingTestimonialsCount: pendingTestimonials(data.testimonials).length,
   };
 
-  function links(compact) {
+  // Same chrome as production: the mobile drawer closes whenever the route
+  // changes (a link was followed or the exit landed elsewhere).
+  useEffect(() => {
+    onClose?.();
+  }, [location.pathname]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function links() {
     return groups.map((group, gi) => (
-      <div key={group.group} className={compact ? "flex items-center gap-1" : gi > 0 ? "mt-4" : ""}>
-        {!compact && (
-          <div className="mb-1.5 flex items-center gap-2 px-1">
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-foreground/30">
-              {group.group}
-            </span>
-            <div className="h-px flex-1 bg-border/60" />
-          </div>
-        )}
-        <div className={compact ? "flex items-center gap-1" : "space-y-0.5"}>
+      <div key={group.group} className={gi > 0 ? "mt-4" : ""}>
+        <div className="mb-1.5 flex items-center gap-2 px-1">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-foreground/30">
+            {group.group}
+          </span>
+          <div className="h-px flex-1 bg-border/60" />
+        </div>
+        <div className="space-y-0.5">
           {group.items.map((item) => {
             const Icon = item.icon;
             const value = item.notification ? indicators[item.notification.key] : null;
@@ -73,7 +79,6 @@ export default function DemoSidebar({ role }) {
                 className={({ isActive }) =>
                   [
                     "flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] transition-colors",
-                    compact && "shrink-0 whitespace-nowrap",
                     isActive
                       ? "bg-primary/15 font-medium text-foreground"
                       : "text-foreground/60 hover:bg-surface-hover hover:text-foreground/85",
@@ -91,36 +96,75 @@ export default function DemoSidebar({ role }) {
     ));
   }
 
+  const roleLabel = role === "admin" ? "Administrator" : "Front Office";
+
+  const sidebarContent = (
+    <div className="sticky top-16 h-[calc(100vh-64px)] overflow-y-auto">
+      <div className="p-3">
+        {/* Mobile drawer header — role label + close, like production */}
+        <div className="mb-3 flex items-center justify-between md:hidden">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-primary/80">
+            {roleLabel}
+          </p>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg p-1 text-foreground/60 hover:bg-surface-hover hover:text-foreground"
+            aria-label="Close sidebar"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {/* Role badge — desktop only */}
+        <div className="mb-4 hidden rounded-lg border border-primary/25 bg-primary/10 px-3 py-2 md:block">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-primary/80">
+            {roleLabel}
+          </p>
+          <p className="mt-0.5 text-[10px] text-foreground/50">Simulated demo data</p>
+        </div>
+
+        {links()}
+
+        <div className="mt-4">
+          <div className="mb-1.5 h-px bg-border/60" />
+          <button
+            type="button"
+            onClick={() => {
+              onClose?.();
+              navigate("/");
+            }}
+            className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] text-foreground/60 transition-colors hover:bg-destructive/10 hover:font-medium hover:text-destructive"
+          >
+            <LogOut className="h-4 w-4 shrink-0" />
+            <span className="flex-1 truncate text-left">Exit demo</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <>
       {/* Desktop sidebar — mirrors the production staff sidebar width/classes */}
       <aside className="hidden w-52 shrink-0 border-r border-border bg-background md:block">
-        <div className="sticky top-16 overflow-y-auto">
-          <div className="p-3">
-            <div className="mb-4 rounded-lg border border-primary/25 bg-primary/10 px-3 py-2">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-primary/80">
-                {role === "admin" ? "Administrator" : "Front Office"}
-              </p>
-              <p className="mt-0.5 text-[10px] text-foreground/50">Simulated demo data</p>
-            </div>
-            {links(false)}
-            <div className="mt-4">
-              <div className="mb-1.5 h-px bg-border/60" />
-              <button
-                type="button"
-                onClick={() => navigate("/")}
-                className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] text-foreground/60 transition-colors hover:bg-destructive/10 hover:font-medium hover:text-destructive"
-              >
-                <LogOut className="h-4 w-4 shrink-0" />
-                <span className="flex-1 truncate text-left">Exit demo</span>
-              </button>
-            </div>
-          </div>
-        </div>
+        {sidebarContent}
       </aside>
 
-      {/* Mobile: same links as a scroll strip (demo has no Navbar hamburger) */}
-      <div className="mb-4 flex gap-1 overflow-x-auto pb-1 md:hidden">{links(true)}</div>
+      {/* Mobile — the production slide-out drawer (demo has no Navbar hamburger of its own) */}
+      {open && (
+        <div
+          className="fixed inset-0 z-50 md:hidden"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Demo navigation"
+        >
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+          <aside className="absolute left-0 top-0 h-full w-64 border-r border-border bg-background shadow-xl">
+            {sidebarContent}
+          </aside>
+        </div>
+      )}
     </>
   );
 }

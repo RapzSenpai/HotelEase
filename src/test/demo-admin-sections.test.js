@@ -201,8 +201,8 @@ describe("admin sections stay inside the demo tree", () => {
     const counts = [...el.querySelectorAll("span.rounded-full")]
       .map((s) => s.textContent)
       .filter(Boolean);
-    // Unresolved alerts (2) and testimonials awaiting review (1), on both the
-    // desktop sidebar and the mobile strip.
+    // Unresolved alerts (2) and testimonials awaiting review (1), on the
+    // desktop sidebar (the mobile drawer shares the same content).
     expect(new Set(counts)).toEqual(new Set(["2", "1"]));
     for (const href of [...el.querySelectorAll("a")].map((a) => a.getAttribute("href"))) {
       expect(href.startsWith("/demo")).toBe(true);

@@ -212,3 +212,40 @@ describe("FO sections stay inside the demo tree", () => {
     for (const href of hrefs) expect(href.startsWith("/demo")).toBe(true);
   });
 });
+
+describe("FO demo mobile drawer", () => {
+  it("stays closed until opened, then shows the close control, links and Exit demo", () => {
+    const closed = render(createElement(DemoSidebar, { role: "fo" }));
+    expect(closed.querySelector('[role="dialog"]')).toBe(null);
+
+    const open = render(
+      createElement(DemoSidebar, { role: "fo", open: true, onClose: () => {} }),
+    );
+    const drawer = open.querySelector('[role="dialog"]');
+    expect(drawer).toBeTruthy();
+    expect(drawer.querySelector('[aria-label="Close sidebar"]')).toBeTruthy();
+    const hrefs = [...drawer.querySelectorAll("a")].map((a) => a.getAttribute("href"));
+    expect(hrefs).toContain("/demo/fo/bookings");
+    expect(drawer.textContent).toContain("Exit demo");
+  });
+
+  it("closes the drawer when the close control or a link is used", () => {
+    const onClose = vi.fn();
+    const el = render(createElement(DemoSidebar, { role: "fo", open: true, onClose }));
+    onClose.mockClear(); // the drawer's close-on-navigate effect fires once on mount
+
+    act(() => {
+      el.querySelector('[role="dialog"] [aria-label="Close sidebar"]').dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
+    });
+    expect(onClose).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      el.querySelector('[role="dialog"] a[href="/demo/fo/bookings"]').dispatchEvent(
+        new MouseEvent("click", { bubbles: true, cancelable: true }),
+      );
+    });
+    expect(onClose).toHaveBeenCalledTimes(2);
+  });
+});

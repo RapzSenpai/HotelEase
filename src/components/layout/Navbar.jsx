@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { NavLink, useLocation, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/AuthContext";
 import { Menu, X, BedDouble, CalendarDays, Heart, LogOut, SprayCan } from "lucide-react";
 import NotificationBell from "@/components/notifications/NotificationBell";
@@ -30,6 +31,10 @@ export default function Navbar({ onToggleSidebar }) {
   const isGuest = roleResolved && user && role === "guest";
   const isDemo =
     location.pathname.startsWith("/demo") || params.get("demo") === "1";
+  // Try Demo staff sections mirror the real FO/Admin chrome: sidebar toggle here,
+  // actions in the drawer, and no login escape while browsing the demo.
+  const isDemoStaff =
+    location.pathname.startsWith("/demo/fo") || location.pathname.startsWith("/demo/admin");
   const homePath = getLogoHomePath(role);
 
   // Same fallback chain as ProfilePage, so the avatar matches the profile name.
@@ -133,21 +138,21 @@ export default function Navbar({ onToggleSidebar }) {
 
         {/* Right actions */}
         <div className="flex items-center gap-2">
+          {/* Mobile sidebar toggle — FO/Admin and Try Demo staff sections */}
+          {(isFoOrAdmin || isDemoStaff) && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="md:hidden"
+              onClick={onToggleSidebar}
+              aria-label="Toggle sidebar"
+            >
+              <Menu className="h-5 w-5" />
+            </Button>
+          )}
+
           {user ? (
             <>
-              {/* Mobile sidebar toggle — FO/Admin only */}
-              {isFoOrAdmin && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="md:hidden"
-                  onClick={onToggleSidebar}
-                  aria-label="Toggle sidebar"
-                >
-                  <Menu className="h-5 w-5" />
-                </Button>
-              )}
-
               {/* Mobile guest hamburger menu toggle — Guest only */}
               {isGuest && (
                 <Button
@@ -195,6 +200,10 @@ export default function Navbar({ onToggleSidebar }) {
                 {loading ? "…" : "Logout"}
               </Button>
             </>
+          ) : isDemoStaff ? (
+            <Badge variant="primary" className="shrink-0">
+              Demo mode
+            </Badge>
           ) : (
             <>
               <Button asChild variant="ghost" size="sm">

@@ -2,6 +2,7 @@ import { useState, useCallback } from "react";
 import { Outlet, useLocation, Navigate } from "react-router-dom";
 import { Toaster } from "sonner";
 import Navbar from "@/components/layout/Navbar";
+import { MobileNavContext } from "@/components/layout/mobile-nav-context";
 import DemoPreviewStrip from "@/components/layout/DemoPreviewStrip";
 import Sidebar from "@/components/layout/Sidebar";
 import Footer from "@/components/layout/Footer";
@@ -53,6 +54,7 @@ export default function AppShell() {
   const hideFooter = isRoomDetail || isFoOrAdmin;
 
   return (
+    <MobileNavContext.Provider value={{ open: mobileSidebarOpen, onClose: closeMobileSidebar }}>
     <div className="flex min-h-screen flex-col bg-background text-foreground">
       <Toaster
         position="top-right"
@@ -102,5 +104,6 @@ export default function AppShell() {
       <ScrollToTop />
       {role === "admin" && location.pathname.startsWith("/admin") && <AdminAssistantWidget />}
     </div>
+    </MobileNavContext.Provider>
   );
 }
