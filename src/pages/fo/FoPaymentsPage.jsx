@@ -669,7 +669,7 @@ export default function FoPaymentsPage() {
                                   variant={source === "guest_proof" ? "success" : "outline"} 
                                   className="text-[10px]"
                                 >
-                                  {source === "guest_proof" ? "Guest Upload" : "Front Desk"}
+                                  {source === "guest_proof" ? "Guest Upload" : source === "xendit_test" || source === "simulated_gateway" ? "Online" : "Front Desk"}
                                 </Badge>
                               </div>
 

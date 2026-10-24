@@ -58,8 +58,15 @@ export const hotelReceiptDataFromFolio = (folio = {}) => {
   const total = Number(folio.total ?? folio.subtotal ?? 0);
   const extraPaxTotal = Number(folio.extraPaxTotal ?? 0);
   const overstayFee = Number(folio.overstayFee ?? 0);
+  // Desk charges (addFolioCharge) ride in otherCharges — voided entries are
+  // netted out. The fallback baseTotal must subtract them, or they silently
+  // inflate the "Room charges × nights" row of the receipt.
+  const charges = Array.isArray(folio.otherCharges)
+    ? folio.otherCharges.filter((c) => c && !c.voided)
+    : [];
+  const chargesNet = charges.reduce((sum, c) => sum + Number(c.amount ?? 0), 0);
   const baseTotal =
-    Number(folio.baseTotal ?? total - extraPaxTotal - overstayFee);
+    Number(folio.baseTotal ?? total - extraPaxTotal - overstayFee - chargesNet);
   const amountPaid = Number(folio.amountPaid ?? 0);
   const refParts = [
     folio.gatewayRef ? `System ref ${folio.gatewayRef}` : null,
@@ -88,6 +95,8 @@ export const hotelReceiptDataFromFolio = (folio = {}) => {
     hasOverstay: overstayFee > 0,
     overstayLabel: folio.overstayReason || "Late checkout fee",
     overstayStr: formatAmount(overstayFee),
+    hasCharges: charges.length > 0,
+    charges: charges.map((c) => ({ chargeId: c.chargeId, label: c.label, amountStr: formatAmount(c.amount) })),
     totalStr: formatAmount(total),
     paidStr: formatAmount(amountPaid),
     balanceStr: formatAmount(folio.balance ?? Math.max(0, total - amountPaid)),
@@ -214,6 +223,14 @@ const HotelReceiptContent = ({ data }) => {
                 <TableCell align="right">{data.overstayStr}</TableCell>
               </TableRow>
             ) : null}
+            {data.hasCharges
+              ? data.charges.map((c) => (
+                  <TableRow key={c.chargeId}>
+                    <TableCell>{c.label}</TableCell>
+                    <TableCell align="right">{c.amountStr}</TableCell>
+                  </TableRow>
+                ))
+              : null}
             <TableRow>
               <TableCell>
                 <Text weight="bold" noMargin>

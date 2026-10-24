@@ -10,13 +10,17 @@ import {
   approveBooking,
   rejectBooking,
   checkAndExpireStaleBookings,
-  getOverdueDays} from "@/services/bookingsService";
+  getOverdueDays,
+  adjustBookingRate,
+  moveBookingRoom,
+  RATE_ADJUSTABLE_STATUSES} from "@/services/bookingsService";
 import { listPaymentsForBooking } from "@/services/paymentsService";
 import { listRooms } from "@/services/roomsService";
 import { getUserDoc } from "@/services/userService";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Check, X, Search, Image as ImageIcon, ChevronDown, CheckCircle2, AlertTriangle, ArrowRight, Clock, Eye } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -70,7 +74,9 @@ function getBalance(booking, paid) {
 
 function requiresProof(booking) {
   const needs = booking.paymentMethod === "GCash" || booking.paymentMethod === "Bank Transfer";
-  return needs && !booking.paymentProofUrl && booking.paymentGateway !== "simulated";
+  // Gateway payments (simulated, Xendit test) carry a gatewayRef instead of a
+  // proof image — mirrors lifecycle.approveBooking.
+  return needs && !booking.paymentProofUrl && !["simulated", "xendit"].includes(booking.paymentGateway);
 }
 
 function getDeadlineInfo(booking) {
@@ -114,11 +120,19 @@ function ProofViewer({ booking, open, onOpenChange }) {
 
 // ─── Details dialog (max-w-2xl): breakdown + payment history + proof ─────────
 
-export function BookingDetailsDialog({ booking, roomLabel, guestName, open, onOpenChange}) {
+export function BookingDetailsDialog({ booking, roomLabel, guestName, rooms = {}, open, onOpenChange}) {
   const [payments, setPayments] = useState([]);
   const [paymentsLoading, setPaymentsLoading] = useState(false);
   const [paymentsLoadedFor, setPaymentsLoadedFor] = useState(null);
   const [proofOpen, setProofOpen] = useState(false);
+  const [rateOpen, setRateOpen] = useState(false);
+  const [rateValue, setRateValue] = useState("");
+  const [rateReason, setRateReason] = useState("");
+  const [rateSaving, setRateSaving] = useState(false);
+  const [moveOpen, setMoveOpen] = useState(false);
+  const [moveRoomId, setMoveRoomId] = useState("");
+  const [moveReason, setMoveReason] = useState("");
+  const [moveSaving, setMoveSaving] = useState(false);
 
   useEffect(() => {
     if (!open || !booking?.id) return;
@@ -127,6 +141,12 @@ export function BookingDetailsDialog({ booking, roomLabel, guestName, open, onOp
     setPayments([]);
     setPaymentsLoadedFor(null);
     setPaymentsLoading(true);
+    setRateOpen(false);
+    setRateValue("");
+    setRateReason("");
+    setMoveOpen(false);
+    setMoveRoomId("");
+    setMoveReason("");
     listPaymentsForBooking(booking.id)
       .then((rows) => {
         if (!cancelled) {
@@ -148,6 +168,46 @@ export function BookingDetailsDialog({ booking, roomLabel, guestName, open, onOp
   const recordsTotal = getPaid(payments);
   const paid = paymentsLoadedFor === booking.id ? recordsTotal : null;
   const balance = paid === null ? null : getBalance(booking, paid);
+  const rateAdjustments = Array.isArray(booking.rateAdjustments) ? booking.rateAdjustments : [];
+  const nightlyRate = rateAdjustments.length > 0
+    ? Number(rateAdjustments.at(-1).newRatePerNight)
+    : booking.nights > 0 ? Number(booking.baseTotal ?? 0) / booking.nights : null;
+  const canAdjustRate = RATE_ADJUSTABLE_STATUSES.includes(booking.status);
+
+  // Room move: only other rooms that are ready to live in. rooms is the page's
+  // roomsMap (id → room doc).
+  const roomMoves = Array.isArray(booking.roomMoves) ? booking.roomMoves : [];
+  const moveOptions = booking.status === "Checked In"
+    ? Object.values(rooms).filter((r) => r?.status === "Available" && r.id !== booking.roomId)
+    : [];
+  const moveRoomDelta = moveRoomId && rooms[moveRoomId] && nightlyRate !== null
+    ? Math.round(Number(rooms[moveRoomId].ratePerNight ?? 0)) - Math.round(nightlyRate)
+    : 0;
+
+  async function onMoveRoom() {
+    if (!moveRoomId) {
+      toast.error("Please choose a room for the move.");
+      return;
+    }
+    if (!moveReason.trim()) {
+      toast.error("A reason is required to move the guest.");
+      return;
+    }
+    setMoveSaving(true);
+    try {
+      await moveBookingRoom(booking.id, {
+        newRoomId: moveRoomId,
+        reason: moveReason});
+      toast.success("Guest moved to the new room.");
+      setMoveOpen(false);
+      setMoveRoomId("");
+      setMoveReason("");
+    } catch (err) {
+      toast.error(err?.message || "Failed to move the guest.");
+    } finally {
+      setMoveSaving(false);
+    }
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -232,11 +292,11 @@ export function BookingDetailsDialog({ booking, roomLabel, guestName, open, onOp
               <ImageIcon className="h-3.5 w-3.5 text-foreground/50" />
               <span className="text-xs font-semibold text-foreground/70">Payment Proof</span>
             </div>
-            {booking.paymentGateway === "simulated" && !booking.paymentProofUrl ? (
+            {(booking.paymentGateway === "simulated" || booking.paymentGateway === "xendit") && !booking.paymentProofUrl ? (
               <div className="space-y-1 rounded-lg border border-success/30 bg-success/5 px-3 py-2">
                 <div className="flex items-center gap-1.5 text-xs font-semibold text-success">
                   <CheckCircle2 className="h-3.5 w-3.5" />
-                  Simulated gateway payment
+                  {booking.paymentGateway === "xendit" ? "Paid online (Xendit test)" : "Simulated gateway payment"}
                 </div>
                 {booking.gatewayRef && (
                   <p className="text-xs text-foreground/60">
@@ -298,6 +358,199 @@ export function BookingDetailsDialog({ booking, roomLabel, guestName, open, onOp
               </p>
             )}
           </div>
+
+          {(nightlyRate !== null || rateAdjustments.length > 0) && (
+            <div className="rounded-lg border border-border p-3">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <span className="text-xs font-semibold text-foreground/70">Nightly Rate</span>
+                {canAdjustRate && !rateOpen && (
+                  <Button type="button" variant="outline" size="sm" onClick={() => setRateOpen(true)}>
+                    Adjust rate
+                  </Button>
+                )}
+              </div>
+              <p className="text-sm font-medium tabular-nums">
+                {nightlyRate !== null ? formatCurrency(nightlyRate) : "—"}
+                <span className="text-xs font-normal text-foreground/50"> / night · {booking.nights ?? "—"} night(s)</span>
+              </p>
+
+              {rateOpen && (
+                <div className="mt-2 space-y-2 rounded-lg border border-border bg-secondary p-2.5 shadow-sm">
+                  <label className="text-xs text-foreground/70">
+                    New nightly rate (₱)
+                    <Input
+                      type="number"
+                      min="1"
+                      step="1"
+                      className="mt-1"
+                      value={rateValue}
+                      onChange={(e) => setRateValue(e.target.value)}
+                      placeholder={nightlyRate !== null ? String(Math.round(nightlyRate)) : ""}
+                      aria-label="New nightly rate in pesos" />
+                  </label>
+                  <label className="text-xs text-foreground/70">
+                    Reason (required, recorded with the change)
+                    <Textarea
+                      rows={2}
+                      className="mt-1"
+                      value={rateReason}
+                      onChange={(e) => setRateReason(e.target.value)}
+                      placeholder="e.g. Walk-in negotiated price"
+                      aria-label="Reason for rate adjustment" />
+                  </label>
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => { setRateOpen(false); setRateValue(""); setRateReason(""); }}>
+                      Cancel
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={rateSaving}
+                      onClick={async () => {
+                        const rate = Number(rateValue);
+                        if (!Number.isFinite(rate) || rate <= 0) {
+                          toast.error("Please enter a valid positive nightly rate.");
+                          return;
+                        }
+                        if (!rateReason.trim()) {
+                          toast.error("A reason is required to adjust the rate.");
+                          return;
+                        }
+                        setRateSaving(true);
+                        try {
+                          await adjustBookingRate(booking.id, {
+                            newRatePerNight: rate,
+                            reason: rateReason});
+                          toast.success("Nightly rate updated.");
+                          setRateOpen(false);
+                          setRateValue("");
+                          setRateReason("");
+                        } catch (err) {
+                          toast.error(err?.message || "Failed to adjust the rate.");
+                        } finally {
+                          setRateSaving(false);
+                        }
+                      }}>
+                      Update rate
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {rateAdjustments.length > 0 && (
+                <ul className="mt-2 space-y-1.5 border-t border-dashed border-border/60 pt-2">
+                  {rateAdjustments.map((adj, i) => (
+                    <li key={i} className="text-xs text-foreground/60">
+                      <span className="font-semibold tabular-nums text-foreground/80">
+                        {formatCurrency(adj.previousRatePerNight)} → {formatCurrency(adj.newRatePerNight)}
+                      </span>{" "}
+                      per night · {adj.reason}
+                      <span className="text-foreground/40">
+                        {adj.at ? ` · ${formatDate(adj.at)}` : ""}{adj.byEmail ? ` · ${adj.byEmail}` : ""}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+          {booking.status === "Checked In" && (
+            <div className="rounded-lg border border-border p-3">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <span className="text-xs font-semibold text-foreground/70">Room Move</span>
+                {moveOptions.length > 0 && !moveOpen && (
+                  <Button type="button" variant="outline" size="sm" onClick={() => setMoveOpen(true)}>
+                    Move room
+                  </Button>
+                )}
+              </div>
+              <p className="text-xs text-foreground/50">
+                Current room: <span className="font-semibold text-foreground/80">{roomLabel}</span>
+              </p>
+
+              {moveOpen && (moveOptions.length === 0 ? (
+                <p className="mt-2 text-xs text-foreground/50">No other rooms are available right now.</p>
+              ) : (
+                <div className="mt-2 space-y-2 rounded-lg border border-border bg-secondary p-2.5 shadow-sm">
+                  <label className="text-xs text-foreground/70">
+                    New room
+                    <select
+                      aria-label="New room"
+                      className="mt-1 h-9 w-full rounded-lg border border-border bg-background px-2 text-sm"
+                      value={moveRoomId}
+                      onChange={(e) => setMoveRoomId(e.target.value)}>
+                      <option value="">Choose a room…</option>
+                      {moveOptions.map((r) => (
+                        <option key={r.id} value={r.id}>
+                          {r.name || r.id} · {formatCurrency(r.ratePerNight)}/night{r.type ? ` · ${r.type}` : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  {moveRoomDelta !== 0 && (
+                    <p className="text-xs text-foreground/60">
+                      Rate difference:{" "}
+                      <span className="font-semibold tabular-nums text-foreground/80">
+                        {moveRoomDelta > 0 ? "+" : "−"}{formatCurrency(Math.abs(moveRoomDelta))}
+                      </span>{" "}
+                      / night — not auto-billed; change pricing via rate adjustment or folio charges.
+                    </p>
+                  )}
+                  <label className="text-xs text-foreground/70">
+                    Reason (required, recorded with the move)
+                    <Textarea
+                      rows={2}
+                      className="mt-1"
+                      value={moveReason}
+                      onChange={(e) => setMoveReason(e.target.value)}
+                      placeholder="e.g. AC broken, guest asked to switch"
+                      aria-label="Reason for room move" />
+                  </label>
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => { setMoveOpen(false); setMoveRoomId(""); setMoveReason(""); }}>
+                      Cancel
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={moveSaving}
+                      onClick={onMoveRoom}>
+                      Move guest
+                    </Button>
+                  </div>
+                </div>
+              ))}
+
+              {roomMoves.length > 0 && (
+                <ul className="mt-2 space-y-1.5 border-t border-dashed border-border/60 pt-2">
+                  {roomMoves.map((mv, i) => (
+                    <li key={i} className="text-xs text-foreground/60">
+                      <span className="font-semibold text-foreground/80">
+                        {(rooms[mv.fromRoomId] || {}).name || mv.fromRoomId} → {(rooms[mv.toRoomId] || {}).name || mv.toRoomId}
+                      </span>
+                      {mv.rateDelta !== 0 && mv.rateDelta != null && (
+                        <span className="font-semibold tabular-nums">
+                          {" "}{mv.rateDelta > 0 ? "+" : "−"}{formatCurrency(Math.abs(mv.rateDelta))}
+                        </span>
+                      )}
+                      {mv.reason ? ` · ${mv.reason}` : ""}
+                      <span className="text-foreground/40">
+                        {mv.at ? ` · ${formatDate(mv.at)}` : ""}{mv.byEmail ? ` · ${mv.byEmail}` : ""}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
         </div>
       </DialogContent>
     </Dialog>
@@ -448,11 +701,11 @@ function FoBookingCard({
             )}
           </div>
 
-          {booking.paymentGateway === "simulated" && !booking.paymentProofUrl ? (
+          {(booking.paymentGateway === "simulated" || booking.paymentGateway === "xendit") && !booking.paymentProofUrl ? (
             <div className="space-y-1 rounded-lg border border-success/30 bg-success/5 px-3 py-2">
               <div className="flex items-center gap-1.5 text-xs font-semibold text-success">
                 <CheckCircle2 className="h-3.5 w-3.5" />
-                Simulated gateway payment
+                {booking.paymentGateway === "xendit" ? "Paid online (Xendit test)" : "Simulated gateway payment"}
               </div>
               {booking.gatewayRef && (
                 <p className="text-xs text-foreground/60">
@@ -1234,6 +1487,7 @@ export default function FoBookingsPage() {
         booking={detailsBooking}
         roomLabel={detailsBooking ? roomLabelFrom(roomsMap, detailsBooking.roomId, roomsLoaded ? "—" : "…") : "—"}
         guestName={detailsBooking ? guestsMap[detailsBooking.guestId] : ""}
+        rooms={roomsMap}
         open={!!detailsBooking}
         onOpenChange={(v) => { if (!v) setDetailsBookingId(null); }}
       />

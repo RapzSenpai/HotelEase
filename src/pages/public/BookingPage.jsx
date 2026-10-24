@@ -25,7 +25,9 @@ import {
   getPaymentDetails,
   PROOF_REQUIRED_METHODS} from "@/lib/paymentDetails";
 import { toast } from "sonner";
-
+import {
+  createXenditInvoice,
+  isXenditEnabled} from "@/services/xenditGatewayService";
 const PAYMENT_METHODS = ["GCash", "Bank Transfer", "Credit/Debit Card", "Over-the-Counter"];
 
 const STEPS = [
@@ -146,6 +148,22 @@ export default function BookingPage() {
   const [bookingId, setBookingId] = useState(null);
   const [createdBookingData, setCreatedBookingData] = useState(null);
   const [paymentFile, setPaymentFile] = useState(null); // Phase 11
+  const [startingOnline, setStartingOnline] = useState(false);
+
+  // Xendit hosted TEST checkout: server validates the booking, creates the
+  // invoice, and the browser leaves the app for Xendit's sandbox. Truth lands
+  // via the Worker webhook; this redirect only brings the guest back.
+  async function startOnlineCheckout() {
+    if (startingOnline) return;
+    setStartingOnline(true);
+    try {
+      const { invoiceUrl } = await createXenditInvoice({ bookingId });
+      window.location.assign(invoiceUrl);
+    } catch (e) {
+      setStartingOnline(false);
+      toast.error(e?.message || "Could not open the payment page.");
+    }
+  }
   const [uploadingProof, setUploadingProof] = useState(false); // Phase 11
 
   // Room loader useEffect
@@ -785,11 +803,21 @@ export default function BookingPage() {
             {PROOF_REQUIRED_METHODS.includes(paymentMethod) ? (
               <div className="rounded-xl border border-border bg-background p-5 space-y-4">
                 <div className="text-base font-semibold">Complete Payment</div>
-                {/* Primary: simulated gateway checkout (sandbox provider) */}
-                <Button type="button" size="sm" className="w-full h-auto min-h-8 whitespace-normal py-1.5 text-center leading-snug" onClick={() => navigate(`/my-bookings/${bookingId}/pay`)}>
-                  <CreditCard className="mr-2 h-4 w-4 shrink-0" />
-                  <span className="min-w-0 break-words">Proceed to Payment via {paymentMethod}</span>
-                </Button>
+                {/* Primary: Xendit hosted test checkout when enabled; in-app simulated gateway otherwise */}
+                {isXenditEnabled() ? (
+                  <>
+                    <Button type="button" size="sm" className="w-full h-auto min-h-8 whitespace-normal py-1.5 text-center leading-snug" onClick={startOnlineCheckout} disabled={startingOnline}>
+                      <CreditCard className="mr-2 h-4 w-4 shrink-0" />
+                      <span className="min-w-0 break-words">{startingOnline ? "Opening secure checkout…" : `Pay Online via ${paymentMethod}`}</span>
+                    </Button>
+                    <p className="text-[11px] text-center text-foreground/50">Xendit TEST checkout — no real money moves. The booking updates after Xendit confirms.</p>
+                  </>
+                ) : (
+                  <Button type="button" size="sm" className="w-full h-auto min-h-8 whitespace-normal py-1.5 text-center leading-snug" onClick={() => navigate(`/my-bookings/${bookingId}/pay`)}>
+                    <CreditCard className="mr-2 h-4 w-4 shrink-0" />
+                    <span className="min-w-0 break-words">Proceed to Payment via {paymentMethod}</span>
+                  </Button>
+                )}
                 <details className="rounded-lg border border-border/40 bg-muted/10">
                   <summary className="cursor-pointer px-3 py-2 text-[13px] font-medium leading-snug">Upload proof manually instead</summary>
                   <div className="space-y-3 px-3 pb-3">

@@ -11,10 +11,11 @@ dist
 dist-ssr
 *.local
 
-# Environment variables
+# Environment variables (.env for the app, .dev.vars for the worker)
 .env
 .env.*
 !.env.example
+.dev.vars
 
 # Firebase admin SDK credentials (NEVER commit these)
 *-firebase-adminsdk-*.json

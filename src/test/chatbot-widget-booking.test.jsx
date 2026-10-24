@@ -110,7 +110,7 @@ function nodeByText(element, text, selector = "button") {
 
 /** Open the widget and send one message through the real input+submit path. */
 async function sendChat(element, text) {
-  click(element.querySelector('[aria-label="Open chat"]'));
+  click(element.querySelector('[aria-label*="chat mascot"]'));
   await typeAndSend(element, text);
 }
 

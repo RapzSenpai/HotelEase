@@ -7,6 +7,7 @@ import {
   checkOutBooking,
   extendStayBooking,
   addOverstayFee,
+  addFolioCharge,
   getOverdueDays} from "@/services/bookingsService";
 import {
   listPaymentsForBooking,
@@ -22,6 +23,7 @@ import { conflictGuestName, findOverstayConflict } from "@/lib/overstay-conflict
 import CheckoutBookingList from "@/components/fo/CheckoutBookingList";
 import CheckoutExtendStayDialog from "@/components/fo/CheckoutExtendStayDialog";
 import CheckoutOverstayFeeDialog from "@/components/fo/CheckoutOverstayFeeDialog";
+import CheckoutOtherChargeDialog from "@/components/fo/CheckoutOtherChargeDialog";
 import CheckoutPaymentHistory from "@/components/fo/CheckoutPaymentHistory";
 import CheckoutFolioPanel from "@/components/fo/CheckoutFolioPanel";
 import CheckoutPaymentPanel from "@/components/fo/CheckoutPaymentPanel";
@@ -185,6 +187,8 @@ export default function FoCheckOutPage() {
 
   const [feeDialogOpen, setFeeDialogOpen] = useState(false);
 
+  const [chargeDialogOpen, setChargeDialogOpen] = useState(false);
+
   const [filterMode, setFilterMode] = useState("all"); // "all" | "overdue"
 
   // Next-guest conflict for the selected overdue stay (read-only warning —
@@ -276,7 +280,12 @@ export default function FoCheckOutPage() {
     const room = roomById.get(booking.roomId);
     const totalPaid = paymentRecords.reduce((sum, p) => sum + Number(p.amount ?? 0), 0);
     const latestPayment = paymentRecords.length > 0 ? paymentRecords[0] : null;
-    
+    const otherCharges = Array.isArray(booking.otherCharges) ? booking.otherCharges : [];
+    const chargesNet = otherCharges
+      .filter((c) => c && !c.voided)
+      .reduce((sum, c) => sum + Number(c.amount ?? 0), 0);
+    const baseTotal = Number(booking.baseTotal ?? (booking.totalCost - (booking.extraPaxTotal || 0) - (booking.overstayFee || 0) - chargesNet));
+
     return {
       receiptNo: latestPayment?.receiptNo || "RCP-" + Date.now(),
       guestName: guest?.fullName || guest?.email || booking.guestName || "Guest",
@@ -286,22 +295,23 @@ export default function FoCheckOutPage() {
       checkIn: booking.checkInDate?.toDate?.() || booking.checkInDate,
       checkOut: booking.checkOutDate?.toDate?.() || booking.checkOutDate,
       numberOfNights: booking.nights,
-      ratePerNight: booking.nights > 0 ? Number(booking.baseTotal ?? (booking.totalCost - (booking.extraPaxTotal || 0) - (booking.overstayFee || 0))) / booking.nights : 0,
-      baseTotal: Number(booking.baseTotal ?? (booking.totalCost - (booking.extraPaxTotal || 0) - (booking.overstayFee || 0))),
+      ratePerNight: booking.nights > 0 ? baseTotal / booking.nights : 0,
+      baseTotal,
       extraPaxCount: Number(booking.extraPaxCount ?? 0),
       extraPaxFee: Number(booking.extraPaxFee ?? 0),
       extraPaxTotal: Number(booking.extraPaxTotal ?? 0),
       total: booking.totalCost,
-      subtotal: booking.totalCost,
+      subtotal: booking.subtotal ?? booking.totalCost,
       overstayFee: Number(booking.overstayFee ?? 0),
       overstayReason: booking.overstayReason || "Late checkout fee",
+      otherCharges,
       amountPaid: totalPaid,
       balance: Math.max(0, booking.totalCost - totalPaid),
       paymentMethod: latestPayment?.method || booking.payment?.method || "N/A",
       gatewayRef: booking.gatewayRef || null,
       bankRef: booking.bankRef || null,
       reference: latestPayment?.note || latestPayment?.methodDetails?.referenceNumber || latestPayment?.methodDetails?.checkNumber || latestPayment?.methodDetails?.cardLast4 || null,
-      simulated: paymentRecords.some((p) => p.source === "simulated_gateway") || booking.paymentGateway === "simulated",
+      simulated: paymentRecords.some((p) => ["simulated_gateway", "xendit_test"].includes(p.source)) || ["simulated", "xendit"].includes(booking.paymentGateway),
       paymentDate: latestPayment?.createdAt?.toDate?.() || new Date(),
       processedBy: latestPayment?.processedBy || profile?.fullName || profile?.email || "Front Office Staff"};
   }
@@ -377,6 +387,18 @@ export default function FoCheckOutPage() {
       feeReason: reason});
     toast.success(`Added ₱${amount.toLocaleString()} fee to guest folio.`);
     setFeeDialogOpen(false);
+    await refreshAll(selectedBookingId);
+  }
+
+  // ── Add Other Charge handler ──────────────────────────────────────────────
+  // Same contract as the fee dialog: the dialog owns fields + validation, this
+  // stays the write, and must reject so the failure surfaces there.
+  async function handleAddCharge({ label, amount }) {
+    await addFolioCharge(selectedBookingId, {
+      label,
+      amount});
+    toast.success(`Added ₱${amount.toLocaleString()} charge to guest folio.`);
+    setChargeDialogOpen(false);
     await refreshAll(selectedBookingId);
   }
 
@@ -550,6 +572,7 @@ export default function FoCheckOutPage() {
                   conflict={roomConflict}
                   onExtendStay={() => setExtendDialogOpen(true)}
                   onAddFee={() => setFeeDialogOpen(true)}
+                  onAddCharge={() => setChargeDialogOpen(true)}
                 />
 
                 {/* Record payment or Success state */}
@@ -630,6 +653,14 @@ export default function FoCheckOutPage() {
         booking={selectedBooking}
         roomRate={Number(roomById.get(selectedBooking?.roomId)?.ratePerNight ?? 0)}
         onSubmit={handleAddOverstayFee}
+      />
+
+      {/* ── Add Other Charge Dialog ── */}
+      <CheckoutOtherChargeDialog
+        open={chargeDialogOpen}
+        onOpenChange={setChargeDialogOpen}
+        booking={selectedBooking}
+        onSubmit={handleAddCharge}
       />
 
     </div>

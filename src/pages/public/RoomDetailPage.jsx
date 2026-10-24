@@ -22,7 +22,7 @@ import { listBookingsForUser, getAvailableRooms } from "@/services/bookingsServi
 import { useAuth } from "@/contexts/AuthContext";
 import { trackEvent, GA_EVENTS } from "@/services/gaService";
 import RoomReviewsDialog from "@/components/rooms/RoomReviewsDialog";
-import RoomPhotoCarousel from "@/components/rooms/RoomPhotoCarousel";
+import RoomPhotoStack from "@/components/rooms/RoomPhotoStack";
 import RoomReviewsSection from "@/components/rooms/RoomReviewsSection";
 import RoomBookingBar from "@/components/rooms/RoomBookingBar";
 import RoomReviewFormDialog from "@/components/rooms/RoomReviewFormDialog";
@@ -364,8 +364,9 @@ export default function RoomDetailPage() {
   // ---- render ----
   return (
     <>
-      {/* Main scrollable content */}
-      <div className="space-y-6 pb-24">
+      {/* Main scrollable content — mobile bar maxes ~136px incl. the error
+          row, so pad past it */}
+      <div className="space-y-6 pb-36">
 
         {/* Breadcrumb / back link */}
         <div>
@@ -433,10 +434,10 @@ export default function RoomDetailPage() {
             {/* ── TWO-COLUMN LAYOUT ── */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10">
 
-              {/* ── LEFT COLUMN: Photo Carousel (sticky) ── */}
+              {/* ── LEFT COLUMN: Photo Stack (sticky) ── */}
               <div className="lg:col-span-5">
                 <div className="lg:sticky lg:top-24">
-                  <RoomPhotoCarousel
+                  <RoomPhotoStack
                     key={roomId}
                     photos={photos}
                     roomName={room.name || room.type}

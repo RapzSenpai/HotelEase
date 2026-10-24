@@ -6,6 +6,7 @@ import { BedDouble, CalendarDays, ChevronDown, ChevronUp, XCircle } from "lucide
 import { formatDate } from "@/lib/format";
 import { roomLabel } from "@/lib/room-label";
 import BookingDetails from "@/components/bookings/BookingDetails";
+import BookingTimeline from "@/components/bookings/BookingTimeline";
 
 // Demo fork of BookingCard: same summary-row skeleton + BookingDetails,
 // payments via props (no lazy fetch), cancel via onCancel, no services.
@@ -65,6 +66,7 @@ export default function DemoBookingCard({ booking, room, payments = [], onCancel
 
       {expanded && (
         <div className="border-t border-border p-3.5 space-y-3">
+          <BookingTimeline booking={booking} />
           <BookingDetails booking={booking} status={status} />
           <div className="text-xs text-foreground/60 tabular-nums">
             Total PHP {total.toLocaleString()} · Paid PHP {paid.toLocaleString()} · Balance PHP{" "}

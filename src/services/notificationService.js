@@ -98,6 +98,33 @@ export async function markNotificationsRead(userId, notifIds) {
 }
 
 /**
+ * Auto-read: marks every unread notification of one type as read. Used when
+ * an action supersedes earlier requests — e.g. a guest paying clears their
+ * "payment proof required" hint.
+ * ponytail: per-user, not per-booking — paying one of two identical requests
+ * clears both hints. Harmless: notifications are never the source of truth
+ * (booking status is). Upgrade path: add a link/bookingRef filter when needed.
+ * Equality-only filters → no composite index.
+ */
+export async function markNotificationsOfTypeRead(userId, type) {
+  if (!userId || !type) return 0;
+  const q = query(
+    collection(db, getCol("notifications"), userId, "items"),
+    where("type", "==", type),
+    where("isRead", "==", false)
+  );
+  const snapshot = await getDocs(q);
+  if (snapshot.empty) return 0;
+
+  const batch = writeBatch(db);
+  snapshot.docs.forEach((docSnap) => {
+    batch.update(docSnap.ref, { isRead: true });
+  });
+  await batch.commit();
+  return snapshot.size;
+}
+
+/**
  * Marks all unread notifications as read.
  */
 export async function markAllAsRead(userId) {

@@ -41,6 +41,7 @@ const FoBookingsPage = lazy(() => import("@/pages/fo/FoBookingsPage"));
 const MessagesPage = lazy(() => import("@/pages/fo/MessagesPage"));
 const FoTestimonialsPage = lazy(() => import("@/pages/fo/FoTestimonialsPage"));
 const FoCancellationsPage = lazy(() => import("@/pages/fo/FoCancellationsPage"));
+const FoGuestsPage = lazy(() => import("@/pages/fo/FoGuestsPage"));
 
 // Admin pages
 const AdminAnalyticsPage = lazy(() => import("@/pages/admin/AdminAnalyticsPage"));
@@ -295,6 +296,16 @@ export default function App() {
             <MaintenanceRoute>
               <PrivateRoute allowedRoles={["fo"]}>
                 <SuspenseWrapper><FoCancellationsPage /></SuspenseWrapper>
+              </PrivateRoute>
+            </MaintenanceRoute>
+          }
+        />
+        <Route
+          path="/fo/guests"
+          element={
+            <MaintenanceRoute>
+              <PrivateRoute allowedRoles={["fo"]}>
+                <SuspenseWrapper><FoGuestsPage /></SuspenseWrapper>
               </PrivateRoute>
             </MaintenanceRoute>
           }

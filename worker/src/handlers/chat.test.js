@@ -239,7 +239,7 @@ describe("handleChatRequest tool loop", () => {
       .mockResolvedValueOnce({ role: "assistant", content: "Done." });
 
     await handleChatRequest(
-      request({ messages: [{ role: "user", content: "go" }] }),
+      request({ messages: [{ role: "user", content: "book dec 20 to dec 21" }] }),
       workerEnv,
     );
 
@@ -362,5 +362,121 @@ describe("handleChatRequest tool loop", () => {
     );
 
     expect(response.status).toBe(429);
+  });
+});
+
+describe("handleChatRequest date provenance guard", () => {
+  // The reported bug: "Hi, I want to book a room." made the model fill the
+  // required find_rooms dates from the current date in the system prompt
+  // (today+2), then relay the tool result as the guest's plan.
+  function groqToolThenAnswer(toolCalls, answer) {
+    mocks.callGroqMessage
+      .mockResolvedValueOnce({ role: "assistant", content: null, tool_calls: toolCalls })
+      .mockResolvedValueOnce({ role: "assistant", content: answer });
+  }
+
+  it("refuses to run a dated find_rooms when the guest never mentioned a date", async () => {
+    groqToolThenAnswer(
+      [toolCall("t1", "find_rooms", { checkIn: "2026-10-24", checkOut: "2026-10-26" })],
+      "Which dates would you like?",
+    );
+
+    const response = await handleChatRequest(
+      request({ messages: [{ role: "user", content: "Hi, I want to book a room." }] }),
+      workerEnv,
+    );
+
+    // The invented call never reaches the tool executor; the model gets the
+    // correction as a tool result and must ask the guest instead.
+    expect(mocks.executeGuestTool).not.toHaveBeenCalled();
+    const toolMessage = mocks.callGroqMessage.mock.calls[1][1].at(-1);
+    expect(toolMessage.role).toBe("tool");
+    expect(toolMessage.tool_call_id).toBe("t1");
+    expect(toolMessage.content).toContain("has not provided");
+    expect(toolMessage.content).toContain("never invent dates");
+    expect(await response.json()).toEqual({ content: "Which dates would you like?" });
+  });
+
+  it("guards quote_booking the same way", async () => {
+    groqToolThenAnswer(
+      [toolCall("t1", "quote_booking", { roomId: "r1", checkIn: "2026-10-24", checkOut: "2026-10-26", pax: 2 })],
+      "Let me know your dates.",
+    );
+
+    await handleChatRequest(
+      request({ messages: [{ role: "user", content: "Book the Sakura room for 2." }] }),
+      workerEnv,
+    );
+
+    expect(mocks.executeGuestTool).not.toHaveBeenCalled();
+    const toolMessage = mocks.callGroqMessage.mock.calls[1][1].at(-1);
+    expect(toolMessage.content).toContain("has not provided");
+  });
+
+  it("dates mentioned only by the assistant still count as absent", async () => {
+    groqToolThenAnswer(
+      [toolCall("t1", "find_rooms", { checkIn: "2026-10-24", checkOut: "2026-10-26" })],
+      "Let me know your dates.",
+    );
+
+    await handleChatRequest(
+      request({
+        messages: [
+          { role: "user", content: "Hi, I want to book a room." },
+          { role: "assistant", content: "Sure — for example 2026-10-24 to 2026-10-26?" },
+          { role: "user", content: "2 nights please" },
+        ],
+      }),
+      workerEnv,
+    );
+
+    // Only the guest's own turns prove dates; an assistant example is not consent.
+    expect(mocks.executeGuestTool).not.toHaveBeenCalled();
+  });
+
+  it("lets dated tools through once the guest typed a month-name date", async () => {
+    groqToolThenAnswer(
+      [toolCall("t1", "find_rooms", { checkIn: "2026-10-24", checkOut: "2026-10-26" })],
+      "Here is what is free.",
+    );
+
+    await handleChatRequest(
+      request({ messages: [{ role: "user", content: "I want to book Oct 24 - Oct 26." }] }),
+      workerEnv,
+    );
+
+    expect(mocks.executeGuestTool).toHaveBeenCalledWith(
+      "find_rooms",
+      { checkIn: "2026-10-24", checkOut: "2026-10-26" },
+      workerEnv,
+    );
+  });
+
+  it("matches a bare M/D slash range with no year and no ISO date", async () => {
+    groqToolThenAnswer(
+      [toolCall("t1", "find_rooms", { checkIn: "2026-10-24", checkOut: "2026-10-26" })],
+      "Here is what is free.",
+    );
+
+    await handleChatRequest(
+      request({ messages: [{ role: "user", content: "Book a room for 10/24 to 10/26." }] }),
+      workerEnv,
+    );
+
+    expect(mocks.executeGuestTool).toHaveBeenCalled();
+  });
+
+  it("matches day-month-first-with no year and no ISO date", async () => {
+    groqToolThenAnswer(
+      [toolCall("t1", "find_rooms", { checkIn: "2026-10-24", checkOut: "2026-10-26" })],
+      "Here is what is free.",
+    );
+
+    await handleChatRequest(
+      request({ messages: [{ role: "user", content: "Rooms for 24 Oct to 26 Oct please." }] }),
+      workerEnv,
+    );
+
+    expect(mocks.executeGuestTool).toHaveBeenCalled();
   });
 });

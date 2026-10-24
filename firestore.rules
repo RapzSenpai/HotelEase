@@ -165,7 +165,10 @@ service cloud.firestore {
                        (!isAnonymous() && resource.data.role == 'fo');
       allow create: if isOwner(uid) && !isAnonymous() && request.resource.data.role == 'guest';
       allow update: if (isOwner(uid) && !isAnonymous() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['fullName', 'email', 'phone', 'photoUrl', 'updatedAt', 'lastLoginAt', 'lastLoginIp', 'isOnline', 'lastSeenAt', 'sessions', 'lastLoginDevice', 'revokedSessions', 'currentSessionId', 'lastSessionActiveAt', 'activeSessionId', 'sessionRevokeTimestamp', 'emailVerified', 'verifiedAt', 'verificationCodeHash', 'verificationExpiresAt', 'verificationAttempts', 'verificationResendAt'])) || isProdAdmin() ||
-                       (isProdFOOrAdmin() && !isAnonymous() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['cancellationCount', 'updatedAt'])) ||
+                       // CRM-lite (P4): FO appends internal guest notes via arrayUnion. FO is a
+      // trusted staff session; the affectedKeys gate keeps FO from touching
+      // anything except the trail itself (Admin's full-update branch above.
+      (isProdFOOrAdmin() && !isAnonymous() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['cancellationCount', 'crmNotes', 'updatedAt'])) ||
                        // Guest self-increment on cancel: the cancelBooking transaction bumps
                        // the guest's own count by exactly 1. Increment check stops forgery.
                        (isOwner(uid) && !isAnonymous() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['cancellationCount', 'updatedAt']) && request.resource.data.cancellationCount == resource.data.get('cancellationCount', 0) + 1);
@@ -449,6 +452,35 @@ service cloud.firestore {
                           ['rating', 'ratingFeedback', 'ratedAt']
                         ));
       allow delete: if isProdFOOrAdmin() && !isAnonymous();
+    }
+
+    match /night_audits/{dateId} {
+      // End-of-day snapshot: ONE document per business date ("YYYY-MM-DD" —
+      // the doc id IS the dedupe key, so duplicate audit records are
+      // impossible). FO/Admin create/update; guests get nothing. Shape mirrors
+      // nightAuditService.runNightAudit().
+      // NOTE: rules cannot express the hotel's local business-date bounds, so
+      // dateId is limited to the format + field shape; the write is still
+      // FO/Admin-gated. Upgrade path: mirror the client's businessDate check
+      // against request.time on a server (Admin SDK) write.
+      allow read: if isProdFOOrAdmin() && !isAnonymous();
+      allow create, update: if isProdFOOrAdmin() && !isAnonymous() &&
+                        dateId is string &&
+                        dateId.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$') &&
+                        request.resource.data.auditDate == dateId &&
+                        request.resource.data.runCount is int &&
+                        request.resource.data.runCount >= 1 &&
+                        request.resource.data.runByName is string &&
+                        request.resource.data.runByName.size() <= 100 &&
+                        request.resource.data.keys().hasOnly([
+                          'auditDate', 'runAt', 'runCount',
+                          'runByUserId', 'runByName',
+                          'occupiedRooms', 'totalRooms', 'occupancyRate',
+                          'checkInsToday', 'checkOutsDue', 'overdueCheckOuts',
+                          'arrivalsTodayNotCheckedIn', 'noShowEligible',
+                          'noShowsMarkedToday', 'createdAt', 'updatedAt'
+                        ]);
+      allow delete: if isProdAdmin() && !isAnonymous();
     }
 
     match /announcements/{id} {

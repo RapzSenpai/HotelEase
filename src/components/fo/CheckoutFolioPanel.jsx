@@ -1,4 +1,4 @@
-import { AlertTriangle, CalendarPlus, DollarSign } from "lucide-react";
+import { AlertTriangle, CalendarPlus, DollarSign, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 
@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
  * The selected booking's money panel: the overdue warning (when the stay ran
  * past its check-out date) and the folio summary with its itemized breakdown.
  *
- * Held no state — the two actions are reported upward — and the two blocks were
+ * Held no state — the actions are reported upward — and the blocks were
  * contiguous and shared every dependency, so they moved as one. Markup is
  * unchanged.
  */
@@ -17,8 +17,11 @@ export default function CheckoutFolioPanel({
   conflict = null,
   onExtendStay,
   onAddFee,
+  onAddCharge,
 }) {
   const paidAmount = paid ?? (booking.totalCost ?? 0) - balance;
+  const otherCharges = Array.isArray(booking.otherCharges) ? booking.otherCharges : [];
+  const activeCharges = otherCharges.filter((c) => c && !c.voided);
   const conflictCheckIn = conflict?.booking?.checkInDate?.toDate
     ? conflict.booking.checkInDate.toDate().toLocaleDateString()
     : conflict?.booking?.checkInDate
@@ -103,6 +106,15 @@ export default function CheckoutFolioPanel({
               <DollarSign className="h-3 w-3" />
               Add Fee
             </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs flex items-center gap-1"
+              onClick={onAddCharge}
+            >
+              <Plus className="h-3 w-3" />
+              Other Charge
+            </Button>
           </div>
         </div>
         <CardContent className="p-0 space-y-3">
@@ -171,6 +183,12 @@ export default function CheckoutFolioPanel({
                 <span>+PHP {Number(booking.overstayFee).toLocaleString()}</span>
               </div>
             )}
+            {activeCharges.map((c) => (
+              <div key={c.chargeId} className="flex items-center justify-between text-warning">
+                <span>{c.label}:</span>
+                <span>+PHP {Number(c.amount).toLocaleString()}</span>
+              </div>
+            ))}
             {booking.isExtended && (
               <div className="flex items-center justify-between text-info text-[11px]">
                 <span>Stay Extension:</span>

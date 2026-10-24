@@ -53,6 +53,9 @@ import { handleInsightsRequest } from "./handlers/insights.js";
 import { handleBriefingRequest } from "./handlers/briefing.js";
 import { handleAdminChatRequest } from "./handlers/admin-chat.js";
 import {
+  handleXenditInvoiceRequest,
+  handleXenditWebhookRequest} from "./xendit.js";
+import {
   claimBookingNotificationJob,
   deliverQueuedJob,
   processBookingNotificationOutbox,
@@ -113,6 +116,16 @@ export default {
 
     if (path === "/delete-user") {
       return send(await handleDeleteUser(request, workerEnv));
+    }
+
+    // Xendit test-mode payments. Both sit BEFORE the AI identity/limits block:
+    // /xendit/invoice does its own Firebase-ID-token guest auth, and the
+    // webhook is a server-to-server callback (token-gated, no CORS needed).
+    if (path === "/xendit/invoice") {
+      return send(await handleXenditInvoiceRequest(request, workerEnv));
+    }
+    if (path === "/xendit/webhook") {
+      return send(await handleXenditWebhookRequest(request, workerEnv));
     }
 
     if (path === "/claim-booking-markers") {

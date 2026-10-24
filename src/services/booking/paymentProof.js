@@ -1,6 +1,6 @@
 import { doc, getDoc, runTransaction, serverTimestamp } from "firebase/firestore";
 import { db, auth } from "@/firebase/firebase.config";
-import { createNotification } from "../notificationService";
+import { createNotification, markNotificationsOfTypeRead } from "../notificationService";
 import { listFoUsers } from "../userService";
 import { uploadImageToCloudinary } from "../cloudinaryService";
 import { bookingsCollection } from "./core";
@@ -73,6 +73,14 @@ export async function uploadPaymentProof(bookingId, file, paymentType, paymentMe
   });
 
   try {
+    // Payment supersedes the proof request — auto-read the guest's hint.
+    // Own catch: a failed auto-read must never swallow the FO fan-out.
+    try {
+      await markNotificationsOfTypeRead(currentUser.uid, "payment_proof_required");
+    } catch (e) {
+      console.error("Auto-read error", e);
+    }
+
     const foUsers = await listFoUsers().then(users =>
       users.filter(u => u.id !== currentUser.uid)
     );

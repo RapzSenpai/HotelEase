@@ -70,6 +70,11 @@ export const FO_LINKS = [
         icon: XCircle,
         notification: { type: "dot", key: "hasPendingCancellations" },
       },
+      {
+        to: "/fo/guests",
+        label: "Guests",
+        icon: Users,
+      },
     ],
   },
   {

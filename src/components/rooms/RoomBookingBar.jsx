@@ -42,18 +42,20 @@ export default function RoomBookingBar({
   return (
     <div className="fixed bottom-0 left-0 right-0 z-40 border-t-2 border-primary/20 bg-background/95 backdrop-blur-sm shadow-[0_-4px_24px_rgba(0,0,0,0.08)]">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-3">
-        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+        {/* Mobile: two slim lines — price + Book on line one, dates below.
+            Desktop: unchanged single row. */}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 lg:flex-nowrap lg:items-center">
 
           {/* Price block */}
-          <div className="flex items-baseline gap-1.5 shrink-0">
+          <div className="order-1 flex flex-col sm:flex-row sm:items-baseline gap-0 sm:gap-1.5 shrink-0">
             {formattedRate ? (
               <>
-                <span className="font-playfair text-2xl font-bold text-foreground">
+                <span className="font-playfair text-lg font-bold leading-none text-foreground sm:text-2xl">
                   PHP {formattedRate}
                 </span>
-                <span className="text-sm text-foreground/50">/ night</span>
+                <span className="text-xs text-foreground/50 sm:text-sm">/ night</span>
                 {datesSelected && totalCost && (
-                  <span className="ml-2 text-xs text-foreground/50">
+                  <span className="text-xs text-foreground/50 sm:ml-2">
                     · PHP {totalCost} total ({nights} night{nights !== 1 ? "s" : ""})
                   </span>
                 )}
@@ -65,8 +67,8 @@ export default function RoomBookingBar({
 
           {/* Date pickers — shown in bar if dates not yet selected */}
           {!datesSelected && (
-            <div className="flex flex-1 items-center gap-2 flex-wrap">
-              <div className="relative">
+            <div className="order-3 w-full sm:order-none sm:w-auto sm:flex-1 flex items-center gap-2 sm:flex-wrap">
+              <div className="relative flex-1 sm:flex-none">
                 <Input
                   type="date"
                   value={checkIn}
@@ -79,13 +81,13 @@ export default function RoomBookingBar({
                       e.currentTarget.focus();
                     }
                   }}
-                  className="pr-9 border-border text-sm [&::-webkit-calendar-picker-indicator]:hidden cursor-pointer w-40"
+                  className="pr-8 sm:pr-9 border-border text-xs sm:text-sm [&::-webkit-calendar-picker-indicator]:hidden cursor-pointer w-full sm:w-40"
                   placeholder="Check-in"
                 />
-                <CalendarIcon className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-foreground/40 pointer-events-none" />
+                <CalendarIcon className="absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-foreground/40 pointer-events-none sm:right-2.5" />
               </div>
               <span className="text-foreground/30 text-sm">→</span>
-              <div className="relative">
+              <div className="relative flex-1 sm:flex-none">
                 <Input
                   type="date"
                   value={checkOut}
@@ -99,17 +101,17 @@ export default function RoomBookingBar({
                       e.currentTarget.focus();
                     }
                   }}
-                  className="pr-9 border-border text-sm [&::-webkit-calendar-picker-indicator]:hidden cursor-pointer disabled:cursor-not-allowed w-40"
+                  className="pr-8 sm:pr-9 border-border text-xs sm:text-sm [&::-webkit-calendar-picker-indicator]:hidden cursor-pointer disabled:cursor-not-allowed w-full sm:w-40"
                   placeholder="Check-out"
                 />
-                <CalendarIcon className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-foreground/40 pointer-events-none" />
+                <CalendarIcon className="absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-foreground/40 pointer-events-none sm:right-2.5" />
               </div>
             </div>
           )}
 
           {/* Dates summary pill when dates are selected */}
           {datesSelected && (
-            <div className="flex-1 flex items-center gap-2 flex-wrap">
+            <div className="order-3 w-full sm:order-none sm:w-auto sm:flex-1 flex items-center gap-2 sm:flex-wrap">
               <span className="inline-flex items-center gap-1.5 rounded-full border border-border/60 px-3 py-1 text-xs text-foreground/70">
                 <CalendarIcon className="h-3.5 w-3.5" />
                 {checkIn} → {checkOut}
@@ -125,13 +127,13 @@ export default function RoomBookingBar({
           )}
 
           {/* Book Now button */}
-          <div className="flex items-center justify-end shrink-0">
+          <div className="order-2 ml-auto flex items-center justify-end shrink-0 sm:ml-0">
             {!roomActive ? (
-              <Button variant="default" disabled className="min-w-40">
+              <Button variant="default" disabled className="min-w-32 sm:min-w-40">
                 No Longer Available
               </Button>
             ) : !datesSelected ? (
-              <Button variant="default" disabled className="min-w-40">
+              <Button variant="default" disabled className="min-w-32 sm:min-w-40">
                 Select Dates to Book
               </Button>
             ) : (
@@ -139,7 +141,7 @@ export default function RoomBookingBar({
                 variant="default"
                 onClick={onBookNow}
                 disabled={bookNowLoading}
-                className="min-w-40"
+                className="min-w-32 sm:min-w-40"
               >
                 {bookNowLoading ? "Checking…" : "Book Now"}
               </Button>

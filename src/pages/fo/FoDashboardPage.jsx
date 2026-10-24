@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import RoomScheduleTape from "@/components/dashboard/RoomScheduleTape";
+import NightAuditCard from "@/components/dashboard/NightAuditCard";
 import { subscribeToRooms } from "@/services/roomsService";
 import {
   subscribeToBookingsPage,
@@ -395,6 +396,9 @@ export default function FoDashboardPage() {
               icon={Clock}
             />
           </div>
+
+          {/* End-of-day control: no-show handling + daily snapshot */}
+          <NightAuditCard />
         </>
       )}
 

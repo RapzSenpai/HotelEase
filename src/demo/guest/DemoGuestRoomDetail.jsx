@@ -5,7 +5,7 @@ import { ArrowLeft, CalendarDays, Minus, Plus, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import RoomPhotoCarousel from "@/components/rooms/RoomPhotoCarousel";
+import RoomPhotoStack from "@/components/rooms/RoomPhotoStack";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { useDemo } from "../DemoContext";
 import { activeRooms } from "./guestDemoData";
@@ -67,7 +67,7 @@ export default function DemoGuestRoomDetail() {
 
       <div className="grid gap-6 lg:grid-cols-12 lg:gap-8">
         <div className="lg:col-span-7">
-          <RoomPhotoCarousel
+          <RoomPhotoStack
             photos={room.photos || []}
             roomName={room.name}
             isFavorite={favorite}

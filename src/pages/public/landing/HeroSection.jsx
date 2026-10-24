@@ -9,10 +9,19 @@ import image3 from "@/assets/3.webp";
 import image4 from "@/assets/4.webp";
 import image5 from "@/assets/5.webp";
 import { SectionEyebrow } from "./components";
+import SwipeCardStack from "./SwipeCardStack";
 import {
   DraggableCardContainer,
   DraggableCardBody,
 } from "@/components/ui/draggable-card";
+
+const MOBILE_STACK_IMAGES = [
+  { src: heroBg, alt: "Consolatrix Suites" },
+  { src: image2, alt: "Hotel Interior" },
+  { src: image3, alt: "Hotel Amenities" },
+  { src: image4, alt: "Room View" },
+  { src: image5, alt: "Dining Area" },
+];
 
 export default function HeroSection({ user, isStaff, staffDashboardPath, onTryDemo }) {
   const { word: changingWord } = useTypewriter(
@@ -81,16 +90,8 @@ export default function HeroSection({ user, isStaff, staffDashboardPath, onTryDe
             </div>
           </div>
           <div className="lg:col-span-6 w-full flex justify-center lg:justify-end">
-            <div className="grid grid-cols-2 gap-3 h-[420px] sm:h-[480px] md:hidden w-full max-w-2xl">
-              <div className="col-span-2 rounded-[2rem] overflow-hidden shadow-lg border border-border/10">
-                <img src={heroBg} alt="Consolatrix Suites" className="h-full w-full object-cover" />
-              </div>
-              <div className="rounded-[2rem] overflow-hidden shadow-md border border-border/10">
-                <img src={image2} alt="Hotel Interior" className="h-full w-full object-cover" />
-              </div>
-              <div className="rounded-[2rem] overflow-hidden shadow-md border border-border/10">
-                <img src={image4} alt="Room View" className="h-full w-full object-cover" />
-              </div>
+            <div className="md:hidden w-full">
+              <SwipeCardStack images={MOBILE_STACK_IMAGES} />
             </div>
             <div className="hidden md:block w-full max-w-3xl">
               <DraggableCardContainer className="h-[680px] w-full">

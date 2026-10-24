@@ -21,6 +21,13 @@ id = "bcd303296228470a8c99654377e3611e"
 # Hourly stale-hold sweep: cancels abandoned Awaiting Payment bookings past
 # their 48h deadline and frees their room_availability markers (see scheduled
 # handler in src/index.js). Needs the FIREBASE_SERVICE_ACCOUNT secret.
+#
+# Xendit TEST-mode payments (src/xendit.js) need two more secrets:
+#   XENDIT_SECRET_KEY     — the xnd_development_… secret key (test/dev dashboard)
+#   XENDIT_WEBHOOK_TOKEN  — the callback verification token Xendit sends with
+#                           every invoice webhook (Dashboard → Webhooks)
+# Local: put them in .dev.vars (gitignored). Production: wrangler secret put.
+# See docs/operations/xendit-test-setup.md. Never in code or git.
 # Daily 3am inbox retention: purges notification items past 200-count / 90-day
 # bounds (see purgeNotificationInboxes in src/sweeps.js).
 [triggers]

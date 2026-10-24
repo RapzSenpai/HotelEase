@@ -37,6 +37,11 @@ export const FEATURES = [
 
 export const BENTO_FEATURE_LAYOUT = ["wide", "compact", "compact", "wide"];
 
+// Top card of the mobile photo stack rotates to the back — carousel loops forever.
+export function nextOrder(order) {
+  return [...order.slice(1), order[0]];
+}
+
 export function getRoomAmenities(room) {
   return Array.isArray(room?.amenities) ? room.amenities.filter(Boolean) : [];
 }

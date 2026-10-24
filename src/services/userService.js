@@ -1,5 +1,5 @@
-import { collection, deleteDoc, doc, getCountFromServer, getDoc, getDocs, limit, serverTimestamp, setDoc, updateDoc, onSnapshot,
-  query, where } from "firebase/firestore";
+import { Timestamp, collection, deleteDoc, doc, getCountFromServer, getDoc, getDocs, limit, serverTimestamp, setDoc, updateDoc, onSnapshot,
+  arrayUnion, query, where } from "firebase/firestore";
 import { db, auth } from "@/firebase/firebase.config";
 import { getCol } from "@/lib/db-utils";
 
@@ -130,6 +130,35 @@ export async function countUsers({ role = null } = {}) {
     : collection(db, col);
   const snap = await getCountFromServer(target);
   return snap.data().count;
+}
+
+// CRM-lite: FO internal notes on a guest profile. Append-only arrayUnion
+// entry {note, byUid, byEmail, at} — the /users update rules only allow FO
+// to touch [crmNotes, updatedAt], so the payload must stay exactly those keys.
+export async function addGuestCrmNote(uid, note) {
+  if (!uid || typeof uid !== "string") throw new Error("Invalid uid passed to addGuestCrmNote");
+  const text = typeof note === "string" ? note.trim() : "";
+  if (!text) throw new Error("A note is required.");
+
+  const col = usersCollection();
+  const ref = doc(db, col, uid);
+  const existing = await getDoc(ref);
+  if (!existing.exists()) throw new Error("Guest not found.");
+  if (existing.data().role !== "guest") throw new Error("CRM notes are guest-only records.");
+
+  const user = auth.currentUser;
+  await updateDoc(ref, {
+    crmNotes: arrayUnion({
+      note: text.slice(0, 2000),
+      byUid: user?.uid || null,
+      byEmail: user?.email || "",
+      // serverTimestamp() cannot ride inside an arrayUnion element — the
+      // installed SDK rejects the write outright ("only ... with update() and
+      // set()"). /users rules whitelist only [cancellationCount, crmNotes,
+      // updatedAt], so the note stays in the array with a client timestamp.
+      at: Timestamp.now()}),
+    updatedAt: serverTimestamp()});
+  return { ok: true };
 }
 
 export async function updateUserProfile(uid, patch) {

@@ -17,6 +17,32 @@ const TOOL_ROUNDS = 2;
 // Firestore auto-ids; anything else in the client hint is dropped.
 const ROOM_CONTEXT_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
 
+// Dated tools must never receive dates the guest did not type. Models
+// "helpfully" fill the required checkIn/checkOut from the current date in
+// the system prompt (today, today+2); the tool result then launders those
+// invented dates into the reply ("Oct 24 - Oct 26" after "I want to book").
+// Scanning only the guest's OWN turns makes refusal deterministic.
+const DATED_TOOLS = new Set(["find_rooms", "quote_booking"]);
+const GUEST_DATE_RE = new RegExp(
+  [
+    "\\d{4}-\\d{2}-\\d{2}",
+    "\\b(?:jan|feb|mar|apr|may|jun|jul|aug|sept?|oct|nov|dec)[a-z]*\\s+\\d{1,2}(?:st|nd|rd|th)?\\b",
+    "\\b\\d{1,2}(?:st|nd|rd|th)?\\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sept?|oct|nov|dec)[a-z]*\\b",
+    "\\b\\d{1,2}/\\d{1,2}(?:/\\d{2,4})?\\b",
+  ].join("|"),
+  "i",
+);
+
+const NO_DATES_ERROR =
+  "The guest has not provided any dates yet — never invent dates from the " +
+  "current date. Ask the guest for check-in and check-out dates first.";
+
+/**
+ * ponytail: relative dates ("tomorrow", "next weekend") match no token here
+ * and pass through; name concrete dates too when it keeps being abused.
+ * Upgrade: parse relative date phrasing instead of tokens.
+ */
+
 /**
  * Optional read-only hint from the widget about the room page the guest is
  * on. The id is re-validated by quote_booking and the name is flattened to a
@@ -87,12 +113,19 @@ export async function handleChatRequest(request, workerEnv, quota = null) {
     ...history,
   ];
 
+  // Provenance guard: dated tools only fire when a guest turn contains a
+  // date token, checked once for the whole loop.
+  const guestGaveDates = history.some(
+    (m) => m.role === "user" && GUEST_DATE_RE.test(m.content),
+  );
+
   try {
     for (let round = 0; round <= TOOL_ROUNDS; round += 1) {
       const withTools = round < TOOL_ROUNDS;
       const message = await callGroqMessage(apiKey, messages, {
         maxTokens: 600,
-        temperature: 0.7,
+        // Tool calls need accuracy, not creativity — higher adherence at 0.3.
+        temperature: 0.3,
         ...(withTools ? { tools: GUEST_TOOLS } : {}),
       });
 
@@ -130,6 +163,15 @@ export async function handleChatRequest(request, workerEnv, quota = null) {
             return toolResult(toolCall, {
               error: "Tool arguments were not valid JSON. Call the tool again with valid JSON.",
             });
+          }
+          // Guard: a dated call without a guest-stated date is refused without
+          // touching Firestore — the model falls back to asking the guest.
+          if (
+            DATED_TOOLS.has(toolCall?.function?.name) &&
+            !guestGaveDates &&
+            (args?.checkIn || args?.checkOut)
+          ) {
+            return toolResult(toolCall, { error: NO_DATES_ERROR });
           }
           const result = await executeGuestTool(toolCall?.function?.name, args, workerEnv);
           return toolResult(toolCall, result);

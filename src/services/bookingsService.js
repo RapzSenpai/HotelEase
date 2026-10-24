@@ -39,12 +39,17 @@ export {
 export { createBooking } from "./booking/createBooking";
 
 export {
+  addFolioCharge,
   addOverstayFee,
+  adjustBookingRate,
   approveBooking,
   checkAndExpireStaleBookings,
   checkInBooking,
   checkOutBooking,
   extendStayBooking,
+  moveBookingRoom,
+  voidFolioCharge,
+  RATE_ADJUSTABLE_STATUSES,
 } from "./booking/lifecycle";
 
 export {

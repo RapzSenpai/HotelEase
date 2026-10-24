@@ -1,8 +1,13 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { CheckCircle2, Clock, CreditCard, Upload } from "lucide-react";
+import { CheckCircle2, Clock, CreditCard, Loader2, Upload } from "lucide-react";
 import { formatDateTime } from "@/lib/format";
+import {
+  createXenditInvoice,
+  isXenditEnabled} from "@/services/xenditGatewayService";
 import {
   calculatePartialPayment,
   getPaymentDetails,
@@ -35,7 +40,24 @@ export default function BookingPaymentSection({
   onUploadProof,
 }) {
   const navigate = useNavigate();
+  const [startingOnline, setStartingOnline] = useState(false);
+  const xenditOn = isXenditEnabled();
   const payableAmount = booking.paymentType === "Partial" ? calculatePartialPayment(total) : total;
+
+  // Xendit hosted TEST checkout: the Worker validates + creates the invoice
+  // server-side, the browser leaves for Xendit's sandbox, and truth lands via
+  // the Worker webhook. This redirect is cosmetic, never a payment proof.
+  async function startOnlineCheckout() {
+    if (startingOnline) return;
+    setStartingOnline(true);
+    try {
+      const { invoiceUrl } = await createXenditInvoice({ bookingId: booking.id });
+      window.location.assign(invoiceUrl);
+    } catch (e) {
+      setStartingOnline(false);
+      toast.error(e?.message || "Could not open the payment page.");
+    }
+  }
 
   return (
     <>
@@ -135,19 +157,44 @@ export default function BookingPaymentSection({
             Complete payment by <span className="font-medium">{deadlineStr}</span> or this booking will be automatically cancelled.
           </p>
 
-          {/* Primary: simulated gateway checkout */}
-          <Button
-            type="button"
-            size="sm"
-            className="w-full h-auto min-h-8 whitespace-normal py-1.5 text-center leading-snug"
-            onClick={(e) => {
-              e.stopPropagation();
-              navigate(`/my-bookings/${booking.id}/pay`);
-            }}
-          >
-            <CreditCard className="mr-2 h-4 w-4 shrink-0" />
-            <span className="min-w-0 break-words">Pay Now via {booking.paymentMethod}</span>
-          </Button>
+          {/* Primary: Xendit hosted test checkout when enabled; in-app simulated gateway otherwise */}
+          {xenditOn ? (
+            <>
+              <Button
+                type="button"
+                size="sm"
+                className="w-full h-auto min-h-8 whitespace-normal py-1.5 text-center leading-snug"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  startOnlineCheckout();
+                }}
+                disabled={startingOnline}
+              >
+                {startingOnline
+                  ? <Loader2 className="mr-2 h-4 w-4 shrink-0 animate-spin" />
+                  : <CreditCard className="mr-2 h-4 w-4 shrink-0" />}
+                <span className="min-w-0 break-words">
+                  {startingOnline ? "Opening secure checkout…" : `Pay Online via ${booking.paymentMethod}`}
+                </span>
+              </Button>
+              <p className="text-[10px] text-center text-foreground/50">
+                Xendit TEST checkout — no real money moves. The booking updates after Xendit confirms.
+              </p>
+            </>
+          ) : (
+            <Button
+              type="button"
+              size="sm"
+              className="w-full h-auto min-h-8 whitespace-normal py-1.5 text-center leading-snug"
+              onClick={(e) => {
+                e.stopPropagation();
+                navigate(`/my-bookings/${booking.id}/pay`);
+              }}
+            >
+              <CreditCard className="mr-2 h-4 w-4 shrink-0" />
+              <span className="min-w-0 break-words">Pay Now via {booking.paymentMethod}</span>
+            </Button>
+          )}
 
           <form onSubmit={onUploadProof} className="space-y-3">
             {/* Payment Method Display (read-only - locked from booking time) */}
@@ -255,16 +302,20 @@ export default function BookingPaymentSection({
         </div>
       )}
 
-      {/* ── Simulated Payment Completed (Pending status) ── */}
-      {status === "Pending" && booking.paymentGateway === "simulated" && (
+      {/* ── Payment received via gateway (Pending status) ── */}
+      {status === "Pending" && (booking.paymentGateway === "simulated" || booking.paymentGateway === "xendit") && (
         <div className="rounded-lg border border-success/30 bg-success/5 p-3 space-y-2">
           <div className="flex items-center gap-2 text-success">
             <CheckCircle2 className="h-4 w-4" />
-            <span className="text-sm font-semibold">Simulated Payment Completed</span>
+            <span className="text-sm font-semibold">
+              {booking.paymentGateway === "xendit" ? "Online Payment Received" : "Simulated Payment Completed"}
+            </span>
           </div>
           <p className="text-xs text-foreground/70">
-            Your simulated {booking.paymentMethod} payment was received and is awaiting
-            Front Office verification.
+            {booking.paymentGateway === "xendit"
+              ? `Your online ${booking.paymentMethod} payment was received via the Xendit test checkout and is awaiting Front Office verification. The folio updates once Front Office confirms it.`
+              : `Your simulated ${booking.paymentMethod} payment was received and is awaiting
+            Front Office verification.`}
           </p>
           {booking.gatewayRef && (
             <p className="text-xs text-foreground/60">

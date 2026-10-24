@@ -83,7 +83,9 @@ export function buildDemoData(now = new Date()) {
   ];
 
   const users = [
-    { id: "demo-guest-1", uid: "demo-guest-1", email: "juan.demo@hotelease.ph", fullName: "Juan Dela Cruz", role: "guest" },
+    { id: "demo-guest-1", uid: "demo-guest-1", email: "juan.demo@hotelease.ph", fullName: "Juan Dela Cruz", role: "guest",
+      crmNotes: [{ note: "Prefers high floor when available", byEmail: "cynthia.demo@hotelease.ph", at: ts(daysFrom(now, -1)) },
+                 { note: "Repeat guest — reliable payer", byEmail: "cynthia.demo@hotelease.ph", at: ts(daysFrom(now, -30)) }] },
     { id: "demo-fo-1", uid: "demo-fo-1", email: "cynthia.demo@hotelease.ph", fullName: "Cynthia Abell", role: "fo" },
     { id: "demo-admin-1", uid: "demo-admin-1", email: "edwin.demo@hotelease.ph", fullName: "Edwin Marquez", role: "admin" },
   ];

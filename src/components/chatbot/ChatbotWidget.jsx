@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
-import { MessageCircle, X, Sparkles, Copy, Check, ArrowUp, RotateCcw } from "lucide-react";
+import { Mascot } from "page-mascot";
+import foxDirections from "@/assets/fox-paper-directions.webp";
+import foxReactions from "@/assets/fox-paper-reactions.webp";
+import { Copy, Check, ArrowUp, RotateCcw } from "lucide-react";
 import { sendMessage } from "@/services/chatbotService";
 import { useAuth } from "@/contexts/AuthContext";
 import {
@@ -283,9 +286,17 @@ export default function ChatbotWidget({ positionClass = "bottom-6 right-6", room
 
             {/* Header */}
             <div className="flex shrink-0 items-center gap-3 border-b border-border/60 px-5 py-4">
-              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary">
-                <Sparkles className="h-4 w-4 text-primary-foreground" />
-              </span>
+              {/* Static fox: same center cell the library uses, but no tracking */}
+              <span
+                aria-hidden="true"
+                className="block h-8 w-8 shrink-0"
+                style={{
+                  backgroundImage: `url(${foxDirections})`,
+                  backgroundSize: "300% 300%",
+                  backgroundPosition: "50% 50%",
+                  backgroundRepeat: "no-repeat",
+                }}
+              />
               <div className="min-w-0">
                 <p className="truncate font-playfair text-sm font-semibold leading-tight text-foreground">
                   HotelEase chat
@@ -416,20 +427,19 @@ export default function ChatbotWidget({ positionClass = "bottom-6 right-6", room
           </div>
         </div>
 
-        {/* FAB */}
-        <div className="pointer-events-auto" title="Chat with us">
-          <button
-            type="button"
-            onClick={() => setOpen((o) => !o)}
-            className="group flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-[0_6px_20px_rgba(28,28,30,0.18)] transition-all duration-200 hover:scale-105 hover:shadow-[0_8px_28px_rgba(28,28,30,0.22)] active:scale-95"
-            aria-label={open ? "Close chat" : "Open chat"}
-          >
-            {open ? (
-              <X className="h-5 w-5 transition-transform duration-200" />
-            ) : (
-              <MessageCircle className="h-6 w-6 transition-transform duration-200 group-hover:scale-110" />
-            )}
-          </button>
+        {/* FAB — Mascot renders its own button; its click bubbles here to toggle the chat */}
+        <div
+          className="pointer-events-auto"
+          title="Chat with us"
+          onClick={() => setOpen((o) => !o)}
+        >
+          <Mascot
+            directions={foxDirections}
+            reactions={foxReactions}
+            size={88}
+            label="chat mascot, opens the chat"
+            className="drop-shadow-[0_6px_20px_rgba(28,28,30,0.18)]"
+          />
         </div>
       </div>
     </>

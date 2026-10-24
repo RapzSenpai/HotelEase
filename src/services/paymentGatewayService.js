@@ -2,7 +2,7 @@ import { doc, runTransaction, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "@/firebase/firebase.config";
 import { getCol } from "@/lib/db-utils";
 import { listFoUsers } from "./userService";
-import { createNotification } from "./notificationService";
+import { createNotification, markNotificationsOfTypeRead } from "./notificationService";
 import { PROOF_REQUIRED_METHODS } from "@/lib/paymentDetails";
 
 /**
@@ -104,8 +104,16 @@ export async function completeSimulatedPayment({ bookingId, userBankRef } = {}) 
     return { booking: data, gatewayRef: ref, bankRef: storedBankRef };
   });
 
-  // Same FO fan-out notification the proof-upload path sends.
+  // Same FO fan-out notification the proof-upload path sends. Payment also
+  // supersedes the proof request, so auto-read the guest's hint first —
+  // own catch: a failed auto-read must never swallow the fan-out.
   try {
+    try {
+      await markNotificationsOfTypeRead(currentUser.uid, "payment_proof_required");
+    } catch (e) {
+      console.error("Auto-read error", e);
+    }
+
     const foUsers = await listFoUsers().then((users) =>
       users.filter((u) => u.id !== currentUser.uid));
 

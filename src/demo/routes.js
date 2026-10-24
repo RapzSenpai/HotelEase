@@ -66,6 +66,19 @@ const FO_TABLES = {
         cells: [a.title, a.audience, a.createdByName, formatDate(a.createdAt.toDate())],
       })),
   },
+  "/fo/guests": {
+    columns: ["Guest", "Email", "Stays on record", "Internal notes"],
+    rows: (data) =>
+      data.users
+        .filter((u) => u.role === "guest")
+        .map((u) => ({
+          id: u.id,
+          cells: [
+            u.fullName,
+            u.email || "—",
+            data.bookings.filter((b) => b.guestId === u.uid).length,
+            (u.crmNotes || []).length]})),
+  },
   "/fo/messages": MESSAGES_TABLE,
 };
 

@@ -31,7 +31,9 @@ vi.mock("@/services/bookingsService", () => ({
   approveBooking: vi.fn(),
   rejectBooking: vi.fn(),
   checkAndExpireStaleBookings: vi.fn(),
-  getOverdueDays: vi.fn()}));
+  getOverdueDays: vi.fn(),
+  adjustBookingRate: vi.fn(async () => ({ ok: true })),
+  RATE_ADJUSTABLE_STATUSES: ["Pending", "Approved"]}));
 vi.mock("@/services/roomsService", () => ({ listRooms: vi.fn() }));
 vi.mock("@/services/userService", () => ({ getUserDoc: vi.fn() }));
 vi.mock("@/components/ui/dialog", () => ({

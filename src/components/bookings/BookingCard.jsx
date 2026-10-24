@@ -20,6 +20,7 @@ import { generateReceipt } from "@/services/receiptService";
 import { isRoomActive } from "@/services/roomsService";
 import BookingDetails from "./BookingDetails";
 import BookingPaymentSection from "./BookingPaymentSection";
+import BookingTimeline from "./BookingTimeline";
 
 const STATUS_VARIANT = {
   "Awaiting Payment": "warning",
@@ -185,7 +186,8 @@ export default function BookingCard({ booking, room, userProfile, onCancelled, o
       gatewayRef: booking.gatewayRef || null,
       bankRef: booking.bankRef || null,
       reference: paymentRef,
-      simulated: receiptPayment.source === "simulated_gateway" || booking.paymentGateway === "simulated",
+      simulated: ["simulated_gateway", "xendit_test"].includes(receiptPayment.source) ||
+        ["simulated", "xendit"].includes(booking.paymentGateway),
       paymentDate: receiptPayment.createdAt?.toDate?.() || new Date(),
       processedBy: receiptPayment.processedBy || "Front Office Staff"});
   };
@@ -262,6 +264,8 @@ export default function BookingCard({ booking, room, userProfile, onCancelled, o
       {/* ── Expanded detail panel ── */}
       {expanded && (
         <div className="border-t border-border p-3.5 space-y-3">
+          <BookingTimeline booking={booking} />
+
           <BookingDetails booking={booking} status={status} />
 
           <BookingPaymentSection
