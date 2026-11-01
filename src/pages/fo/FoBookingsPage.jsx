@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { formatDate, formatCurrency } from "@/lib/format";
 import { roomLabelFrom } from "@/lib/room-label";
+import { pendingAgeInfo } from "@/lib/booking-holds";
 import {
   BOOKINGS_PAGE_SIZE,
   subscribeToBookingsPage,
@@ -575,12 +576,21 @@ function FoBookingCard({
   const navigate = useNavigate();
   const [expanded, setExpanded] = useState(false);
   const [proofOpen, setProofOpen] = useState(false);
+  const [, setAgeTick] = useState(0);
   const overdueDays = booking.status === "Checked In" ? getOverdueDays(booking.checkOutDate) : 0;
   const isOverdue = overdueDays > 0;
   const deadlineInfo = useMemo(() => getDeadlineInfo(booking), [booking]);
+  const pendingAge = pendingAgeInfo(booking);
   const paid = getBookingPaid(booking);
   const balance = getBalance(booking, paid);
   const blocked = requiresProof(booking);
+
+  // Keep the Pending age badge honest while the page sits open.
+  useEffect(() => {
+    if (booking.status !== "Pending") return undefined;
+    const id = setInterval(() => setAgeTick((n) => n + 1), 60_000);
+    return () => clearInterval(id);
+  }, [booking.status]);
 
   return (
     <div className={`overflow-hidden rounded-xl border shadow-sm transition-shadow hover:shadow-md ${
@@ -601,6 +611,16 @@ function FoBookingCard({
               <Badge variant="destructive" className="flex items-center gap-1 px-1.5 py-0 text-[10px] font-semibold uppercase tracking-wide">
                 <AlertTriangle className="h-3 w-3" />
                 {overdueDays}d Overdue
+              </Badge>
+            )}
+            {pendingAge && (
+              <Badge
+                variant={pendingAge.overdue ? "destructive" : "outline"}
+                className="flex items-center gap-1 px-1.5 py-0 text-[10px] font-semibold"
+                title="Time since this booking entered the approval queue"
+              >
+                <Clock className="h-3 w-3" />
+                Pending {pendingAge.text}
               </Badge>
             )}
           </div>

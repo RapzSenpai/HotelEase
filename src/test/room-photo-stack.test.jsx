@@ -92,4 +92,33 @@ describe("RoomPhotoStack", () => {
 
     expect(container.textContent).toContain("2 / 3");
   });
+
+  it("resets the deck when the photos prop changes size", async () => {
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+    const base = {
+      roomName: "Sakura",
+      isFavorite: false,
+      onToggleFavorite: () => {},
+      user: null,
+      role: "guest"};
+    await act(async () => {
+      root.render(createElement(RoomPhotoStack, { ...base, photos: ["p1", "p2"] }));
+    });
+
+    const next = container.querySelector('[aria-label="Next photo"]');
+    await act(async () => {
+      next.click();
+    });
+    expect(container.textContent).toContain("2 / 2");
+
+    // Another room: the deck must restart from the first photo, not keep the
+    // rotated order of the previous room's photos. Room switches mount the
+    // stack under a new key (RoomDetailPage key={roomId}) — remount resets it.
+    await act(async () => {
+      root.render(createElement(RoomPhotoStack, { key: "room-2", ...base, photos: ["n1", "n2", "n3", "n4"] }));
+    });
+    expect(container.textContent).toContain("1 / 4");
+  });
 });

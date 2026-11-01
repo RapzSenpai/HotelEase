@@ -35,7 +35,8 @@ const GUEST_DATE_RE = new RegExp(
 
 const NO_DATES_ERROR =
   "The guest has not provided any dates yet — never invent dates from the " +
-  "current date. Ask the guest for check-in and check-out dates first.";
+  "current date. Only call a date tool while the guest's message names BOTH " +
+  "the check-in and the check-out dates; otherwise ask for them first.";
 
 /**
  * ponytail: relative dates ("tomorrow", "next weekend") match no token here

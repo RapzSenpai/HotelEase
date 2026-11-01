@@ -1,5 +1,5 @@
-import { Timestamp, collection, deleteDoc, doc, getCountFromServer, getDoc, getDocs, limit, serverTimestamp, setDoc, updateDoc, onSnapshot,
-  arrayUnion, query, where } from "firebase/firestore";
+import { addDoc, collection, deleteDoc, doc, getCountFromServer, getDoc, getDocs, limit, orderBy, serverTimestamp, setDoc, updateDoc, onSnapshot,
+  query, where } from "firebase/firestore";
 import { db, auth } from "@/firebase/firebase.config";
 import { getCol } from "@/lib/db-utils";
 
@@ -132,33 +132,35 @@ export async function countUsers({ role = null } = {}) {
   return snap.data().count;
 }
 
-// CRM-lite: FO internal notes on a guest profile. Append-only arrayUnion
-// entry {note, byUid, byEmail, at} — the /users update rules only allow FO
-// to touch [crmNotes, updatedAt], so the payload must stay exactly those keys.
+// CRM-lite P5: internal notes live in the staff-only /users/{uid}/crmNotes
+// subcollection, never in the user doc — a signed-in guest may read their own
+// /users profile, which would leak the internal trail. A standalone doc also
+// allows a real serverTimestamp() again (no arrayUnion gate).
 export async function addGuestCrmNote(uid, note) {
   if (!uid || typeof uid !== "string") throw new Error("Invalid uid passed to addGuestCrmNote");
   const text = typeof note === "string" ? note.trim() : "";
   if (!text) throw new Error("A note is required.");
 
-  const col = usersCollection();
-  const ref = doc(db, col, uid);
+  const ref = doc(db, "users", uid);
   const existing = await getDoc(ref);
   if (!existing.exists()) throw new Error("Guest not found.");
   if (existing.data().role !== "guest") throw new Error("CRM notes are guest-only records.");
 
   const user = auth.currentUser;
-  await updateDoc(ref, {
-    crmNotes: arrayUnion({
-      note: text.slice(0, 2000),
-      byUid: user?.uid || null,
-      byEmail: user?.email || "",
-      // serverTimestamp() cannot ride inside an arrayUnion element — the
-      // installed SDK rejects the write outright ("only ... with update() and
-      // set()"). /users rules whitelist only [cancellationCount, crmNotes,
-      // updatedAt], so the note stays in the array with a client timestamp.
-      at: Timestamp.now()}),
-    updatedAt: serverTimestamp()});
+  await addDoc(collection(db, "users", uid, "crmNotes"), {
+    note: text.slice(0, 2000),
+    byUid: user?.uid || null,
+    byEmail: user?.email || "",
+    at: serverTimestamp()});
   return { ok: true };
+}
+
+// Newest-first read for the FO guests dialog. Collection is staff-only.
+export async function listGuestCrmNotes(uid) {
+  if (!uid || typeof uid !== "string") throw new Error("Invalid uid passed to listGuestCrmNotes");
+  const snap = await getDocs(
+    query(collection(db, "users", uid, "crmNotes"), orderBy("at", "desc"), limit(200)));
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
 
 export async function updateUserProfile(uid, patch) {

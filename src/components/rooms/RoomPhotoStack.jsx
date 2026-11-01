@@ -97,22 +97,24 @@ export default function RoomPhotoStack({
                   </button>
                 )}
 
-                {/* Keyboard/click advance — drag works, but a11y still needs a real button */}
-                {canDrag && (
-                  <button
-                    type="button"
-                    onClick={() => setOrder(nextOrder)}
-                    className="absolute bottom-3 right-3 flex h-9 w-9 items-center justify-center rounded-full bg-black/40 text-white hover:bg-black/60 active:scale-95 transition-all backdrop-blur-sm"
-                    aria-label="Next photo"
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                  </button>
-                )}
               </>
             )}
           </motion.div>
         );
       })}
+
+      {/* Advance control lives outside the keyed cards so keyboard focus
+          survives each rotation of the deck. */}
+      {canDrag && (
+        <button
+          type="button"
+          onClick={() => setOrder(nextOrder)}
+          className="absolute bottom-3 right-3 z-[60] flex h-9 w-9 items-center justify-center rounded-full bg-black/40 text-white hover:bg-black/60 active:scale-95 transition-all backdrop-blur-sm"
+          aria-label="Next photo"
+        >
+          <ChevronRight className="h-4 w-4" />
+        </button>
+      )}
     </div>
   );
 }

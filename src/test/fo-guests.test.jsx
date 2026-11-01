@@ -9,7 +9,8 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 vi.mock("@/services/userService", () => ({
   listGuests: vi.fn(),
   getUserDoc: vi.fn(),
-  addGuestCrmNote: vi.fn(async () => ({ ok: true }))}));
+  addGuestCrmNote: vi.fn(async () => ({ ok: true })),
+  listGuestCrmNotes: vi.fn()}));
 vi.mock("@/services/bookingsService", () => ({
   listBookingsForUser: vi.fn()}));
 vi.mock("@/services/roomsService", () => ({
@@ -22,7 +23,7 @@ vi.mock("@/components/ui/dialog", () => ({
   DialogDescription: ({ children }) => createElement("p", null, children)}));
 
 const { default: FoGuestsPage } = await import("@/pages/fo/FoGuestsPage");
-const { listGuests, getUserDoc, addGuestCrmNote } = await import("@/services/userService");
+const { listGuests, getUserDoc, addGuestCrmNote, listGuestCrmNotes } = await import("@/services/userService");
 const { listBookingsForUser } = await import("@/services/bookingsService");
 const { listRooms } = await import("@/services/roomsService");
 
@@ -92,6 +93,7 @@ beforeEach(() => {
     uid === "g-1" ? DOC : { ...GUESTS.find((g) => g.id === uid) });
   listBookingsForUser.mockResolvedValue(HISTORY);
   listRooms.mockResolvedValue(ROOMS);
+  listGuestCrmNotes.mockResolvedValue(DOC.crmNotes);
 });
 
 afterEach(() => {
@@ -142,13 +144,27 @@ describe("FoGuestsPage", () => {
     expect(addGuestCrmNote).not.toHaveBeenCalled();
 
     setNativeValue(textarea, "Requested late checkout next stay");
-    // getUserDoc is re-read after the append and returns one more note.
-    getUserDoc.mockImplementation(async () => ({
-      ...DOC,
-      crmNotes: [...DOC.crmNotes, { note: "Requested late checkout next stay", byEmail: "fo-1@hotelease.ph", at: "2026-10-22T09:00:00.000Z" }]}));
+    // The notes list is re-read after the append and returns one more note.
+    listGuestCrmNotes.mockResolvedValue([
+      ...DOC.crmNotes,
+      { note: "Requested late checkout next stay", byEmail: "fo-1@hotelease.ph", at: "2026-10-22T09:00:00.000Z" }]);
     await click("Add note");
 
     expect(addGuestCrmNote).toHaveBeenCalledWith("g-1", "Requested late checkout next stay");
     expect(container.textContent).toContain("Requested late checkout next stay");
+  });
+
+  it("keeps a saved note successful when the refresh fails", async () => {
+    await renderPage();
+    await clickViewProfile("Juan Dela Cruz");
+    const textarea = container.querySelector("textarea[aria-label='Add a CRM note']");
+    setNativeValue(textarea, "Saved despite refresh outage");
+    // Only the post-save re-list fails; the append itself succeeded.
+    listGuestCrmNotes.mockRejectedValueOnce(new Error("list down"));
+    await click("Add note");
+
+    expect(addGuestCrmNote).toHaveBeenCalledWith("g-1", "Saved despite refresh outage");
+    // The refresh failure surfaces on its own — not as a failed add.
+    expect(container.textContent).toContain("Could not load internal notes");
   });
 });

@@ -165,10 +165,9 @@ service cloud.firestore {
                        (!isAnonymous() && resource.data.role == 'fo');
       allow create: if isOwner(uid) && !isAnonymous() && request.resource.data.role == 'guest';
       allow update: if (isOwner(uid) && !isAnonymous() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['fullName', 'email', 'phone', 'photoUrl', 'updatedAt', 'lastLoginAt', 'lastLoginIp', 'isOnline', 'lastSeenAt', 'sessions', 'lastLoginDevice', 'revokedSessions', 'currentSessionId', 'lastSessionActiveAt', 'activeSessionId', 'sessionRevokeTimestamp', 'emailVerified', 'verifiedAt', 'verificationCodeHash', 'verificationExpiresAt', 'verificationAttempts', 'verificationResendAt'])) || isProdAdmin() ||
-                       // CRM-lite (P4): FO appends internal guest notes via arrayUnion. FO is a
-      // trusted staff session; the affectedKeys gate keeps FO from touching
-      // anything except the trail itself (Admin's full-update branch above.
-      (isProdFOOrAdmin() && !isAnonymous() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['cancellationCount', 'crmNotes', 'updatedAt'])) ||
+                       // CRM-lite (P5): the FO write branch no longer touches notes — they moved
+      // to the staff-only /crmNotes subcollection below.
+      (isProdFOOrAdmin() && !isAnonymous() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['cancellationCount', 'updatedAt'])) ||
                        // Guest self-increment on cancel: the cancelBooking transaction bumps
                        // the guest's own count by exactly 1. Increment check stops forgery.
                        (isOwner(uid) && !isAnonymous() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['cancellationCount', 'updatedAt']) && request.resource.data.cancellationCount == resource.data.get('cancellationCount', 0) + 1);
@@ -177,6 +176,13 @@ service cloud.firestore {
       // Favorites subcollection - users can manage their own favorites
       match /favorites/{roomId} {
         allow read, create, delete: if isOwner(uid) && !isAnonymous();
+      }
+
+      // CRM-lite (P5): staff-only internal notes. A guest may read their own
+      // user document (see the read rule above), so the FO trail must live
+      // here — a subcollection the guest can never list or read.
+      match /crmNotes/{noteId} {
+        allow read, create, delete: if isProdFOOrAdmin() && !isAnonymous();
       }
     }
 

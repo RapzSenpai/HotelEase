@@ -53,7 +53,8 @@ function chipLabel(booking) {
   if (s === "Checked In") return "Occupied";
   if (HK_STATUSES.includes(s)) return "Housekeeping";
   if (s === "Approved") return "Reserved";
-  if (s === "Pending" || s === "Awaiting Payment") return "Awaiting payment";
+  if (s === "Pending") return "Pending Approval";
+  if (s === "Awaiting Payment") return "Awaiting payment";
   if (s === "Cancellation Requested") return "Cancel requested";
   return s || "Booked";
 }

@@ -430,14 +430,14 @@ export default function ChatbotWidget({ positionClass = "bottom-6 right-6", room
         {/* FAB — Mascot renders its own button; its click bubbles here to toggle the chat */}
         <div
           className="pointer-events-auto"
-          title="Chat with us"
+          title={open ? "Close chat" : "Chat with us"}
           onClick={() => setOpen((o) => !o)}
         >
           <Mascot
             directions={foxDirections}
             reactions={foxReactions}
             size={88}
-            label="chat mascot, opens the chat"
+            label={open ? "chat mascot, closes the chat" : "chat mascot, opens the chat"}
             className="drop-shadow-[0_6px_20px_rgba(28,28,30,0.18)]"
           />
         </div>

@@ -4,7 +4,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { TERMS_TITLE, buildTermSections } from "@/lib/termsAndConditions";
+import { TERMS_TITLE, TERMS_LAST_UPDATED, buildTermSections } from "@/lib/termsAndConditions";
 
 /**
  * Reusable Terms & Conditions dialog. Optionally includes a room-specific
@@ -20,6 +20,7 @@ export default function TermsDialog({ open, onOpenChange, extraPolicy }) {
           <p className="text-sm text-foreground/60">
             Please review the terms and policies that apply to your stay.
           </p>
+          <p className="text-xs text-foreground/50">Last updated: {TERMS_LAST_UPDATED}</p>
         </DialogHeader>
         <div className="flex-1 overflow-y-auto pr-1 space-y-4">
           {sections.map((section) => (

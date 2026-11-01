@@ -47,7 +47,7 @@ export default function RoomBookingBar({
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2 lg:flex-nowrap lg:items-center">
 
           {/* Price block */}
-          <div className="order-1 flex flex-col sm:flex-row sm:items-baseline gap-0 sm:gap-1.5 shrink-0">
+          <div className="order-1 flex flex-col sm:flex-row sm:items-baseline gap-0 sm:gap-1.5 shrink-0 sm:order-none">
             {formattedRate ? (
               <>
                 <span className="font-playfair text-lg font-bold leading-none text-foreground sm:text-2xl">
@@ -127,7 +127,7 @@ export default function RoomBookingBar({
           )}
 
           {/* Book Now button */}
-          <div className="order-2 ml-auto flex items-center justify-end shrink-0 sm:ml-0">
+          <div className="order-2 ml-auto flex items-center justify-end shrink-0 sm:ml-0 sm:order-none">
             {!roomActive ? (
               <Button variant="default" disabled className="min-w-32 sm:min-w-40">
                 No Longer Available

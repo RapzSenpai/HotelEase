@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Search } from "lucide-react";
-import { addGuestCrmNote, listGuests, getUserDoc } from "@/services/userService";
+import { addGuestCrmNote, listGuests, listGuestCrmNotes } from "@/services/userService";
 import { listBookingsForUser } from "@/services/bookingsService";
 import { listRooms } from "@/services/roomsService";
 import { Button } from "@/components/ui/button";
@@ -28,40 +28,41 @@ const STATUS_VARIANT = {
 /* ─── Guest Profile dialog: contact, stay history, CRM notes ───────────────── */
 
 function GuestProfileDialog({ guest, rooms, open, onOpenChange }) {
-  const [profile, setProfile] = useState(null);
   const [history, setHistory] = useState([]);
   const [historyLoaded, setHistoryLoaded] = useState(false);
   const [historyError, setHistoryError] = useState(false);
+  const [notes, setNotes] = useState([]);
+  const [notesLoaded, setNotesLoaded] = useState(false);
+  const [notesError, setNotesError] = useState(false);
   const [noteValue, setNoteValue] = useState("");
   const [noteSaving, setNoteSaving] = useState(false);
-
-  const reload = async (uid) => {
-    const docData = await getUserDoc(uid);
-    setProfile(docData || { ...guest });
-  };
+  // Guest whose profile is currently loaded — slow reads for an earlier
+  // guest must not clobber the one now on screen.
+  const guestRef = useRef(null);
 
   useEffect(() => {
     if (!open || !guest?.id) return;
     let cancelled = false;
-    setProfile({ ...guest });
+    guestRef.current = guest.id;
     setHistory([]);
     setHistoryLoaded(false);
     setHistoryError(false);
+    setNotes([]);
+    setNotesLoaded(false);
+    setNotesError(false);
     setNoteValue("");
     listBookingsForUser(guest.id)
       .then((rows) => { if (!cancelled) { setHistory(rows); setHistoryLoaded(true); } })
       .catch(() => { if (!cancelled) { setHistoryError(true); setHistoryLoaded(true); } });
-    // Same stale guard as the booking history: a slow read for a guest whose
-    // profile was closed or switched to another guest must not update it.
-    getUserDoc(guest.id)
-      .then((docData) => { if (!cancelled) setProfile(docData || { ...guest }); })
-      .catch(() => {});
+    // Notes come from the staff-only crmNotes subcollection (see userService).
+    // The guard cancels the read if the dialog closed or switched guests.
+    listGuestCrmNotes(guest.id)
+      .then((rows) => { if (!cancelled) { setNotes(rows); setNotesLoaded(true); } })
+      .catch(() => { if (!cancelled) { setNotesError(true); setNotesLoaded(true); } });
     return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mirrors BookingDetailsDialog dialog-open reload
   }, [open, guest?.id]);
 
   if (!guest) return null;
-  const notes = Array.isArray(profile?.crmNotes) ? profile.crmNotes : [];
 
   async function handleAddNote() {
     if (!noteValue.trim()) {
@@ -73,7 +74,22 @@ function GuestProfileDialog({ guest, rooms, open, onOpenChange }) {
       await addGuestCrmNote(guest.id, noteValue);
       toast.success("Note added to guest profile.");
       setNoteValue("");
-      await reload(guest.id);
+      // Notes are their own subcollection writes now — re-list instead of
+      // reloading the profile document. The refresh is isolated: the note is
+      // already saved, so a lost re-list must not read as a failed add.
+      try {
+        const fresh = await listGuestCrmNotes(guest.id);
+        if (guestRef.current === guest.id) {
+          setNotes(fresh);
+          setNotesLoaded(true);
+          setNotesError(false);
+        }
+      } catch {
+        if (guestRef.current === guest.id) {
+          setNotesError(true);
+        }
+        toast.error("Note saved, but the list could not be refreshed.");
+      }
     } catch (err) {
       toast.error(err?.message || "Failed to add the note.");
     } finally {
@@ -144,7 +160,13 @@ function GuestProfileDialog({ guest, rooms, open, onOpenChange }) {
             <p className="mb-2 text-xs text-foreground/50">
               Internal only — the guest never sees these. Recorded with your account.
             </p>
-            {notes.length === 0 ? (
+            {!notesLoaded ? (
+              <p className="mb-2 text-xs text-foreground/50">Loading notes…</p>
+            ) : notesError ? (
+              <p className="mb-2 text-xs text-foreground/50">
+                Could not load internal notes — try reopening this profile.
+              </p>
+            ) : notes.length === 0 ? (
               <p className="mb-2 text-xs text-foreground/50">No notes yet.</p>
             ) : (
               <ul className="mb-2 space-y-1.5">

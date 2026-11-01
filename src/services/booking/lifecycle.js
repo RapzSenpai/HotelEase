@@ -14,6 +14,7 @@ import { db } from "@/firebase/firebase.config";
 import { getAuth } from "firebase/auth";
 // Shared with availabilityService — see lib/time-utils.js for the local-midnight rule.
 import { toLocalDate as toDate } from "@/lib/time-utils";
+import { hasRecordedPayment } from "@/lib/booking-holds";
 import { getCol } from "@/lib/db-utils";
 import { isRoomActive } from "../roomsService";
 import { claimBookingMarkedInTx, dateKey, MARKER_CONFLICT_MESSAGE, markersCollection, nightKeys, readBookingMarkedInTx, setBookingMarked } from "../availabilityService";
@@ -919,17 +920,23 @@ export async function adjustBookingRate(bookingId, { newRatePerNight, reason } =
 export async function checkAndExpireStaleBookings() {
   const col = bookingsCollection();
   const now = new Date();
-  
-  const q = query(
-    collection(db, col),
-    where("status", "==", "Awaiting Payment"),
-    where("paymentDeadline", "<", Timestamp.fromDate(now))
-  );
-  
-  const snap = await getDocs(q);
-  const expiredBookings = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-  
+
+  // Awaiting Payment holds expire when the guest misses the payment deadline.
+  // Unpaid Pending holds (Card/OTC with no payment signal) get the same
+  // treatment; paid Pending bookings stay in the FO review queue.
+  const expiredBookings = [];
+  for (const status of ["Awaiting Payment", "Pending"]) {
+    const q = query(
+      collection(db, col),
+      where("status", "==", status),
+      where("paymentDeadline", "<", Timestamp.fromDate(now)));
+    const snap = await getDocs(q);
+    expiredBookings.push(...snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+  }
+
+  let expiredCount = 0;
   for (const booking of expiredBookings) {
+    if (booking.status === "Pending" && hasRecordedPayment(booking)) continue;
     const ref = doc(db, col, booking.id);
     // Transaction: a guest payment landing between the query above and this
     // write flips status to Pending first — the tx re-reads, sees it, and
@@ -939,7 +946,8 @@ export async function checkAndExpireStaleBookings() {
       const snap = await transaction.get(ref);
       if (!snap.exists()) return false;
       const live = snap.data();
-      if (live.status !== "Awaiting Payment") return false;
+      if (live.status !== booking.status) return false;
+      if (live.status === "Pending" && hasRecordedPayment(live)) return false;
       const deadline = live.paymentDeadline?.toDate?.() || live.paymentDeadline;
       if (!(deadline instanceof Date) || deadline > new Date()) return false;
       transaction.update(ref, {
@@ -949,6 +957,7 @@ export async function checkAndExpireStaleBookings() {
       return true;
     });
     if (!cancelled) continue;
+    expiredCount += 1;
 
     // Marker cleanup must not prevent later expired bookings from processing.
     try {
@@ -968,5 +977,5 @@ export async function checkAndExpireStaleBookings() {
     }
   }
   
-  return { expiredCount: expiredBookings.length };
+  return { expiredCount };
 }

@@ -19,6 +19,8 @@ vi.mock("@/services/cloudinaryService", () => ({
   uploadImageToCloudinary: vi.fn(async () => ({ url: "https://res.test/proof.jpg" }))}));
 vi.mock("@/services/userService", () => ({
   listFoUsers: vi.fn(async () => [{ id: "fo-1" }])}));
+vi.mock("@/services/availabilityService", () => ({
+  setBookingMarked: vi.fn(async () => {})}));
 vi.mock("@/services/booking/core", () => ({
   bookingsCollection: () => "bookings"}));
 
@@ -52,6 +54,7 @@ if (!globalThis.crypto?.getRandomValues) {
 
 const { markNotificationsOfTypeRead, createNotification } = await import(
   "@/services/notificationService");
+const { setBookingMarked } = await import("@/services/availabilityService");
 const { uploadPaymentProof } = await import("@/services/booking/paymentProof");
 const { completeSimulatedPayment } = await import(
   "@/services/paymentGatewayService");
@@ -65,7 +68,10 @@ function seedBooking(method = "GCash") {
     status: "Awaiting Payment",
     paymentMethod: method,
     totalCost: 3000,
-    nights: 2};
+    nights: 2,
+    roomId: "room-1",
+    checkInDate: "2026-11-01",
+    checkOutDate: "2026-11-03"};
 }
 
 beforeEach(() => {
@@ -87,6 +93,11 @@ describe("uploadPaymentProof auto-read", () => {
       "user-1", "payment_proof_required");
     // FO still learns about the upload.
     expect(createNotification).toHaveBeenCalledWith("fo-1", expect.anything());
+    // Calendar markers no longer say "Awaiting Payment" while FO reviews.
+    expect(setBookingMarked).toHaveBeenCalledWith(expect.objectContaining({
+      roomId: "room-1",
+      bookingId: "bk-1",
+      status: "Pending"}));
   });
 
   it("FO fan-out survives an auto-read failure", async () => {
@@ -103,6 +114,10 @@ describe("completeSimulatedPayment auto-read", () => {
     expect(markNotificationsOfTypeRead).toHaveBeenCalledWith(
       "user-1", "payment_proof_required");
     expect(createNotification).toHaveBeenCalledWith("fo-1", expect.anything());
+    expect(setBookingMarked).toHaveBeenCalledWith(expect.objectContaining({
+      roomId: "room-1",
+      bookingId: "bk-1",
+      status: "Pending"}));
   });
 
   it("FO fan-out survives an auto-read failure", async () => {

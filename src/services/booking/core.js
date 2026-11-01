@@ -41,7 +41,8 @@ export async function releaseAvailabilityMarkers(booking) {
           "[bookingsService] availability marker cleanup failed:",
           { bookingId: booking.id, roomId: booking.roomId, dates },
           e);
-        throw e;
+        // Never rethrow: the booking transition has already committed, and
+        // the caller (cancel/checkout/no-show) must still notify and refund.
       }
     }
   }

@@ -68,6 +68,7 @@ export default function DemoGuestRoomDetail() {
       <div className="grid gap-6 lg:grid-cols-12 lg:gap-8">
         <div className="lg:col-span-7">
           <RoomPhotoStack
+            key={room.id}
             photos={room.photos || []}
             roomName={room.name}
             isFavorite={favorite}

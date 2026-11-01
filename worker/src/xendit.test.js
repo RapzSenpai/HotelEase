@@ -145,8 +145,14 @@ describe("POST /xendit/webhook — verify payment server-side", () => {
     getFirestoreDocInTransaction.mockResolvedValue(bookingFS());
     // Auto-read existence check for the notifications subcollection doc.
     getFirestoreDoc.mockResolvedValue({ exists: true, fields: {} });
-    runFirestoreQuery.mockResolvedValue([
-      { id: "fo-1", fields: { role: { stringValue: "fo" } } }]);
+    runFirestoreQuery.mockImplementation(async (_token, _project, _collection, query) => {
+      const path = query.where?.fieldFilter?.field?.fieldPath;
+      if (path === "role") {
+        return [{ id: "fo-1", fields: { role: { stringValue: "fo" } } }];
+      }
+      if (path === "bookingId") return [{ id: "marker-1" }];
+      return [];
+    });
 
     const res = await handleXenditWebhookRequest(
       webhookRequestP({
@@ -174,10 +180,20 @@ describe("POST /xendit/webhook — verify payment server-side", () => {
     // Staff listing queries FO only — admins don't receive payment notifs
     // (analytics + oversight role), so the query set must be exactly ["fo"].
     const roleQueries = runFirestoreQuery.mock.calls.filter(
-      (call) => call[3]?.where?.fieldFilter);
+      (call) => call[3]?.where?.fieldFilter?.field?.fieldPath === "role");
     expect(roleQueries.map((call) => call[3].where.fieldFilter.value.stringValue))
       .toEqual(["fo"]);
     expect(roleQueries[0][3].where.fieldFilter.field.fieldPath).toBe("role");
+
+    // The paid hold is still live while FO reviews it: its night markers move
+    // from Awaiting Payment to Pending too, so the guest calendar stops lying.
+    expect(patchFirestoreDoc).toHaveBeenCalledWith(
+      "google-token", "test-project", "room_availability", "marker-1",
+      {
+        status: { stringValue: "Pending" },
+        updatedAt: { timestampValue: expect.any(String) },
+      },
+      ["status", "updatedAt"]);
 
     // Deterministic notification docs in the REAL app inbox
     // (notifications/{uid}/items — see notificationService.js) so webhook
@@ -474,6 +490,120 @@ describe("POST /xendit/invoice — hosted test checkout", () => {
     await handleXenditInvoiceRequest(invoiceRequest(), env);
     const payload = JSON.parse(xenditCall()[0][1].body);
     expect(payload.payment_methods).toBeUndefined();
+  });
+
+  it("reuses the stored invoice while it is still payable", async () => {
+    mocks.resolveBookingClaimIdentity.mockResolvedValue({ uid: "guest-1", isAnonymous: false });
+    getFirestoreDoc.mockResolvedValue(bookingFS({
+      xenditInvoiceId: { stringValue: "inv-123" },
+      xenditInvoiceUrl: { stringValue: "https://checkout.xendit.co/web/inv-123" }}));
+    vi.stubGlobal("fetch", vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        id: "inv-123",
+        status: "PENDING",
+        amount: 3000,
+        invoice_url: "https://checkout.xendit.co/web/inv-123"}),
+      text: async () => ""})));
+
+    const res = await handleXenditInvoiceRequest(invoiceRequest(), env);
+    const body = await res.json();
+
+    expect(body).toMatchObject({
+      ok: true,
+      invoiceId: "inv-123",
+      invoiceUrl: "https://checkout.xendit.co/web/inv-123"});
+    // No new invoice was created and the stored reference was not disturbed
+    // — a superseded-but-payable invoice would otherwise be paid and the
+    // webhook would drop it as stale.
+    expect(patchFirestoreDoc).not.toHaveBeenCalled();
+    const calls = vi.mocked(globalThis.fetch).mock.calls.filter((c) => String(c[0]).includes("xendit.co"));
+    expect(calls).toHaveLength(1);
+    expect(String(calls[0][0]).endsWith("/v2/invoices/inv-123")).toBe(true);
+    expect(calls[0][1]?.method ?? "GET").toBe("GET");
+  });
+
+  it("creates a fresh invoice once the stored one expired", async () => {
+    mocks.resolveBookingClaimIdentity.mockResolvedValue({ uid: "guest-1", isAnonymous: false });
+    getFirestoreDoc.mockResolvedValue(bookingFS({
+      xenditInvoiceId: { stringValue: "inv-123" }}));
+    vi.stubGlobal("fetch", vi.fn(async (url, init) => ({
+      ok: true,
+      status: init?.method === "GET" ? 200 : 201,
+      json: async () => init?.method === "GET"
+        ? { id: "inv-123", status: "EXPIRED", invoice_url: "https://checkout.xendit.co/web/inv-123" }
+        : { id: "inv-124", invoice_url: "https://checkout.xendit.co/web/inv-124", status: "PENDING" },
+      text: async () => ""})));
+
+    const res = await handleXenditInvoiceRequest(invoiceRequest(), env);
+    const body = await res.json();
+
+    expect(body).toMatchObject({
+      ok: true,
+      invoiceId: "inv-124",
+      invoiceUrl: "https://checkout.xendit.co/web/inv-124"});
+    expect(patchFirestoreDoc).toHaveBeenCalledWith(
+      "google-token", "test-project", "bookings", "bk-1",
+      expect.objectContaining({ xenditInvoiceId: { stringValue: "inv-124" } }),
+      expect.anything());
+  });
+
+  it("returns a retryable 502 when the stored invoice status probe fails", async () => {
+    mocks.resolveBookingClaimIdentity.mockResolvedValue({ uid: "guest-1", isAnonymous: false });
+    getFirestoreDoc.mockResolvedValue(bookingFS({
+      xenditInvoiceId: { stringValue: "inv-123" }}));
+    // The probe fails while the create call succeeds — with payability
+    // unknown, the handler must NOT store a replacement that supersedes a
+    // possibly-live checkout.
+    vi.stubGlobal("fetch", vi.fn(async (url, init) => {
+      if (String(url).endsWith("/v2/invoices/inv-123") && init?.method === "GET") {
+        throw new Error("xendit probe down");
+      }
+      return {
+        ok: true, status: 201,
+        json: async () => ({ id: "inv-777", invoice_url: "https://checkout.xendit.co/web/inv-777", status: "PENDING" }),
+        text: async () => ""};
+    }));
+
+    const res = await handleXenditInvoiceRequest(invoiceRequest(), env);
+
+    expect(res.status).toBe(502);
+    const body = await res.json();
+    expect(body.error).toMatch(/Payment service is unavailable/i);
+    expect(patchFirestoreDoc).not.toHaveBeenCalled();
+  });
+
+  it("replaces a stored invoice whose amount no longer matches", async () => {
+    mocks.resolveBookingClaimIdentity.mockResolvedValue({ uid: "guest-1", isAnonymous: false });
+    getFirestoreDoc.mockResolvedValue(bookingFS({
+      xenditInvoiceId: { stringValue: "inv-123" }}));
+    vi.stubGlobal("fetch", vi.fn(async (url, init) => ({
+      ok: true,
+      status: init?.method === "GET" ? 200 : 201,
+      json: async () => init?.method === "GET"
+        ? { id: "inv-123", status: "PENDING", amount: 999, invoice_url: "https://checkout.xendit.co/web/inv-123" }
+        : { id: "inv-125", invoice_url: "https://checkout.xendit.co/web/inv-125", status: "PENDING" },
+      text: async () => ""})));
+
+    const res = await handleXenditInvoiceRequest(invoiceRequest(), env);
+    const body = await res.json();
+
+    expect(body).toMatchObject({ ok: true, invoiceId: "inv-125" });
+    expect(patchFirestoreDoc).toHaveBeenCalledWith(
+      "google-token", "test-project", "bookings", "bk-1",
+      expect.objectContaining({ xenditInvoiceId: { stringValue: "inv-125" } }),
+      expect.anything());
+  });
+
+  it("returns 502 when the Firebase token cannot be obtained", async () => {
+    mocks.resolveBookingClaimIdentity.mockResolvedValue({ uid: "guest-1", isAnonymous: false });
+    mocks.getGoogleAccessToken.mockRejectedValueOnce(new Error("token fetch failed"));
+
+    const res = await handleXenditInvoiceRequest(invoiceRequest(), env);
+    expect(res.status).toBe(502);
+    const body = await res.json();
+    expect(body.error).toMatch(/Payment service is unavailable/i);
   });
 
   it("surfaces provider failures as 502", async () => {

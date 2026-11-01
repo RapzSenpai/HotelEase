@@ -3,6 +3,7 @@ import { db, auth } from "@/firebase/firebase.config";
 import { createNotification, markNotificationsOfTypeRead } from "../notificationService";
 import { listFoUsers } from "../userService";
 import { uploadImageToCloudinary } from "../cloudinaryService";
+import { setBookingMarked } from "../availabilityService";
 import { bookingsCollection } from "./core";
 
 /**
@@ -48,7 +49,7 @@ export async function uploadPaymentProof(bookingId, file, paymentType, paymentMe
   // re-reads status (now Pending) and aborts. Its image is already uploaded
   // (ponytail: no upload dedup — a wasted image beats a double-flip; add an
   // idempotency key when Cloudinary spend matters).
-  await runTransaction(db, async (transaction) => {
+  const booking = await runTransaction(db, async (transaction) => {
     const bookingSnap = await transaction.get(bookingRef);
 
     if (!bookingSnap.exists()) {
@@ -70,7 +71,21 @@ export async function uploadPaymentProof(bookingId, file, paymentType, paymentMe
       proofUploadedAt: serverTimestamp(),
       status: "Pending",
       updatedAt: serverTimestamp()});
+    return booking;
   });
+
+  // Pending is still a live hold. Keep the guest calendar label in step with
+  // the booking (it was showing "Awaiting Payment" until FO approved).
+  try {
+    await setBookingMarked({
+      roomId: booking.roomId,
+      bookingId,
+      checkIn: booking.checkInDate,
+      checkOut: booking.checkOutDate,
+      status: "Pending"});
+  } catch (e) {
+    console.warn("Availability marker refresh failed:", e);
+  }
 
   try {
     // Payment supersedes the proof request — auto-read the guest's hint.

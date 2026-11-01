@@ -3,54 +3,23 @@ import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 
 import { subscribeRoomAvailabilityCards } from "@/services/availabilityService";
-
-const statusToColor = {
-  Pending: "#F97316", // warning/orange
-  Approved: "#8B5CF6", // reserved/purple
-  "Awaiting Payment": "#F59E0B",
-  "Checked In": "#EF4444", // danger/red
-  "Checked Out": "#6B7280", // muted/gray
-  Cancelled: "#94A3B8"};
+import { buildCalendarEvents, localDateKey } from "@/lib/booking-calendar";
 
 export default function RoomBookingsCalendar({ roomId }) {
   const normalizedRoomId = typeof roomId === "string" ? roomId : roomId?.id;
   const [events, setEvents] = useState([]);
+  const [checkoutDates, setCheckoutDates] = useState(() => new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
     let isMounted = true;
 
-    // Reconstruct full-range events from night markers by grouping on bookingId.
-    function fromMarkers(cards) {
-      const byBooking = new Map();
-      for (const c of cards) {
-        if (!c.bookingId) continue;
-        if (!byBooking.has(c.bookingId)) {
-          byBooking.set(c.bookingId, { id: c.bookingId, status: c.status, start: null, end: null });
-        }
-        const g = byBooking.get(c.bookingId);
-        const d = new Date(`${c.date}T00:00:00`);
-        const dEnd = new Date(d);
-        dEnd.setDate(dEnd.getDate() + 1);
-        g.start = g.start && g.start < d ? g.start : d;
-        g.end = g.end && g.end > dEnd ? g.end : dEnd;
-        if (g.status !== c.status) g.status = c.status;
-      }
-      return [...byBooking.values()].map((g) => ({
-        id: g.id,
-        title: g.status,
-        start: g.start,
-        end: g.end,
-        backgroundColor: statusToColor[g.status] || "#F5C518",
-        borderColor: statusToColor[g.status] || "#F5C518",
-        allDay: true}));
-    }
-
     if (!normalizedRoomId) {
       // Pre-existing sync reset; kept as-is to avoid behavior change.
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setEvents([]);
+      setCheckoutDates(new Set());
       setLoading(false);
       return undefined;
     }
@@ -63,7 +32,9 @@ export default function RoomBookingsCalendar({ roomId }) {
     setError(null);
     const unsubscribe = subscribeRoomAvailabilityCards(normalizedRoomId, (cards) => {
       if (!isMounted) return;
-      setEvents(fromMarkers(cards));
+      const next = buildCalendarEvents(cards);
+      setEvents(next.events);
+      setCheckoutDates(next.checkoutDates);
       setLoading(false);
     });
     return () => {
@@ -101,17 +72,47 @@ export default function RoomBookingsCalendar({ roomId }) {
         events={events}
         dayMaxEventRows={3}
         eventDisplay="block"
-        eventContent={(arg) => {
-          const label = arg.event.title || "";
+        dayCellContent={(arg) => {
+          const now = new Date();
+          const isToday =
+            arg.date.getFullYear() === now.getFullYear() &&
+            arg.date.getMonth() === now.getMonth() &&
+            arg.date.getDate() === now.getDate();
+          const checkoutKey = localDateKey(arg.date);
+          const isCheckout = checkoutKey ? checkoutDates.has(checkoutKey) : false;
           return (
-            <div className="px-2 py-1 text-[0.75rem] leading-tight text-foreground">
-              {label}
-            </div>
+            <>
+              <span className="inline-flex items-center gap-1">
+                {arg.dayNumberText}
+                {isToday && (
+                  <>
+                    <span className="h-1.5 w-1.5 rounded-full bg-primary" aria-hidden="true" />
+                    <span className="sr-only">(today)</span>
+                  </>
+                )}
+              </span>
+              {isCheckout && (
+                <span className="mt-0.5 block text-[0.625rem] font-medium uppercase tracking-wide text-foreground/50">
+                  Check-out
+                </span>
+              )}
+            </>
           );
+        }}
+        eventContent={(arg) => (
+          <div className="truncate px-2 py-1 text-[0.75rem] leading-tight text-foreground">
+            {arg.event.title || ""}
+          </div>
+        )}
+        eventDidMount={(arg) => {
+          const { checkIn, checkOut } = arg.event.extendedProps;
+          if (!checkIn || !checkOut) return;
+          arg.el.setAttribute(
+            "title",
+            `${arg.event.title} · Check-in ${localDateKey(checkIn)} → Check-out ${localDateKey(checkOut)}`);
         }}
       />
       {/* Keep this calendar read-only for Phase 2 */}
     </div>
   );
 }
-

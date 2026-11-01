@@ -265,8 +265,17 @@ export async function handleXenditInvoiceRequest(request, workerEnv) {
   const projectId = projectIdOf(workerEnv);
   if (!projectId) return json({ error: "Payment service is not configured." }, 503);
 
-  const accessToken = await getGoogleAccessToken(workerEnv.FIREBASE_SERVICE_ACCOUNT);
-  const booking = await getFirestoreDoc(accessToken, projectId, "bookings", body.bookingId);
+  // Firestore/token failures are infra errors → 502, so the client sees a
+  // retryable upstream outage instead of an unhandled template crash.
+  let accessToken;
+  let booking;
+  try {
+    accessToken = await getGoogleAccessToken(workerEnv.FIREBASE_SERVICE_ACCOUNT);
+    booking = await getFirestoreDoc(accessToken, projectId, "bookings", body.bookingId);
+  } catch (e) {
+    console.error("[xendit] firestore/token failure before invoice:", String(e?.message || e).slice(0, 200));
+    return json({ error: "Payment service is unavailable. Try again shortly." }, 502);
+  }
   if (!booking.exists) return json({ error: "Booking not found." }, 404);
 
   const fields = booking.fields;
@@ -297,6 +306,44 @@ export async function handleXenditInvoiceRequest(request, workerEnv) {
   }
   if (secondsLeft < 60) {
     return json({ error: "Payment hold is about to expire — please create a new booking." }, 409);
+  }
+
+  // Stored-invoice handling. Payability depends on the live status probe, so:
+  // probe fails → retryable 502 (a replacement create would supersede an
+  // invoice whose state we do not know); confirmed payable → reuse; confirmed
+  // non-payable or amount-drifted → fresh create below. Amount must match the
+  // current expected total — Xendit v2 has no expire/update-amount endpoint,
+  // and the webhook's amount-mismatch staff review backstops a late payment
+  // of the superseded invoice.
+  // ponytail: two parallel clicks can still race two invoices (serial reuse
+  // only) — upgrade path: transaction claim on xenditInvoiceId.
+  const storedInvoiceId = fsValue(fields, "xenditInvoiceId");
+  const lookupUnavailable = { error: "Payment service is unavailable. Try again shortly." };
+  if (storedInvoiceId) {
+    let existing;
+    try {
+      const respGet = await fetch(`${XENDIT_INVOICE_API}/${storedInvoiceId}`, {
+        method: "GET",
+        headers: { Authorization: `Basic ${btoa(`${workerEnv.XENDIT_SECRET_KEY}:`)}`}});
+      if (!respGet.ok) {
+        console.error(`[xendit] stored invoice lookup failed (${respGet.status})`);
+        return json(lookupUnavailable, 502);
+      }
+      existing = await respGet.json().catch(() => null);
+    } catch (e) {
+      console.error("[xendit] stored invoice lookup failed:", String(e?.message || e).slice(0, 200));
+      return json(lookupUnavailable, 502);
+    }
+    if (!existing?.invoice_url) {
+      console.error(`[xendit] stored invoice lookup returned no usable body for ${storedInvoiceId}`);
+      return json(lookupUnavailable, 502);
+    }
+    if (Number(existing.amount) !== amount) {
+      console.warn(
+        `[xendit] stored invoice ${storedInvoiceId} amount ${existing.amount} != expected ${amount} — replacing it`);
+    } else if (["PENDING", "ACTIVE", "UNPAID"].includes(existing.status)) {
+      return json({ ok: true, invoiceId: String(existing.id), invoiceUrl: String(existing.invoice_url) });
+    }
   }
 
   const origin = getAllowedOrigin(request, workerEnv);
@@ -472,6 +519,29 @@ export async function handleXenditWebhookRequest(request, workerEnv) {
           updatedAt: { timestampValue: nowIso}}},
       // Partial mask — never replace the whole booking document.
       updateMask: { fieldPaths: ["status", "paymentGateway", "gatewayRef", "xenditPaidAmount", "paidAt", "xenditPaidAt", "updatedAt"] }}]);
+
+    // The booking is still a live hold while FO reviews it. Refresh its night
+    // markers so the guest calendar stops saying "Awaiting Payment".
+    try {
+      const markers = await runFirestoreQuery(accessToken, projectId, "room_availability", {
+        from: [{ collectionId: "room_availability" }],
+        where: {
+          fieldFilter: {
+            field: { fieldPath: "bookingId" },
+            op: "EQUAL",
+            value: { stringValue: bookingId }}}});
+      await Promise.all(markers.map((marker) => patchFirestoreDoc(
+        accessToken,
+        projectId,
+        "room_availability",
+        marker.id,
+        {
+          status: { stringValue: "Pending" },
+          updatedAt: { timestampValue: nowIso }},
+        ["status", "updatedAt"])));
+    } catch (e) {
+      console.error("[xendit] marker refresh failed:", String(e?.message || e).slice(0, 200));
+    }
 
     try {
       await markProofNotificationRead(

@@ -1,8 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+  deleteFirestoreDoc: vi.fn(),
+  getFirestoreDoc: vi.fn(),
   getGoogleAccessToken: vi.fn(),
   listSubcollectionDocs: vi.fn(),
+  patchFirestoreDoc: vi.fn(),
   runFirestoreQuery: vi.fn(),
 }));
 
@@ -11,17 +14,135 @@ vi.mock("./google-auth.js", () => ({
 }));
 
 vi.mock("./firestore.js", () => ({
+  deleteFirestoreDoc: mocks.deleteFirestoreDoc,
   fsValue: (fields, key) => {
     const value = fields?.[key];
+    if (value?.integerValue !== undefined) return Number(value.integerValue);
     return value?.booleanValue ?? value?.stringValue ?? value?.timestampValue;
   },
-  getFirestoreDoc: vi.fn(),
+  getFirestoreDoc: mocks.getFirestoreDoc,
   listSubcollectionDocs: mocks.listSubcollectionDocs,
-  patchFirestoreDoc: vi.fn(),
+  patchFirestoreDoc: mocks.patchFirestoreDoc,
   runFirestoreQuery: mocks.runFirestoreQuery,
 }));
 
-import { purgeNotificationInboxes } from "./sweeps.js";
+import { expireStaleHolds, purgeNotificationInboxes, sweepOrphanMarkers } from "./sweeps.js";
+
+describe("expireStaleHolds", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.getGoogleAccessToken.mockResolvedValue("token");
+    mocks.deleteFirestoreDoc.mockResolvedValue(undefined);
+    mocks.patchFirestoreDoc.mockResolvedValue(undefined);
+  });
+
+  it("expires the unpaid holds but leaves paid Pending bookings alone", async () => {
+    const fields = (status, extra = {}) => ({
+      status: { stringValue: status },
+      paymentDeadline: { timestampValue: "2026-10-01T00:00:00.000Z" },
+      roomId: { stringValue: "room-1" },
+      guestId: { stringValue: "guest-1" },
+      ...extra,
+    });
+    mocks.runFirestoreQuery.mockImplementation(async (_token, _project, collection, query) => {
+      if (collection === "bookings") {
+        const status = query.where?.compositeFilter?.filters?.[0]?.fieldFilter?.value?.stringValue;
+        if (status === "Awaiting Payment") {
+          return [{ id: "awaiting-1", updateTime: "t1", fields: fields("Awaiting Payment") }];
+        }
+        if (status === "Pending") {
+          return [
+            { id: "unpaid-pending", updateTime: "t2", fields: fields("Pending") },
+            {
+              id: "proof-pending",
+              updateTime: "t3",
+              fields: fields("Pending", { paymentProofUrl: { stringValue: "https://img" } }),
+            },
+            {
+              id: "deposit-pending",
+              updateTime: "t4",
+              fields: fields("Pending", {
+                payment: { mapValue: { fields: { deposit: { integerValue: 1500 } } } },
+              }),
+            },
+          ];
+        }
+      }
+      if (collection === "room_availability") {
+        return [{ id: "room-1_2026-10-01" }];
+      }
+      return [];
+    });
+
+    const result = await expireStaleHolds({
+      FIREBASE_SERVICE_ACCOUNT: JSON.stringify({ project_id: "test-project" }),
+    });
+
+    expect(result.expiredBookings).toBe(2);
+    const expiredIds = mocks.patchFirestoreDoc.mock.calls.map((call) => call[3]);
+    expect(expiredIds).toEqual(["awaiting-1", "unpaid-pending"]);
+    expect(expiredIds).not.toContain("proof-pending");
+    expect(expiredIds).not.toContain("deposit-pending");
+  });
+});
+
+describe("sweepOrphanMarkers status reconciliation", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.getGoogleAccessToken.mockResolvedValue("token");
+    mocks.deleteFirestoreDoc.mockResolvedValue(undefined);
+    mocks.patchFirestoreDoc.mockResolvedValue(undefined);
+  });
+
+  it("repairs a stale marker from the live booking and skips matching ones", async () => {
+    mocks.runFirestoreQuery.mockResolvedValue([
+      {
+        id: "room-1_2026-10-24",
+        updateTime: "t1",
+        fields: {
+          bookingId: { stringValue: "bk-1" },
+          status: { stringValue: "Awaiting Payment" },
+        },
+      },
+      {
+        id: "room-1_2026-10-25",
+        updateTime: "t2",
+        fields: {
+          bookingId: { stringValue: "bk-1" },
+          status: { stringValue: "Pending" },
+        },
+      },
+    ]);
+    mocks.getFirestoreDoc.mockResolvedValue({
+      exists: true,
+      fields: { status: { stringValue: "Pending" } },
+    });
+
+    const result = await sweepOrphanMarkers({
+      FIREBASE_SERVICE_ACCOUNT: JSON.stringify({ project_id: "test-project" }),
+    });
+
+    expect(result).toMatchObject({
+      markers: 2,
+      orphansDeleted: 0,
+      markersRepaired: 1,
+      errors: 0,
+    });
+    expect(mocks.patchFirestoreDoc).toHaveBeenCalledTimes(1);
+    expect(mocks.patchFirestoreDoc).toHaveBeenCalledWith(
+      "token",
+      "test-project",
+      "room_availability",
+      "room-1_2026-10-24",
+      {
+        status: { stringValue: "Pending" },
+        updatedAt: { timestampValue: expect.any(String) },
+      },
+      ["status", "updatedAt"],
+      "t1",
+    );
+  });
+});
 
 describe("purgeNotificationInboxes resume cursor", () => {
   beforeEach(() => {

@@ -24,8 +24,25 @@ import {
 // ===========================================================================
 
 /**
- * Cancel Awaiting Payment bookings whose payment deadline has passed and free
- * their room_availability markers.
+ * A Pending booking is paid when any lifecycle payment signal is present.
+ * Proof uploads and gateways carry their own field; manual deposits live under
+ * payment.deposit. Unpaid Card/OTC holds have none of these.
+ */
+function hasRecordedPayment(fields) {
+  const deposit = Number(
+    fsValue(fields?.payment?.mapValue?.fields, "deposit") ?? 0);
+  return Boolean(
+    fsValue(fields, "paymentProofUrl") ||
+    fsValue(fields, "paymentGateway") ||
+    fsValue(fields, "paidAt") ||
+    (Number.isFinite(deposit) && deposit > 0));
+}
+
+/**
+ * Cancel bookings whose hold deadline has passed and free their
+ * room_availability markers. "Awaiting Payment" holds stop blocking once the
+ * guest misses the deadline; unpaid "Pending" holds (Card/OTC with no payment
+ * signal) get the same treatment. Paid Pending bookings stay for FO review.
  */
 export async function expireStaleHolds(workerEnv) {
   const sa = workerEnv.FIREBASE_SERVICE_ACCOUNT;
@@ -47,89 +64,94 @@ export async function expireStaleHolds(workerEnv) {
   // Holds live in `bookings` and block nights via `room_availability`
   // markers (same claim protocol as before, production collection only).
   for (const [col, markerCol] of [["bookings", "room_availability"]]) {
-    try {
-      const expired = await runFirestoreQuery(accessToken, projectId, col, {
-        from: [{ collectionId: col }],
-        where: {
-          compositeFilter: {
-            op: "AND",
-            filters: [
-              {
-                fieldFilter: {
-                  field: { fieldPath: "status" },
-                  op: "EQUAL",
-                  value: { stringValue: "Awaiting Payment" },
+    for (const status of ["Awaiting Payment", "Pending"]) {
+      try {
+        const expired = await runFirestoreQuery(accessToken, projectId, col, {
+          from: [{ collectionId: col }],
+          where: {
+            compositeFilter: {
+              op: "AND",
+              filters: [
+                {
+                  fieldFilter: {
+                    field: { fieldPath: "status" },
+                    op: "EQUAL",
+                    value: { stringValue: status },
+                  },
                 },
-              },
-              {
-                fieldFilter: {
-                  field: { fieldPath: "paymentDeadline" },
-                  op: "LESS_THAN",
-                  value: { timestampValue: nowIso },
+                {
+                  fieldFilter: {
+                    field: { fieldPath: "paymentDeadline" },
+                    op: "LESS_THAN",
+                    value: { timestampValue: nowIso },
+                  },
                 },
-              },
-            ],
-          },
-        },
-      });
-
-      for (const booking of expired.slice(0, EXPIRY_SWEEP_MAX_PER_COLLECTION)) {
-        const bookingId = booking.id;
-        try {
-          await patchFirestoreDoc(
-            accessToken,
-            projectId,
-            col,
-            bookingId,
-            {
-              status: { stringValue: "Cancelled" },
-              rejectionReason: { stringValue: "Payment deadline expired" },
-              updatedAt: { timestampValue: nowIso },
+              ],
             },
-            ["status", "rejectionReason", "updatedAt"],
-            // Compare-and-swap: a guest payment committed between our query
-            // and this write changes updateTime, the patch fails 412, and the
-            // paid hold survives. Next hour's query won't match it anyway.
-            booking.updateTime || null,
-          );
-          summary.expiredBookings += 1;
+          },
+        });
 
-          // Release the availability markers tied to this hold.
-          if (fsValue(booking.fields, "roomId")) {
-            const markers = await runFirestoreQuery(accessToken, projectId, markerCol, {
-              from: [{ collectionId: markerCol }],
-              where: {
-                fieldFilter: {
-                  field: { fieldPath: "bookingId" },
-                  op: "EQUAL",
-                  value: { stringValue: bookingId },
-                },
+        for (const booking of expired.slice(0, EXPIRY_SWEEP_MAX_PER_COLLECTION)) {
+          const bookingId = booking.id;
+          // Paid Pending bookings are waiting on FO, not on money. They keep
+          // their markers and their place in the review queue.
+          if (status === "Pending" && hasRecordedPayment(booking.fields)) continue;
+          try {
+            await patchFirestoreDoc(
+              accessToken,
+              projectId,
+              col,
+              bookingId,
+              {
+                status: { stringValue: "Cancelled" },
+                rejectionReason: { stringValue: "Payment deadline expired" },
+                updatedAt: { timestampValue: nowIso },
               },
-            });
-            for (const marker of markers) {
-              try {
-                await deleteFirestoreDoc(accessToken, projectId, `${markerCol}/${marker.id}`);
-                summary.releasedMarkers += 1;
-              } catch (e) {
-                summary.errors += 1;
-                console.error(`[sweep] marker delete failed ${marker.id}:`, String(e?.message || e));
+              ["status", "rejectionReason", "updatedAt"],
+              // Compare-and-swap: a guest payment committed between our query
+              // and this write changes updateTime, the patch fails 412, and the
+              // paid hold survives. Next hour's query won't match it anyway.
+              booking.updateTime || null,
+            );
+            summary.expiredBookings += 1;
+
+            // Release the availability markers tied to this hold.
+            if (fsValue(booking.fields, "roomId")) {
+              const markers = await runFirestoreQuery(accessToken, projectId, markerCol, {
+                from: [{ collectionId: markerCol }],
+                where: {
+                  fieldFilter: {
+                    field: { fieldPath: "bookingId" },
+                    op: "EQUAL",
+                    value: { stringValue: bookingId },
+                  },
+                },
+              });
+              for (const marker of markers) {
+                try {
+                  await deleteFirestoreDoc(accessToken, projectId, `${markerCol}/${marker.id}`);
+                  summary.releasedMarkers += 1;
+                } catch (e) {
+                  summary.errors += 1;
+                  console.error(`[sweep] marker delete failed ${marker.id}:`, String(e?.message || e));
+                }
               }
             }
+          } catch (e) {
+            // 412 = precondition lost: someone (a guest payment) touched the
+            // booking mid-sweep. Their write won — skip quietly, not an error.
+            if (String(e?.message || e).includes("(412)")) {
+              console.log(`[sweep] skipped ${col}/${bookingId}: changed mid-sweep`);
+              continue;
+            }
+            summary.errors += 1;
+            console.error(`[sweep] expiry failed for ${col}/${bookingId}:`, String(e?.message || e));
           }
-        } catch (e) {
-          // 412 = precondition lost: someone (a guest payment) touched the
-          // booking mid-sweep. Their write won — skip quietly, not an error.
-          if (String(e?.message || e).includes("(412)")) {
-            console.log(`[sweep] skipped ${col}/${bookingId}: changed mid-sweep`);
-            continue;
-          }
-          summary.errors += 1;
-          console.error(`[sweep] expiry failed for ${col}/${bookingId}:`, String(e?.message || e));
         }
+      } catch (e) {
+        summary.errors += 1;
+        console.error(`[sweep] query failed for ${col} (${status}):`, String(e?.message || e));
       }
-    } catch (e) {
-      summary.errors += 1;
-      console.error(`[sweep] query failed for ${col}:`, String(e?.message || e));
     }
   }
 
@@ -149,6 +171,10 @@ export async function expireStaleHolds(workerEnv) {
  * fixed, a dropped network request or an unhandled path can still leak a
  * marker, so this hourly sweep guarantees eventual consistency. "Cancellation
  * Requested" is still an active hold and is deliberately left alone.
+ *
+ * The same scan also repairs stale marker STATUS labels (e.g. a paid booking
+ * still marked "Awaiting Payment"). It already reads each linked booking, so
+ * reconciliation is one extra patch per drifted marker, not another query.
  */
 export async function sweepOrphanMarkers(workerEnv) {
   const sa = workerEnv.FIREBASE_SERVICE_ACCOUNT;
@@ -163,10 +189,21 @@ export async function sweepOrphanMarkers(workerEnv) {
   if (!projectId) return { ok: false, reason: "project_id missing" };
 
   const accessToken = await getGoogleAccessToken(sa);
-  const summary = { markers: 0, orphansDeleted: 0, errors: 0 };
+  const nowIso = new Date().toISOString();
+  const summary = { markers: 0, orphansDeleted: 0, markersRepaired: 0, errors: 0 };
 
   const pairs = [["bookings", "room_availability"]];
   const orphanIds = [];
+  const repairs = [];
+  // Only live statuses are mirrored onto markers. Terminal bookings are
+  // handled by the orphan delete path above; never rewrite their markers.
+  const REPAIRABLE_STATUSES = new Set([
+    "Awaiting Payment",
+    "Pending",
+    "Approved",
+    "Checked In",
+    "Cancellation Requested",
+  ]);
   for (const [bookingCol, markerCol] of pairs) {
     let markers;
     try {
@@ -183,7 +220,7 @@ export async function sweepOrphanMarkers(workerEnv) {
 
     // Group markers by the booking they reference. A marker with no bookingId
     // can never belong to an active booking, so it is an orphan by definition.
-    const byBooking = new Map(); // bookingId -> markerId[]
+    const byBooking = new Map(); // bookingId -> [{ id, status, updateTime }]
     for (const marker of markers) {
       const bookingId = fsValue(marker.fields, "bookingId");
       if (!bookingId) {
@@ -191,10 +228,14 @@ export async function sweepOrphanMarkers(workerEnv) {
         continue;
       }
       if (!byBooking.has(bookingId)) byBooking.set(bookingId, []);
-      byBooking.get(bookingId).push(marker.id);
+      byBooking.get(bookingId).push({
+        id: marker.id,
+        status: fsValue(marker.fields, "status"),
+        updateTime: marker.updateTime || null,
+      });
     }
 
-    for (const [bookingId, markerIds] of byBooking) {
+    for (const [bookingId, bookingMarkers] of byBooking) {
       let booking;
       try {
         booking = await getFirestoreDoc(accessToken, projectId, bookingCol, bookingId);
@@ -206,7 +247,21 @@ export async function sweepOrphanMarkers(workerEnv) {
       const status = booking.exists ? fsValue(booking.fields, "status") : null;
       const isOrphan =
         !booking.exists || status === "Cancelled" || status === "Checked Out";
-      if (isOrphan) orphanIds.push(...markerIds.map((id) => `${markerCol}/${id}`));
+      if (isOrphan) {
+        orphanIds.push(...bookingMarkers.map((marker) => `${markerCol}/${marker.id}`));
+        continue;
+      }
+      if (!REPAIRABLE_STATUSES.has(status)) continue;
+
+      for (const marker of bookingMarkers) {
+        if (marker.status === status) continue;
+        repairs.push({
+          markerCol,
+          markerId: marker.id,
+          status,
+          updateTime: marker.updateTime,
+        });
+      }
     }
   }
 
@@ -230,6 +285,41 @@ export async function sweepOrphanMarkers(workerEnv) {
     console.warn(
       `[sweep] orphan deletion capped at ${ORPHAN_SWEEP_MAX_DELETES}; ` +
         `${orphanIds.length - targets.length} left for the next run`,
+    );
+  }
+
+  // Compare-and-swap via the marker's updateTime: if a legitimate transition
+  // (approval, check-in) rewrote the marker between our scan and this patch,
+  // the 412 wins and we leave the newer status alone.
+  for (let i = 0; i < repairs.length; i += CONCURRENCY) {
+    await Promise.all(
+      repairs.slice(i, i + CONCURRENCY).map(async (repair) => {
+        try {
+          await patchFirestoreDoc(
+            accessToken,
+            projectId,
+            repair.markerCol,
+            repair.markerId,
+            {
+              status: { stringValue: repair.status },
+              updatedAt: { timestampValue: nowIso },
+            },
+            ["status", "updatedAt"],
+            repair.updateTime,
+          );
+          summary.markersRepaired += 1;
+        } catch (e) {
+          if (String(e?.message || e).includes("(412)")) {
+            console.log(`[sweep] skipped marker ${repair.markerCol}/${repair.markerId}: changed mid-sweep`);
+            return;
+          }
+          summary.errors += 1;
+          console.error(
+            `[sweep] marker status repair failed ${repair.markerCol}/${repair.markerId}:`,
+            String(e?.message || e),
+          );
+        }
+      }),
     );
   }
 

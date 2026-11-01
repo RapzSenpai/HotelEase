@@ -3,6 +3,7 @@ import { auth, db } from "@/firebase/firebase.config";
 import { getCol } from "@/lib/db-utils";
 import { listFoUsers } from "./userService";
 import { createNotification, markNotificationsOfTypeRead } from "./notificationService";
+import { setBookingMarked } from "./availabilityService";
 import { PROOF_REQUIRED_METHODS } from "@/lib/paymentDetails";
 
 /**
@@ -103,6 +104,19 @@ export async function completeSimulatedPayment({ bookingId, userBankRef } = {}) 
     transaction.update(bookingRef, update);
     return { booking: data, gatewayRef: ref, bankRef: storedBankRef };
   });
+
+  // Pending is still a live hold. Keep the guest calendar label in step with
+  // the booking (it was showing "Awaiting Payment" until FO approved).
+  try {
+    await setBookingMarked({
+      roomId: booking.roomId,
+      bookingId,
+      checkIn: booking.checkInDate,
+      checkOut: booking.checkOutDate,
+      status: "Pending"});
+  } catch (e) {
+    console.warn("Availability marker refresh failed:", e);
+  }
 
   // Same FO fan-out notification the proof-upload path sends. Payment also
   // supersedes the proof request, so auto-read the guest's hint first —
