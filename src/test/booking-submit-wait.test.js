@@ -3,6 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 // The guest's "Verifying & Booking…" wait must end when the booking and its
 // night markers are committed — not when the bell fan-out finishes.
 const claimBookingMarked = vi.fn();
+const claimBookingMarkedInTx = vi.fn();
+const clearBookingMarked = vi.fn();
 const transactionWrites = [];
 const compensationCalls = [];
 
@@ -42,7 +44,8 @@ vi.mock("firebase/firestore", () => {
 vi.mock("@/services/availabilityService", () => ({
   MARKER_CONFLICT_MESSAGE: "Those dates were just taken by another guest.",
   claimBookingMarked,
-  clearBookingMarked: async () => {},
+  claimBookingMarkedInTx,
+  clearBookingMarked,
   getBlockedRoomIds: async () => new Set(),
   nightKeys: () => ["2026-10-01", "2026-10-02"]}));
 
@@ -93,10 +96,42 @@ describe("createBooking submit path", () => {
       roomName: "Deluxe Suite"});
   });
 
-  it("leaves an ambiguous Worker failure recoverable instead of compensating", async () => {
+  it("falls back to transactional marker claim when Worker fails, preserving booking", async () => {
     compensationCalls.length = 0;
+    claimBookingMarkedInTx.mockClear();
     claimBookingMarked.mockRejectedValueOnce(
-      new Error("Booking availability could not be confirmed."));
+      new Error("Worker timeout or network error"));
+
+    const res = await createBooking({
+      guestId: "guest-1",
+      roomId: "room-1",
+      checkInDate: "2026-10-01",
+      checkOutDate: "2026-10-03",
+      paxCount: 1,
+      paymentMethod: "GCash"});
+
+    expect(res).toMatchObject({
+      id: "booking-fixed",
+      roomName: "Deluxe Suite",
+      status: "Awaiting Payment"});
+    expect(claimBookingMarkedInTx).toHaveBeenCalledTimes(1);
+    expect(claimBookingMarkedInTx).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        roomId: "room-1",
+        bookingId: "booking-fixed",
+        status: "Awaiting Payment"}));
+    expect(compensationCalls).toEqual([]);
+  });
+
+  it("compensates, clears markers, and cancels booking when both Worker and fallback marker claim fail", async () => {
+    compensationCalls.length = 0;
+    clearBookingMarked.mockClear();
+    claimBookingMarkedInTx.mockClear();
+    claimBookingMarked.mockRejectedValueOnce(
+      new Error("Worker unavailable"));
+    claimBookingMarkedInTx.mockRejectedValueOnce(
+      new Error("Firestore transaction failed"));
 
     await expect(createBooking({
       guestId: "guest-1",
@@ -104,15 +139,47 @@ describe("createBooking submit path", () => {
       checkInDate: "2026-10-01",
       checkOutDate: "2026-10-03",
       paxCount: 1,
-      paymentMethod: "GCash"})).rejects.toThrow("Booking availability could not be confirmed.");
+      paymentMethod: "GCash"})).rejects.toThrow("Firestore transaction failed");
 
-    expect(transactionWrites.some(([ref]) =>
-      ref.__doc === "booking_notification_jobs/booking-fixed")).toBe(true);
-    expect(compensationCalls).toEqual([]);
+    expect(clearBookingMarked).toHaveBeenCalledTimes(1);
+    expect(clearBookingMarked).toHaveBeenCalledWith(expect.objectContaining({
+      roomId: "room-1",
+      bookingId: "booking-fixed",
+      dates: ["2026-10-01", "2026-10-02"]}));
+    expect(compensationCalls).toHaveLength(1);
+    expect(compensationCalls[0][0]).toBe("updateDoc");
+    expect(compensationCalls[0][2]).toMatchObject({
+      status: "Cancelled",
+      rejectionReason: "Availability claim failed."});
   });
 
-  it("compensates a definitive marker conflict from the Worker", async () => {
+  it("compensates and clears markers on a definitive conflict during fallback claim", async () => {
     compensationCalls.length = 0;
+    clearBookingMarked.mockClear();
+    claimBookingMarkedInTx.mockClear();
+    claimBookingMarked.mockRejectedValueOnce(
+      new Error("Worker unavailable"));
+    claimBookingMarkedInTx.mockRejectedValueOnce(
+      new Error("Those dates were just taken by another guest."));
+
+    await expect(createBooking({
+      guestId: "guest-1",
+      roomId: "room-1",
+      checkInDate: "2026-10-01",
+      checkOutDate: "2026-10-03",
+      paxCount: 1,
+      paymentMethod: "GCash"})).rejects.toThrow("Those dates were just taken by another guest.");
+
+    expect(clearBookingMarked).toHaveBeenCalledTimes(1);
+    expect(compensationCalls).toHaveLength(1);
+    expect(compensationCalls[0][2]).toMatchObject({
+      status: "Cancelled",
+      rejectionReason: "Dates taken by an earlier booking."});
+  });
+
+  it("compensates a definitive marker conflict from the Worker and clears markers", async () => {
+    compensationCalls.length = 0;
+    clearBookingMarked.mockClear();
     const conflict = Object.assign(
       new Error("Those dates were just taken by another guest."),
       { status: 409 });
@@ -126,6 +193,11 @@ describe("createBooking submit path", () => {
       paxCount: 1,
       paymentMethod: "GCash"})).rejects.toThrow("Those dates were just taken by another guest.");
 
+    expect(clearBookingMarked).toHaveBeenCalledTimes(1);
+    expect(clearBookingMarked).toHaveBeenCalledWith(expect.objectContaining({
+      roomId: "room-1",
+      bookingId: "booking-fixed",
+      dates: ["2026-10-01", "2026-10-02"]}));
     expect(compensationCalls).toHaveLength(1);
     expect(compensationCalls[0][0]).toBe("updateDoc");
     expect(compensationCalls[0][2]).toMatchObject({

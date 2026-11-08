@@ -16,6 +16,8 @@ import { isRoomActive, isRoomBookable } from "../roomsService";
 import { AWAITING_PAYMENT_METHODS } from "@/lib/paymentDetails";
 import {
   claimBookingMarked,
+  claimBookingMarkedInTx,
+  clearBookingMarked,
   getBlockedRoomIds,
   MARKER_CONFLICT_MESSAGE,
   nightKeys} from "../availabilityService";
@@ -168,33 +170,63 @@ export async function createBooking(payload) {
 
     return { id: bookingRef.id, roomName: roomData.name || roomData.type || "Room", status: initialStatus };
   }).then(async (result) => {
+    const dates = nightKeys(checkIn, checkOut);
+
     // The Worker atomically claims availability markers and queues this job.
     try {
       await claimBookingMarked({
         bookingId: result.id});
     } catch (e) {
-      if (e?.status !== 409 || e?.message !== MARKER_CONFLICT_MESSAGE) {
+      if (e?.status === 409 || e?.message === MARKER_CONFLICT_MESSAGE) {
+        // Definite race conflict from worker — cancel hold and clear any partial markers
+        try {
+          await clearBookingMarked({ roomId, bookingId: result.id, dates });
+        } catch (cleanupError) {
+          console.error("Marker cleanup failed during conflict compensation:", cleanupError);
+        }
+        try {
+          await updateDoc(doc(db, BOOKINGS_COL, result.id), {
+            status: "Cancelled",
+            rejectionReason: "Dates taken by an earlier booking.",
+            updatedAt: serverTimestamp()});
+        } catch (compensationError) {
+          console.error("Booking compensation failed after availability claim conflict:", compensationError);
+          throw new Error(e?.message || "Availability claim failed.", { cause: compensationError });
+        }
         throw e;
       }
-      // Unwind the just-created hold so a booking NEVER exists without its
-      // markers (a markerless hold looks free and reopens the double-booking
-      // hole). Pending losers cancel directly; Awaiting Payment losers can't
-      // self-cancel per rules, so they expire via the sweep — they hold no
-      // markers, so the room stays bookable either way.
+
+      // Ambiguous/worker failure: fallback to transactional claimBookingMarkedInTx
+      // inside runTransaction so existing live-booking markers can NEVER be overwritten.
       try {
-        await updateDoc(doc(db, BOOKINGS_COL, result.id), {
-          status: "Cancelled",
-          rejectionReason: e?.message === MARKER_CONFLICT_MESSAGE
-            ? "Dates taken by an earlier booking."
-            : "Availability claim failed.",
-          updatedAt: serverTimestamp()});
-      } catch (compensationError) {
-        console.error("Booking compensation failed after availability claim failure:", compensationError);
-        throw new Error(
-          e?.message || "Availability claim failed.",
-          { cause: compensationError });
+        await runTransaction(db, async (markerTrx) => {
+          await claimBookingMarkedInTx(markerTrx, {
+            roomId,
+            bookingId: result.id,
+            checkIn,
+            checkOut,
+            status: result.status});
+        });
+      } catch (fallbackError) {
+        console.error("Fallback marker claim failed:", fallbackError);
+        // Clean up any markers that might be left and cancel booking
+        try {
+          await clearBookingMarked({ roomId, bookingId: result.id, dates });
+        } catch (cleanupError) {
+          console.error("Marker cleanup failed during fallback compensation:", cleanupError);
+        }
+        try {
+          await updateDoc(doc(db, BOOKINGS_COL, result.id), {
+            status: "Cancelled",
+            rejectionReason: fallbackError?.message === MARKER_CONFLICT_MESSAGE
+              ? "Dates taken by an earlier booking."
+              : "Availability claim failed.",
+            updatedAt: serverTimestamp()});
+        } catch (compensationError) {
+          console.error("Booking compensation failed after fallback failure:", compensationError);
+        }
+        throw fallbackError;
       }
-      throw e;
     }
 
     return result;

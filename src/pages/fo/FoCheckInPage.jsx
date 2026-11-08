@@ -34,15 +34,15 @@ function StepIndicator({ currentStatus }) {
   const activeIndex = STEPS.indexOf(currentStatus);
 
   return (
-    <div className="flex items-start">
+    <div className="flex items-center justify-between w-full max-w-md mx-auto px-2">
       {STEPS.map((step, i) => {
         const isDone = i < activeIndex;
         const isActive = i === activeIndex;
         const isLast = i === STEPS.length - 1;
 
         return (
-          <div key={step} className="flex items-start flex-1">
-            <div className="flex flex-col items-center gap-1.5">
+          <div key={step} className={`flex items-center ${isLast ? "" : "flex-1"}`}>
+            <div className="flex flex-col items-center gap-1.5 shrink-0">
               <div
                 className={`flex h-7 w-7 items-center justify-center rounded-full border-2 transition-colors ${
                   isDone
@@ -72,7 +72,7 @@ function StepIndicator({ currentStatus }) {
             </div>
             {!isLast && (
               <div
-                className={`h-0.5 flex-1 mt-3.5 mx-1.5 transition-colors ${
+                className={`h-0.5 flex-1 mb-5 mx-2 transition-colors ${
                   i < activeIndex ? "bg-success" : "bg-border"
                 }`}
               />

@@ -119,11 +119,28 @@ export async function approveBooking(bookingId) {
       checkIn: booking.checkInDate,
       checkOut: booking.checkOutDate});
     if (!markerCheck.complete || markerCheck.live.length > 0) {
-      if (!markerCheck.complete) {
+      if (markerCheck.live.length > 0) {
+        throw new Error(
+          "Cannot approve — another booking for this room already covers these dates.");
+      }
+
+      // If markers are missing/incomplete, safely attempt in-transaction recovery claim.
+      // claimBookingMarkedInTx checks each night marker and throws MARKER_CONFLICT_MESSAGE
+      // if any night is already held by another booking with a live status.
+      try {
+        await claimBookingMarkedInTx(transaction, {
+          roomId,
+          bookingId,
+          checkIn: booking.checkInDate,
+          checkOut: booking.checkOutDate,
+          status: "Pending"});
+      } catch (err) {
+        if (err?.message === MARKER_CONFLICT_MESSAGE) {
+          throw new Error(
+            "Cannot approve — another booking for this room already covers these dates.");
+        }
         throw new Error("Cannot approve — booking availability markers are incomplete.");
       }
-      throw new Error(
-        "Cannot approve — another booking for this room already covers these dates.");
     }
 
     transaction.update(bookingRef, {
