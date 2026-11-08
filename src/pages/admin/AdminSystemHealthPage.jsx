@@ -21,6 +21,7 @@ import {
   Users
 } from "lucide-react";
 import { subscribeToUsers } from "@/services/userService";
+import { isOnlineNow } from "@/services/presenceService";
 
 export default function AdminSystemHealthPage() {
   // System health and error logs are production-only collections (no sandbox
@@ -35,7 +36,7 @@ export default function AdminSystemHealthPage() {
   const [realConnectivity, setRealConnectivity] = useState(null);
 
   // Live user presence — both derived from one subscribeToUsers stream
-  const [onlineNow, setOnlineNow] = useState(null);      // isOnline: true
+  const [onlineNow, setOnlineNow] = useState(null);      // isOnlineNow: true
   const [activeToday, setActiveToday] = useState(null);  // lastLoginAt within 24h
 
   async function loadErrorLogs() {
@@ -66,7 +67,7 @@ export default function AdminSystemHealthPage() {
     const unsubUsers = subscribeToUsers({
       onData: (users) => {
         const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
-        setOnlineNow(users.filter((u) => u.isOnline === true).length);
+        setOnlineNow(users.filter((u) => isOnlineNow(u)).length);
         setActiveToday(
           users.filter((u) => {
             const ts = u.lastLoginAt;
@@ -201,7 +202,7 @@ export default function AdminSystemHealthPage() {
             </div>
           </div>
 
-          {/* Online Now — live isOnline: true count */}
+          {/* Online Now — live isOnlineNow count */}
           <div className="flex items-center gap-3 px-4 py-4">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-green-500/10 text-green-600">
               <Activity className="h-5 w-5" />
