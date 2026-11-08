@@ -1,4 +1,4 @@
-import { Landmark, CreditCard, Store } from "lucide-react";
+import { Landmark, CreditCard, Store, Wallet } from "lucide-react";
 import gcashPng from "@/assets/gcash.png";
 
 /**
@@ -14,7 +14,12 @@ export const PAYMENT_METHOD_META = {
   "Bank Transfer": {
     icon: Landmark,
     iconAlt: "Bank Transfer",
-    description: "Pay online in the next step",
+    description: "Transfer to our bank, then enter your reference",
+  },
+  "Online Payment": {
+    icon: Wallet,
+    iconAlt: "Online Payment",
+    description: "Card, e-wallet, or online banking",
   },
   "Credit/Debit Card": {
     icon: CreditCard,

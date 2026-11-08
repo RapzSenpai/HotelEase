@@ -99,6 +99,32 @@ describe("BookingPaymentSection — Xendit test checkout swap", () => {
     expect(container.textContent).toMatch(/Upload proof manually/i);
   });
 
+  it("offers only the Xendit checkout for Online Payment", async () => {
+    mocks.isXenditEnabled.mockReturnValue(true);
+    await renderSection({
+      booking: {
+        id: "bk-1",
+        paymentMethod: "Online Payment",
+        paymentType: "Full"}});
+
+    expect(container.textContent).toMatch(/Choose Payment Method/i);
+    expect(container.textContent).not.toMatch(/Upload proof manually/i);
+    expect(container.textContent).toMatch(/powered by Xendit/i);
+  });
+
+  it("keeps Bank Transfer on the in-app transfer page even when Xendit is enabled", async () => {
+    mocks.isXenditEnabled.mockReturnValue(true);
+    await renderSection({
+      booking: {
+        id: "bk-1",
+        paymentMethod: "Bank Transfer",
+        paymentType: "Full"}});
+
+    expect(container.textContent).toMatch(/Pay Now via Bank Transfer/i);
+    expect(container.textContent).not.toMatch(/Pay Online via Bank Transfer/i);
+    expect(container.textContent).toMatch(/Upload proof manually/i);
+  });
+
   it("explains an online payment received while Pending instead of a bare ₱0 folio", async () => {
     mocks.isXenditEnabled.mockReturnValue(true);
     await renderSection({

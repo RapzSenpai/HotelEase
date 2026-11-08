@@ -37,7 +37,10 @@ import {
   runFirestoreQuery} from "./firestore.js";
 
 const XENDIT_INVOICE_API = "https://api.xendit.co/v2/invoices";
-const PROOF_METHODS = ["GCash", "Bank Transfer"];
+// Bank Transfer deliberately absent: it uses the app's own transfer page.
+// Online Payment is deliberately absent from INVOICE_CHANNELS: with no
+// payment_methods pin Xendit shows every channel enabled on the account.
+const INVOICE_METHODS = ["GCash", "Online Payment"];
 const MAX_INVOICE_SECONDS = 48 * 3600; // matches the paymentDeadline cap
 
 // Pin the invoice to the guest's chosen method so Xendit's checkout does not
@@ -45,7 +48,6 @@ const MAX_INVOICE_SECONDS = 48 * 3600; // matches the paymentDeadline cap
 // cap — such invoices fall back to Xendit's own picker.
 const INVOICE_CHANNELS = {
   GCash: ["GCASH"],
-  "Bank Transfer": ["BANK_TRANSFER"],
 };
 const GCASH_MAX_AMOUNT = 100_000;
 // PARTIAL_PAYMENT_PERCENTAGE mirrors lib/paymentDetails.js — server copy so a
@@ -287,7 +289,7 @@ export async function handleXenditInvoiceRequest(request, workerEnv) {
       error: "This booking is not awaiting payment — it may already be paid, approved, or cancelled."}, 409);
   }
   const method = fsValue(fields, "paymentMethod");
-  if (!PROOF_METHODS.includes(method)) {
+  if (!INVOICE_METHODS.includes(method)) {
     return json({ error: "This booking method does not use the online checkout." }, 409);
   }
   const amount = expectedAmount(fields);

@@ -25,17 +25,31 @@ import {
  * lib/night-audit.js + nightAuditService.js; this card is presentation only.
  */
 
-function FigureTile({ icon: Icon, label, value, hint }) {
+const TONE = {
+  primary: "bg-primary/10 text-primary",
+  info: "bg-info/10 text-info",
+  warning: "bg-warning/10 text-warning",
+  destructive: "bg-destructive/10 text-destructive",
+  neutral: "bg-muted text-foreground/50"};
+
+function FigureTile({ icon: Icon, label, value, suffix, hint, tone = "neutral", valueTone = "" }) {
   return (
-    <div className="flex items-start gap-2.5 rounded-lg border border-border/50 bg-background p-3">
-      <Icon className="h-4 w-4 mt-0.5 shrink-0 text-foreground/45" />
-      <div className="min-w-0">
-        <p className="text-[11px] uppercase tracking-wide text-foreground/45">
+    <div className="bg-background p-3.5 space-y-2">
+      <div className="flex items-center gap-2">
+        <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${TONE[tone]}`}>
+          <Icon className="h-4 w-4" />
+        </span>
+        <p className="text-[11px] uppercase tracking-wide text-foreground/50">
           {label}
         </p>
-        <p className="text-base font-semibold leading-tight">{value}</p>
-        <p className="text-[10px] text-foreground/50 mt-0.5 leading-snug">{hint}</p>
       </div>
+      <p className={`text-2xl font-semibold leading-none tabular-nums ${valueTone}`}>
+        {value}
+        {suffix ? (
+          <span className="ml-1 text-sm font-medium text-foreground/40">{suffix}</span>
+        ) : null}
+      </p>
+      <p className="text-[11px] text-foreground/55 leading-snug">{hint}</p>
     </div>
   );
 }
@@ -193,30 +207,37 @@ export default function NightAuditCard() {
         <>
           <p className="text-[11px] text-foreground/50">{lastRunText}</p>
 
-          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-px bg-border sm:grid-cols-2 xl:grid-cols-4">
             <FigureTile
               icon={BedDouble}
               label="Occupied"
-              value={`${figures.occupiedRooms ?? 0}/${figures.totalRooms ?? 0}`}
-              hint={`= ${figures.occupiedRooms ?? 0} of ${figures.totalRooms ?? 0} active rooms — occupancy at audit time`}
+              value={figures.occupiedRooms ?? 0}
+              suffix={`/ ${figures.totalRooms ?? 0}`}
+              hint="Rooms in use at audit time"
+              tone="primary"
             />
             <FigureTile
               icon={Users}
               label="Arrivals today"
               value={figures.arrivalsTodayNotCheckedIn ?? 0}
-              hint="Approved bookings arriving TODAY not yet checked in — guest may still show up"
+              hint="Approved, not checked in yet"
+              tone="info"
             />
             <FigureTile
               icon={CalendarX2}
               label="No-show eligible"
               value={figures.noShowEligible ?? 0}
-              hint="Approved bookings whose arrival date has fully passed (cut-off: not before it)"
+              hint="Arrival date passed — ready to mark"
+              tone="warning"
+              valueTone={(figures.noShowEligible ?? 0) > 0 ? "text-warning" : ""}
             />
             <FigureTile
               icon={UserX}
               label="No-shows today"
               value={figures.noShowsMarkedToday ?? 0}
-              hint="Bookings actually marked as no-show earlier today"
+              hint="Marked no-show today"
+              tone="destructive"
+              valueTone={(figures.noShowsMarkedToday ?? 0) > 0 ? "text-destructive" : ""}
             />
           </div>
 

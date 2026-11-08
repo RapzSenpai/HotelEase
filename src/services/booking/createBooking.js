@@ -13,7 +13,7 @@ import { db } from "@/firebase/firebase.config";
 import { toLocalDate as toDate } from "@/lib/time-utils";
 import { getCol } from "@/lib/db-utils";
 import { isRoomActive, isRoomBookable } from "../roomsService";
-import { PROOF_REQUIRED_METHODS } from "@/lib/paymentDetails";
+import { AWAITING_PAYMENT_METHODS } from "@/lib/paymentDetails";
 import {
   claimBookingMarked,
   getBlockedRoomIds,
@@ -98,8 +98,9 @@ export async function createBooking(payload) {
     if (!paymentMethod) {
       throw new Error("Payment method is required");
     }
-    const requiresProof = PROOF_REQUIRED_METHODS.includes(paymentMethod);
-    const initialStatus = requiresProof ? "Awaiting Payment" : "Pending";
+    const initialStatus = AWAITING_PAYMENT_METHODS.includes(paymentMethod)
+      ? "Awaiting Payment"
+      : "Pending";
 
     const bookingRef = doc(collection(db, BOOKINGS_COL));
     const paymentDeadline = new Date(Date.now() + 48 * 60 * 60 * 1000); // 48 hours from now

@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
-import { Eye, MailCheck, Send } from "lucide-react";
+import { ArrowLeft, Eye, Mail, MailCheck, Plus, Send } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { formatDateTime } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -41,7 +41,7 @@ function statusBadge(status) {
 
 // Contact-page form layout, adapted: staff compose goes out by email and is
 // recorded in Sent. No guest cooldown — staff may send several in a row.
-function ComposeMessageForm({ onSent }) {
+function ComposeMessageForm({ onSent, composeSession }) {
   const { user, profile } = useAuth();
   const [sending, setSending] = useState(false);
   const {
@@ -73,7 +73,7 @@ function ComposeMessageForm({ onSent }) {
         );
       }
       reset();
-      onSent();
+      onSent(composeSession);
     } catch (e) {
       toast.error(e?.message || "Failed to send message.");
     } finally {
@@ -82,85 +82,84 @@ function ComposeMessageForm({ onSent }) {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Send a Message</CardTitle>
-        <CardDescription>Emails the guest and keeps a copy in Sent.</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="outgoing-to-email">Recipient Email<RequiredIndicator /></Label>
-              <Input
-                id="outgoing-to-email"
-                type="email"
-                placeholder="guest@example.com"
-                className="h-11"
-                {...register("toEmail", {
-                  required: "Recipient email is required.",
-                  pattern: {
-                    value: EMAIL_RE,
-                    message: "Please enter a valid email."}})}
-              />
-              {errors.toEmail && <p className="text-xs text-destructive">{errors.toEmail.message}</p>}
-            </div>
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-2">
+          <Label htmlFor="outgoing-to-email">Recipient Email<RequiredIndicator /></Label>
+          <Input
+            id="outgoing-to-email"
+            type="email"
+            placeholder="guest@example.com"
+            className="h-11"
+            {...register("toEmail", {
+              required: "Recipient email is required.",
+              pattern: {
+                value: EMAIL_RE,
+                message: "Please enter a valid email."}})}
+          />
+          {errors.toEmail && <p className="text-xs text-destructive">{errors.toEmail.message}</p>}
+        </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="outgoing-to-name">Recipient Name</Label>
-              <Input
-                id="outgoing-to-name"
-                placeholder="Defaults to Guest"
-                className="h-11"
-                {...register("toName")}
-              />
-            </div>
-          </div>
+        <div className="space-y-2">
+          <Label htmlFor="outgoing-to-name">Recipient Name</Label>
+          <Input
+            id="outgoing-to-name"
+            placeholder="Defaults to Guest"
+            className="h-11"
+            {...register("toName")}
+          />
+        </div>
+      </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="outgoing-subject">Subject<RequiredIndicator /></Label>
-            <Input
-              id="outgoing-subject"
-              placeholder="e.g. Your reservation details"
-              className="h-11"
-              maxLength={200}
-              {...register("subject", { required: "Subject is required." })}
-            />
-            {errors.subject && <p className="text-xs text-destructive">{errors.subject.message}</p>}
-          </div>
+      <div className="space-y-2">
+        <Label htmlFor="outgoing-subject">Subject<RequiredIndicator /></Label>
+        <Input
+          id="outgoing-subject"
+          placeholder="e.g. Your reservation details"
+          className="h-11"
+          maxLength={200}
+          {...register("subject", { required: "Subject is required." })}
+        />
+        {errors.subject && <p className="text-xs text-destructive">{errors.subject.message}</p>}
+      </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="outgoing-message">Message<RequiredIndicator /></Label>
-            <Textarea
-              id="outgoing-message"
-              placeholder="Write your message to the guest..."
-              className="min-h-36"
-              maxLength={2000}
-              {...register("message", {
-                required: "Message is required.",
-                validate: (value) =>
-                  value.trim().length >= 20 || "Message must be at least 20 characters.",
-                maxLength: { value: 2000, message: "Message must be at most 2000 characters." }})}
-            />
-            {errors.message && <p className="text-xs text-destructive">{errors.message.message}</p>}
-          </div>
+      <div className="space-y-2">
+        <Label htmlFor="outgoing-message">Message<RequiredIndicator /></Label>
+        <Textarea
+          id="outgoing-message"
+          placeholder="Write your message to the guest..."
+          className="min-h-36"
+          maxLength={2000}
+          {...register("message", {
+            required: "Message is required.",
+            validate: (value) =>
+              value.trim().length >= 20 || "Message must be at least 20 characters.",
+            maxLength: { value: 2000, message: "Message must be at most 2000 characters." }})}
+        />
+        {errors.message && <p className="text-xs text-destructive">{errors.message.message}</p>}
+      </div>
 
-          <Button type="submit" disabled={sending} className="w-full gap-2">
-            <Send className="h-4 w-4" />
-            {sending ? "Sending..." : "Send Message"}
-          </Button>
-        </form>
-      </CardContent>
-    </Card>
+      <Button type="submit" disabled={sending} className="w-full gap-2">
+        <Send className="h-4 w-4" />
+        {sending ? "Sending..." : "Send Message"}
+      </Button>
+    </form>
   );
 }
 
 export default function MessagesPage() {
   const [messages, setMessages] = useState([]);
   const [activeFilter, setActiveFilter] = useState("all");
+  const [composeOpen, setComposeOpen] = useState(false);
+  const composeSessionRef = useRef(0);
   const [selected, setSelected] = useState(null);
   const [replyText, setReplyText] = useState("");
   const [sending, setSending] = useState(false);
+
+  function handleComposeOpenChange(open) {
+    composeSessionRef.current += 1;
+    setComposeOpen(open);
+  }
 
   useEffect(() => {
     const unsub = subscribeToMessages((data) => setMessages(data));
@@ -230,47 +229,76 @@ export default function MessagesPage() {
           <h1 className="font-playfair text-3xl font-semibold">Guest Messages</h1>
           <p className="text-sm text-foreground/60">Review, respond, and track guest support inquiries.</p>
         </div>
-      </div>
-      <div className="flex flex-wrap gap-2 border-b border-border pb-3">
-        {[
-          { label: "All", value: "all" },
-          { label: "Unread", value: "unread", count: unreadCount },
-          { label: "Replied", value: "replied" },
-          { label: "Sent", value: "sent" },
-          { label: "New Message", value: "compose" },
-        ].map((item) => {
-          const isActive = activeFilter === item.value;
-          return (
-            <button
-              key={item.value}
-              onClick={() => setActiveFilter(item.value)}
-              className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-                isActive
-                  ? "bg-primary text-primary-foreground"
-                  : "text-foreground/60 hover:bg-surface-hover hover:text-foreground/90"
-              }`}
-            >
-              {item.label}
-              {item.count !== undefined && (
-                <span
-                  className={`rounded-full px-1.5 py-0.5 text-xs leading-none ${
-                    isActive
-                      ? "bg-primary-foreground/20 text-primary-foreground"
-                      : "bg-muted/20 text-foreground/50"
-                  }`}
-                >
-                  {item.count}
-                </span>
-              )}
-            </button>
-          );
-        })}
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            onClick={() => setActiveFilter("sent")}
+          >
+            <Mail className="h-3.5 w-3.5" />
+            Sent Messages
+          </Button>
+          <Button size="sm" className="gap-1.5" onClick={() => handleComposeOpenChange(true)}>
+            <Plus className="h-3.5 w-3.5" />
+            New Message
+          </Button>
+        </div>
       </div>
 
-      {activeFilter === "compose" ? (
-        <ComposeMessageForm onSent={() => setActiveFilter("sent")} />
+      {isSentTab ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3">
+          <div>
+            <p className="text-sm font-semibold">Sent messages</p>
+            <p className="text-xs text-foreground/50">Messages you sent to guests.</p>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="gap-1.5"
+            onClick={() => setActiveFilter("all")}
+          >
+            <ArrowLeft className="h-3.5 w-3.5" />
+            Back to inbox
+          </Button>
+        </div>
       ) : (
-        <Card>
+        <div className="flex flex-wrap gap-2 border-b border-border pb-3">
+          {[
+            { label: "All", value: "all" },
+            { label: "Unread", value: "unread", count: unreadCount },
+            { label: "Replied", value: "replied" },
+          ].map((item) => {
+            const isActive = activeFilter === item.value;
+            return (
+              <button
+                key={item.value}
+                onClick={() => setActiveFilter(item.value)}
+                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
+                  isActive
+                    ? "bg-primary text-primary-foreground"
+                    : "text-foreground/60 hover:bg-surface-hover hover:text-foreground/90"
+                }`}
+              >
+                {item.label}
+                {item.count !== undefined && (
+                  <span
+                    className={`rounded-full px-1.5 py-0.5 text-xs leading-none ${
+                      isActive
+                        ? "bg-primary-foreground/20 text-primary-foreground"
+                        : "bg-muted/20 text-foreground/50"
+                    }`}
+                  >
+                    {item.count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      <Card>
           <CardContent className="pt-6">
             <Table className="[&_th]:h-9 [&_th]:px-3 [&_th]:text-xs [&_td]:px-3 [&_td]:py-2.5 [&_td]:text-[13px]">
               <TableHeader>
@@ -330,7 +358,6 @@ export default function MessagesPage() {
             </Table>
           </CardContent>
         </Card>
-      )}
 
       <Dialog open={Boolean(selected)} onOpenChange={(open) => !open && setSelected(null)}>
         <DialogContent>
@@ -376,6 +403,23 @@ export default function MessagesPage() {
               </div>
             </>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={composeOpen} onOpenChange={handleComposeOpenChange}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>New Message</DialogTitle>
+            <DialogDescription>Emails the guest and keeps a copy in Sent.</DialogDescription>
+          </DialogHeader>
+          <ComposeMessageForm
+            composeSession={composeSessionRef.current}
+            onSent={(session) => {
+              if (session !== composeSessionRef.current) return;
+              setComposeOpen(false);
+              setActiveFilter("sent");
+            }}
+          />
         </DialogContent>
       </Dialog>
     </div>

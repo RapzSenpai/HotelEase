@@ -473,14 +473,27 @@ describe("POST /xendit/invoice — hosted test checkout", () => {
     expect(payload.amount).toBe(1500);
   });
 
-  it("pins a Bank Transfer booking to the BANK_TRANSFER channel", async () => {
+  it("refuses Bank Transfer — it uses the app's own transfer page", async () => {
     mocks.resolveBookingClaimIdentity.mockResolvedValue({ uid: "guest-1", isAnonymous: false });
     getFirestoreDoc.mockResolvedValue(bookingFS({
       paymentMethod: { stringValue: "Bank Transfer" }}));
 
-    await handleXenditInvoiceRequest(invoiceRequest(), env);
+    const res = await handleXenditInvoiceRequest(invoiceRequest(), env);
+    expect(res.status).toBe(409);
+    expect(xenditCall()).toHaveLength(0);
+  });
+
+  it("leaves an Online Payment invoice unpinned so Xendit offers its channels", async () => {
+    mocks.resolveBookingClaimIdentity.mockResolvedValue({ uid: "guest-1", isAnonymous: false });
+    getFirestoreDoc.mockResolvedValue(bookingFS({
+      paymentMethod: { stringValue: "Online Payment" }}));
+
+    const res = await handleXenditInvoiceRequest(invoiceRequest(), env);
+    const body = await res.json();
+
+    expect(body).toMatchObject({ ok: true, invoiceId: "inv-123" });
     const payload = JSON.parse(xenditCall()[0][1].body);
-    expect(payload.payment_methods).toEqual(["BANK_TRANSFER"]);
+    expect(payload.payment_methods).toBeUndefined();
   });
 
   it("drops the channel pin when GCash cannot carry the amount", async () => {

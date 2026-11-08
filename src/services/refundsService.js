@@ -171,6 +171,8 @@ export function defaultRefundMethod(paymentMethods = []) {
   if (methods.has("Over-the-Counter") || methods.has("Credit/Debit Card")) {
     return "Over-the-Counter (Cash)";
   }
+  // Online Payment's actual Xendit channel is not stored, so never guess.
+  if (methods.has("Online Payment")) return "Other";
   return "GCash";
 }
 

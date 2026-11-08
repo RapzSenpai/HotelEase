@@ -29,7 +29,7 @@ export const TERMS_SECTIONS = [
   {
     heading: "Booking Statuses",
     body: [
-      "Awaiting Payment: the booking was made with a payment method that requires proof (GCash or Bank Transfer) and no proof has been received yet. The dates are held for forty-eight (48) hours.",
+      "Awaiting Payment: the booking is waiting for payment — either proof upload (GCash or Bank Transfer) or an online gateway checkout (Online Payment). The dates are held for forty-eight (48) hours.",
       "Pending: payment has been submitted, or a pay-at-the-front-desk method was chosen, and the booking is waiting for Front Office approval. A booking with payment on file stays Pending until Front Office approves or rejects it.",
       "Approved (Reserved): Front Office has confirmed the booking. A confirmation email is sent once your booking is approved; submitting the form does not guarantee approval.",
       "Unpaid bookings are automatically cancelled when the 48-hour payment window ends, and the held dates are released for other guests.",
@@ -41,6 +41,7 @@ export const TERMS_SECTIONS = [
       "Quoted rates are in Philippine Pesos (PHP) and are per night unless otherwise stated.",
       "Base rates cover the stated number of guests. Additional guests are charged a nightly extra-guest fee.",
       "GCash and Bank Transfer: send payment to the details shown at checkout, then upload a screenshot or receipt. The booking stays Awaiting Payment until proof is uploaded.",
+      "Online Payment: pay through Xendit's secure checkout by card, e-wallet, or online banking right after booking. The booking moves to Pending once Xendit confirms the payment.",
       "Credit/Debit Card and Over-the-Counter: pay at the front desk. The booking goes straight to Pending for Front Office review.",
       "You may pay in full or partially. A partial payment must cover at least 50% of the total booking cost; the remaining balance is settled at check-in or as arranged with Front Office.",
       "Payment must be submitted within forty-eight (48) hours of booking creation. Unpaid bookings are released after the payment deadline.",

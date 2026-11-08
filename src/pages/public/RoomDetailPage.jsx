@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import TermsDialog from "@/components/common/TermsDialog";
-import { Separator } from "@/components/ui/separator";
 import {
   Dialog,
   DialogContent,
@@ -31,7 +30,6 @@ import {
   Wind,
   Tv,
   Bath,
-  Users,
   Wine,
   UtensilsCrossed,
   Car,
@@ -41,8 +39,8 @@ import {
   Lock,
   Building2,
   CheckCircle,
+  Check,
   ChevronLeft,
-  ChevronRight,
   ShieldCheck,
   AlertTriangle} from "lucide-react";
 
@@ -360,6 +358,7 @@ export default function RoomDetailPage() {
   const photos = Array.isArray(room?.photos) ? room.photos : [];
   const amenities = Array.isArray(room?.amenities) ? room.amenities : [];
   const facilities = Array.isArray(room?.facilities) ? room.facilities : [];
+  const capacity = getRoomCapacity(room);
 
   // ---- render ----
   return (
@@ -478,77 +477,71 @@ export default function RoomDetailPage() {
                   </div>
                 </div>
 
-                {/* Guest Capacity Badge */}
+                {/* Stay details — one strip, no cards */}
                 {(() => {
-                  const cap = getRoomCapacity(room);
+                  const showTimes = Boolean(room.checkInTime || room.checkOutTime);
                   return (
-                    <div className="flex items-center gap-3 rounded-xl border border-border/50 bg-white p-3.5 shadow-[0_1px_3px_rgba(28,28,30,0.04)]">
-                      <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary shrink-0">
-                        <Users className="h-4 w-4" />
-                      </div>
-                      <div className="min-w-0 flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-sm">
-                        <span className="font-semibold text-foreground">Guest Capacity</span>
-                        <span className="text-foreground/85 font-medium">Up to {cap.maxPax} guests</span>
-                        <span className="text-foreground/50 text-xs font-normal">
-                          {cap.basePax} included
-                          {cap.extraPaxFee > 0
-                            ? ` · +₱${cap.extraPaxFee.toLocaleString()}/night per extra guest`
+                    <div
+                      className={`grid grid-cols-1 divide-y divide-border/60 border-y border-border/60 sm:divide-y-0 ${
+                        showTimes ? "sm:grid-cols-3 sm:divide-x" : ""
+                      }`}
+                    >
+                      <div className="py-3 sm:pr-5">
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-foreground/40">Sleeps</p>
+                        <p className="mt-1 text-sm font-medium text-foreground">Up to {capacity.maxPax} guests</p>
+                        <p className="mt-0.5 text-xs text-foreground/50">
+                          {capacity.basePax} included
+                          {capacity.extraPaxFee > 0
+                            ? ` · +₱${capacity.extraPaxFee.toLocaleString()}/night per extra guest`
                             : ""}
-                        </span>
+                        </p>
                       </div>
+                      {showTimes && (
+                        <>
+                          <div className="py-3 sm:px-5">
+                            <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-foreground/40">Check-in</p>
+                            <p className="mt-1 text-sm font-medium text-foreground">{room.checkInTime || "—"}</p>
+                          </div>
+                          <div className="py-3 sm:pl-5">
+                            <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-foreground/40">Check-out</p>
+                            <p className="mt-1 text-sm font-medium text-foreground">{room.checkOutTime || "—"}</p>
+                          </div>
+                        </>
+                      )}
                     </div>
                   );
                 })()}
 
                 {/* Description */}
                 {room.description && (
-                  <div className="space-y-3">
-                    <h2 className="font-playfair text-lg font-semibold text-foreground">About this room</h2>
-                    <div className="rounded-xl border border-border/40 bg-white p-4 shadow-[0_1px_3px_rgba(28,28,30,0.04)]">
-                      <div className="border-l-2 border-primary/30 pl-4">
-                        <p className="text-sm text-foreground/70 leading-relaxed whitespace-pre-line">
-                          {room.description}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Check-in / Check-out — Minimal */}
-                {(room.checkInTime || room.checkOutTime) && (
-                  <div className="flex items-center gap-3">
-                    <div className="flex-1 rounded-xl border border-border/50 bg-white px-4 py-3 text-center shadow-[0_1px_3px_rgba(28,28,30,0.04)]">
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-foreground/40 mb-1">Check-in</p>
-                      <p className="text-sm font-medium text-foreground">{room.checkInTime || "—"}</p>
-                    </div>
-                    <div className="flex items-center justify-center">
-                      <div className="h-px w-6 bg-border" />
-                      <ChevronRight className="h-3.5 w-3.5 text-foreground/25 -mx-0.5" />
-                      <div className="h-px w-6 bg-border" />
-                    </div>
-                    <div className="flex-1 rounded-xl border border-border/50 bg-white px-4 py-3 text-center shadow-[0_1px_3px_rgba(28,28,30,0.04)]">
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-foreground/40 mb-1">Check-out</p>
-                      <p className="text-sm font-medium text-foreground">{room.checkOutTime || "—"}</p>
-                    </div>
-                  </div>
-                )}
-
-                {/* Amenities — Unique Grid */}
-                {amenities.length > 0 && (
                   <div className="space-y-4">
-                    <h2 className="font-playfair text-lg font-semibold text-foreground">Room Amenities</h2>
-                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+                    <div className="space-y-1">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-foreground/40">The stay</p>
+                      <h2 className="font-playfair text-xl font-semibold text-foreground">About this room</h2>
+                    </div>
+                    <p className="text-[15px] text-foreground/70 leading-7 whitespace-pre-line">
+                      {room.description}
+                    </p>
+                  </div>
+                )}
+
+                {/* Amenities — flat checklist */}
+                {amenities.length > 0 && (
+                  <div className="border-t border-border/50 pt-8 space-y-4">
+                    <div className="space-y-1">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-foreground/40">In your room</p>
+                      <h2 className="font-playfair text-xl font-semibold text-foreground">Room Amenities</h2>
+                    </div>
+                    <div className="grid grid-cols-1 gap-x-8 gap-y-2.5 sm:grid-cols-2">
                       {amenities.map((amenity, idx) => {
                         const Icon = amenityIcon(amenity);
                         return (
                           <div
                             key={idx}
-                            className="flex flex-col items-center gap-2.5 rounded-xl border border-border/40 bg-white px-3 py-4 text-center shadow-[0_1px_3px_rgba(28,28,30,0.04)]"
+                            className="flex items-center gap-2.5 text-sm text-foreground/70"
                           >
-                            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 group-hover:bg-primary/15 transition-colors">
-                              <Icon className="h-5 w-5 text-primary" strokeWidth={1.75} />
-                            </div>
-                            <span className="text-xs font-medium text-foreground/70 leading-tight">{amenity}</span>
+                            <Icon className="h-4 w-4 shrink-0 text-primary" strokeWidth={1.75} />
+                            <span>{amenity}</span>
                           </div>
                         );
                       })}
@@ -556,36 +549,39 @@ export default function RoomDetailPage() {
                   </div>
                 )}
 
-                {/* Hotel Facilities — Pill Tags */}
+                {/* Hotel Facilities — flat checklist */}
                 {facilities.length > 0 && (
-                  <div className="space-y-4">
-                    <h2 className="font-playfair text-lg font-semibold text-foreground">Hotel Facilities</h2>
-                    <div className="flex flex-wrap gap-2">
+                  <div className="border-t border-border/50 pt-8 space-y-4">
+                    <div className="space-y-1">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-foreground/40">Around the hotel</p>
+                      <h2 className="font-playfair text-xl font-semibold text-foreground">Hotel Facilities</h2>
+                    </div>
+                    <div className="grid grid-cols-1 gap-x-8 gap-y-2.5 sm:grid-cols-2">
                       {facilities.map((facility, idx) => (
-                        <span
+                        <div
                           key={idx}
-                          className="inline-flex items-center gap-1.5 rounded-full border border-primary/15 bg-primary/5 px-3.5 py-1.5 text-xs font-medium text-foreground/70"
+                          className="flex items-center gap-2.5 text-sm text-foreground/70"
                         >
-                          <CheckCircle className="h-3 w-3 text-primary" />
-                          {facility}
-                        </span>
+                          <Check className="h-4 w-4 shrink-0 text-primary" strokeWidth={2.5} />
+                          <span>{facility}</span>
+                        </div>
                       ))}
                     </div>
                   </div>
                 )}
 
-                <Separator className="bg-border/50" />
-
                 {/* Guest Reviews — List + Show More */}
-                <RoomReviewsSection
-                  reviews={reviews}
-                  reviewsLoading={reviewsLoading}
-                  reviewsError={reviewsError}
-                  eligibilityChecked={eligibilityChecked}
-                  canReview={canReview}
-                  onWriteReview={() => setReviewFormOpen(true)}
-                  onShowAllReviews={() => setReviewsOpen(true)}
-                />
+                <div className="border-t border-border/50 pt-8">
+                  <RoomReviewsSection
+                    reviews={reviews}
+                    reviewsLoading={reviewsLoading}
+                    reviewsError={reviewsError}
+                    eligibilityChecked={eligibilityChecked}
+                    canReview={canReview}
+                    onWriteReview={() => setReviewFormOpen(true)}
+                    onShowAllReviews={() => setReviewsOpen(true)}
+                  />
+                </div>
 
               </div>
             </div>

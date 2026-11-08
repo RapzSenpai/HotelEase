@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { SlidersHorizontal } from "lucide-react";
+import { Star } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -53,32 +53,43 @@ export default function RoomReviewsDialog({ open, onOpenChange, reviews = [] }) 
         </DialogHeader>
 
         {/* Filter bar */}
-        <div className="flex flex-wrap items-center gap-2 rounded-xl bg-muted/10 p-2">
-          <SlidersHorizontal className="h-3.5 w-3.5 shrink-0 text-foreground/40" />
-          {["all", "5", "4", "3", "2", "1"].map((f) => (
-            <button
-              key={f}
-              onClick={() => setReviewFilter(f)}
-              className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
-                reviewFilter === f
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-muted/20 text-foreground/60 hover:bg-muted/30"
-              }`}
-            >
-              {f === "all" ? `All (${reviewCounts.all})` : `${f} ★ (${reviewCounts[Number(f)] || 0})`}
-            </button>
-          ))}
+        <div className="-my-1 flex items-center gap-1.5 overflow-x-auto px-1 py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {["all", "5", "4", "3", "2", "1"]
+            .filter((f) => f === "all" || (reviewCounts[Number(f)] || 0) > 0)
+            .map((f) => (
+              <button
+                key={f}
+                type="button"
+                aria-pressed={reviewFilter === f}
+                onClick={() => setReviewFilter(f)}
+                className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-3 py-1.5 text-xs font-medium tabular-nums transition-[color,background-color,border-color,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-1 focus-visible:ring-offset-background ${
+                  reviewFilter === f
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-border/70 text-foreground/60 hover:border-transparent hover:bg-secondary hover:text-foreground hover:shadow-[0_0_5px_0_rgba(255,255,255,0.95)]"
+                }`}
+              >
+                {f === "all" ? (
+                  `All (${reviewCounts.all})`
+                ) : (
+                  <>
+                    {f}
+                    <Star aria-hidden="true" className="h-3 w-3 fill-current" />
+                    <span>({reviewCounts[Number(f)] || 0})</span>
+                  </>
+                )}
+              </button>
+            ))}
         </div>
 
         {/* Reviews list */}
-        <div className="flex-1 overflow-y-auto space-y-3 -mx-1 px-1">
+        <div className="flex-1 space-y-3 overflow-y-auto [scrollbar-width:thin]">
           {filteredReviews.length === 0 ? (
             <p className="text-sm text-foreground/50 text-center py-8">No reviews match this filter.</p>
           ) : (
             filteredReviews.map((review) => (
               <div
                 key={review.id}
-                className="rounded-xl border border-border/40 bg-background p-4 space-y-2"
+                className="rounded-xl border border-border/70 bg-secondary p-4 space-y-2"
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="text-sm font-medium text-foreground">

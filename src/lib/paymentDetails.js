@@ -4,6 +4,10 @@
 // Payment methods that require proof upload
 export const PROOF_REQUIRED_METHODS = ["GCash", "Bank Transfer"];
 
+// Methods that hold the dates in "Awaiting Payment" until money is confirmed.
+// Online Payment is gateway-confirmed, so it needs no proof upload.
+export const AWAITING_PAYMENT_METHODS = [...PROOF_REQUIRED_METHODS, "Online Payment"];
+
 // GCash details
 export const HOTEL_GCASH_NUMBER = "0917-123-4567";
 export const HOTEL_GCASH_QR_IMAGE_URL = null; // Add your GCash QR code image URL here

@@ -41,6 +41,25 @@ vi.mock("@/contexts/AuthContext", () => ({
   }),
 }));
 
+vi.mock("@/components/ui/dialog", () => ({
+  Dialog: ({ open, onOpenChange, children }) =>
+    open
+      ? createElement(
+          "div",
+          null,
+          createElement(
+            "button",
+            { type: "button", onClick: () => onOpenChange?.(false) },
+            "Close dialog",
+          ),
+          children,
+        )
+      : null,
+  DialogContent: ({ children }) => createElement("div", null, children),
+  DialogHeader: ({ children }) => createElement("div", null, children),
+  DialogTitle: ({ children }) => createElement("h2", null, children),
+  DialogDescription: ({ children }) => createElement("p", null, children)}));
+
 const { default: MessagesPage } = await import("@/pages/fo/MessagesPage");
 
 const INCOMING = [
@@ -182,6 +201,52 @@ describe("MessagesPage incoming vs sent", () => {
     expect(container.querySelector("#outgoing-message")).toBeNull();
     expect(container.textContent).toContain("Pedro");
     expect(container.textContent).not.toContain("Juan");
+  });
+
+  it("ignores an older send after the compose dialog is reopened", async () => {
+    let resolveSend;
+    mocks.sendMessageToGuest.mockImplementationOnce(
+      () => new Promise((resolve) => { resolveSend = resolve; }),
+    );
+    renderPage();
+    await act(async () => {
+      mocks.emit([]);
+    });
+
+    await act(async () => {
+      clickTab("New Message");
+    });
+    await act(async () => {
+      updateField(container.querySelector("#outgoing-to-email"), "first@example.com");
+      updateField(container.querySelector("#outgoing-subject"), "First");
+      updateField(container.querySelector("#outgoing-message"), "First draft message long enough.");
+    });
+    await act(async () => {
+      [...container.querySelectorAll("button")]
+        .find((b) => b.textContent.includes("Send Message"))
+        .click();
+    });
+    await act(async () => {});
+
+    // Close while the send is pending, then start a new draft.
+    await act(async () => {
+      [...container.querySelectorAll("button")]
+        .find((b) => b.textContent === "Close dialog")
+        .click();
+    });
+    await act(async () => {
+      clickTab("New Message");
+    });
+    await act(async () => {
+      updateField(container.querySelector("#outgoing-message"), "Second draft stays here.");
+    });
+
+    await act(async () => {
+      resolveSend({ ok: true, emailSent: true });
+    });
+
+    expect(container.querySelector("#outgoing-message")?.value).toBe("Second draft stays here.");
+    expect(container.textContent).not.toContain("Back to inbox");
   });
 
   it("does not accept a message with fewer than 20 trimmed characters", async () => {

@@ -36,12 +36,15 @@ export default function RoomReviewsSection({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="font-playfair text-lg font-semibold text-foreground">Guest Reviews</h2>
+      <div className="flex items-end justify-between gap-3">
+        <div className="space-y-1">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-foreground/40">Guest feedback</p>
+          <h2 className="font-playfair text-xl font-semibold text-foreground">Guest Reviews</h2>
+        </div>
         {avgRating && (
-          <div className="flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1">
-            <Star className="h-3.5 w-3.5 fill-primary text-primary" />
-            <span className="text-sm font-semibold text-foreground">{avgRating}</span>
+          <div className="flex items-center gap-1.5 text-sm text-foreground/60">
+            <Star className="h-4 w-4 fill-primary text-primary" />
+            <span className="font-semibold text-foreground">{avgRating}</span>
           </div>
         )}
       </div>
@@ -62,7 +65,7 @@ export default function RoomReviewsSection({
       {!reviewsLoading && !reviewsError && (
         <>
           {reviews.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-border/50 bg-muted/5 px-6 py-10 text-center">
+            <div className="py-10 text-center">
               <Star className="mx-auto mb-3 h-8 w-8 text-foreground/20" />
               <p className="text-sm font-medium text-foreground/50">No reviews yet</p>
               <p className="mt-1 text-xs text-foreground/35">Be the first to share your experience!</p>
@@ -72,7 +75,7 @@ export default function RoomReviewsSection({
               {visibleReviews.map((review) => (
                 <div
                   key={review.id}
-                  className="rounded-xl border border-border/40 bg-white p-4 space-y-2.5 shadow-[0_1px_3px_rgba(28,28,30,0.04)]"
+                  className="rounded-xl border border-border/70 p-4 space-y-2.5"
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <span className="text-sm font-medium text-foreground">
@@ -104,7 +107,7 @@ export default function RoomReviewsSection({
               <Button
                 variant="outline"
                 size="sm"
-                className={`bg-white/80 backdrop-blur-sm ${eligibilityChecked && canReview ? "flex-1" : "w-full"}`}
+                className={eligibilityChecked && canReview ? "flex-1" : "w-full"}
                 onClick={onShowAllReviews}
               >
                 Show All Reviews ({reviews.length})

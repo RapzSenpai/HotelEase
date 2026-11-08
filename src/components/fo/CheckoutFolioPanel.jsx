@@ -58,26 +58,6 @@ export default function CheckoutFolioPanel({
               not reserve the room.
             </p>
           ) : null}
-          <div className="flex flex-wrap gap-2 pt-1">
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-7 text-xs flex items-center gap-1.5 border-destructive/30 hover:bg-destructive/15 text-destructive"
-              onClick={onAddFee}
-            >
-              <DollarSign className="h-3.5 w-3.5" />
-              Add Overstay Fee
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-7 text-xs flex items-center gap-1.5 border-primary/40 hover:bg-primary/10 text-primary"
-              onClick={onExtendStay}
-            >
-              <CalendarPlus className="h-3.5 w-3.5" />
-              Extend Stay
-            </Button>
-          </div>
         </div>
       )}
 
@@ -104,7 +84,7 @@ export default function CheckoutFolioPanel({
               onClick={onAddFee}
             >
               <DollarSign className="h-3 w-3" />
-              Add Fee
+              Overstay Fee
             </Button>
             <Button
               size="sm"

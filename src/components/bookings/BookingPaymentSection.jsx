@@ -11,6 +11,7 @@ import {
 import {
   calculatePartialPayment,
   getPaymentDetails,
+  AWAITING_PAYMENT_METHODS,
   PROOF_REQUIRED_METHODS,
 } from "@/lib/paymentDetails";
 
@@ -145,9 +146,8 @@ export default function BookingPaymentSection({
       </div>
 
       {/* ── Payment (Awaiting Payment status) ── */}
-      {/* Phase 17.3: Only show payment UI for GCash and Bank Transfer methods.
-          Primary path: simulated gateway checkout. Manual proof upload kept as fallback. */}
-      {status === "Awaiting Payment" && PROOF_REQUIRED_METHODS.includes(booking.paymentMethod) && (
+      {/* Proof methods keep the upload fallback; Online Payment is Xendit-only. */}
+      {status === "Awaiting Payment" && AWAITING_PAYMENT_METHODS.includes(booking.paymentMethod) && (
         <div className="rounded-lg border border-warning/30 bg-warning/5 p-3 space-y-3">
           <div className="flex items-center gap-2 text-warning">
             <Clock className="h-4 w-4" />
@@ -157,8 +157,10 @@ export default function BookingPaymentSection({
             Complete payment by <span className="font-medium">{deadlineStr}</span> or this booking will be automatically cancelled.
           </p>
 
-          {/* Primary: Xendit hosted test checkout when enabled; in-app simulated gateway otherwise */}
-          {xenditOn ? (
+          {/* Primary: Xendit hosted test checkout for GCash (flag on) and
+              Online Payment; Bank Transfer uses the in-app transfer page. */}
+          {(xenditOn && booking.paymentMethod === "GCash") ||
+          booking.paymentMethod === "Online Payment" ? (
             <>
               <Button
                 type="button"
@@ -174,11 +176,17 @@ export default function BookingPaymentSection({
                   ? <Loader2 className="mr-2 h-4 w-4 shrink-0 animate-spin" />
                   : <CreditCard className="mr-2 h-4 w-4 shrink-0" />}
                 <span className="min-w-0 break-words">
-                  {startingOnline ? "Opening secure checkout…" : `Pay Online via ${booking.paymentMethod}`}
+                  {startingOnline
+                    ? "Opening secure checkout…"
+                    : booking.paymentMethod === "Online Payment"
+                      ? "Choose Payment Method"
+                      : `Pay Online via ${booking.paymentMethod}`}
                 </span>
               </Button>
               <p className="text-[10px] text-center text-foreground/50">
-                Xendit TEST checkout — no real money moves. The booking updates after Xendit confirms.
+                {booking.paymentMethod === "Online Payment"
+                  ? "Cards, e-wallets, and online banking — powered by Xendit. The booking updates after Xendit confirms."
+                  : "Xendit TEST checkout — no real money moves. The booking updates after Xendit confirms."}
               </p>
             </>
           ) : (
@@ -196,7 +204,8 @@ export default function BookingPaymentSection({
             </Button>
           )}
 
-          <form onSubmit={onUploadProof} className="space-y-3">
+          {PROOF_REQUIRED_METHODS.includes(booking.paymentMethod) && (
+            <form onSubmit={onUploadProof} className="space-y-3">
             {/* Payment Method Display (read-only - locked from booking time) */}
             <div className="space-y-2">
               <span className="text-xs font-semibold uppercase text-foreground/70">Payment Method</span>
@@ -275,7 +284,8 @@ export default function BookingPaymentSection({
                 {booking.paymentType || "Full"} Payment (₱{payableAmount.toLocaleString()})
               </div>
             </div>
-          </form>
+            </form>
+          )}
         </div>
       )}
 
@@ -313,7 +323,7 @@ export default function BookingPaymentSection({
           </div>
           <p className="text-xs text-foreground/70">
             {booking.paymentGateway === "xendit"
-              ? `Your online ${booking.paymentMethod} payment was received via the Xendit test checkout and is awaiting Front Office verification. The folio updates once Front Office confirms it.`
+              ? "Your payment was received via the Xendit test checkout and is awaiting Front Office verification. The folio updates once Front Office confirms it."
               : `Your simulated ${booking.paymentMethod} payment was received and is awaiting
             Front Office verification.`}
           </p>

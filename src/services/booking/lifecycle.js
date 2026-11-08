@@ -154,7 +154,7 @@ export async function approveBooking(bookingId) {
     // OTC/Card: deposit stays 0 until FO manually records payment at the desk.
     const requiresProof = PROOF_REQUIRED_METHODS.includes(result.booking.paymentMethod);
     const isGateway = ["simulated", "xendit"].includes(result.booking.paymentGateway);
-    if (requiresProof && (result.booking.paymentProofUrl || isGateway)) {
+    if ((requiresProof && result.booking.paymentProofUrl) || isGateway) {
       try {
         const paymentType = result.booking.paymentType || "Full";
         const paymentMethod = result.booking.paymentMethod || "GCash";

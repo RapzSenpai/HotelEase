@@ -9,6 +9,7 @@
   ],
   "project": ["src/**/*.{js,jsx}", "scripts/*.mjs", "worker/src/*.js", "worker/src/handlers/*.js"],
   "ignore": [
+    "src/components/ui/separator.jsx",
     "src/services/receiptPdfcnService.js",
     "src/lib/pdf-svg.jsx",
     "src/components/pdf/blocks/invoice-minimal/**",

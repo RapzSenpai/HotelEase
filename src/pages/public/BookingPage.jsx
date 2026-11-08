@@ -23,12 +23,21 @@ import {
   HOTEL_GCASH_QR_IMAGE_URL,
   calculatePartialPayment,
   getPaymentDetails,
+  AWAITING_PAYMENT_METHODS,
   PROOF_REQUIRED_METHODS} from "@/lib/paymentDetails";
 import { toast } from "sonner";
 import {
   createXenditInvoice,
   isXenditEnabled} from "@/services/xenditGatewayService";
-const PAYMENT_METHODS = ["GCash", "Bank Transfer", "Credit/Debit Card", "Over-the-Counter"];
+// Online Payment uses Xendit's hosted checkout, so it is only offered when the
+// gateway is enabled. GCash and Bank Transfer stay pinned to their channels.
+const PAYMENT_METHODS = [
+  "GCash",
+  "Bank Transfer",
+  ...(isXenditEnabled() ? ["Online Payment"] : []),
+  "Credit/Debit Card",
+  "Over-the-Counter",
+];
 
 const STEPS = [
   { index: 1, label: "Customer Info" },
@@ -640,6 +649,11 @@ export default function BookingPage() {
                   <div className="font-semibold text-sm">Payment Instructions</div>
                   <p>Pay <span className="font-semibold">&#8369;{amountDue.toLocaleString()}</span> via GCash on the next step. No manual transfer needed.</p>
                 </div>
+              ) : paymentMethod === "Online Payment" ? (
+                <div className="rounded-lg border border-border/40 bg-muted/10 p-3 space-y-2 text-sm">
+                  <div className="font-semibold text-sm">Payment Instructions</div>
+                  <p>Pay <span className="font-semibold">&#8369;{amountDue.toLocaleString()}</span> through Xendit on the next step. Choose card, e-wallet, or online banking. No manual transfer or proof upload.</p>
+                </div>
               ) : paymentMethod === "Bank Transfer" ? (
                 <div className="rounded-lg border border-border/40 bg-muted/10 p-3 space-y-2 text-sm">
                   <div className="font-semibold text-sm">Payment Instructions</div>
@@ -778,6 +792,10 @@ export default function BookingPage() {
               </p>
               <p className="text-sm text-foreground/80">
                 {(() => {
+                  if (paymentMethod === "Online Payment") {
+                    return <>Your booking is now <strong>Awaiting Payment</strong>. Complete payment through Xendit on the next step to send it to Front Office review.</>;
+                  }
+
                   const requiresProof = PROOF_REQUIRED_METHODS.includes(paymentMethod);
                   
                   if (requiresProof) {
@@ -799,18 +817,30 @@ export default function BookingPage() {
               </div>
             </div>
             
-            {/* Phase 17.3: Only show upload widget for GCash and Bank Transfer */}
-            {PROOF_REQUIRED_METHODS.includes(paymentMethod) ? (
+            {/* Awaiting Payment covers proof methods and gateway-only Online Payment */}
+            {AWAITING_PAYMENT_METHODS.includes(paymentMethod) ? (
               <div className="rounded-xl border border-border bg-background p-5 space-y-4">
                 <div className="text-base font-semibold">Complete Payment</div>
-                {/* Primary: Xendit hosted test checkout when enabled; in-app simulated gateway otherwise */}
-                {isXenditEnabled() ? (
+                {/* Primary: Xendit hosted test checkout for GCash (flag on) and
+                    Online Payment; Bank Transfer uses the in-app transfer page. */}
+                {paymentMethod === "Online Payment" ||
+                (isXenditEnabled() && paymentMethod === "GCash") ? (
                   <>
                     <Button type="button" size="sm" className="w-full h-auto min-h-8 whitespace-normal py-1.5 text-center leading-snug" onClick={startOnlineCheckout} disabled={startingOnline}>
                       <CreditCard className="mr-2 h-4 w-4 shrink-0" />
-                      <span className="min-w-0 break-words">{startingOnline ? "Opening secure checkout…" : `Pay Online via ${paymentMethod}`}</span>
+                      <span className="min-w-0 break-words">
+                        {startingOnline
+                          ? "Opening secure checkout…"
+                          : paymentMethod === "Online Payment"
+                            ? "Choose Payment Method"
+                            : `Pay Online via ${paymentMethod}`}
+                      </span>
                     </Button>
-                    <p className="text-[11px] text-center text-foreground/50">Xendit TEST checkout — no real money moves. The booking updates after Xendit confirms.</p>
+                    <p className="text-[11px] text-center text-foreground/50">
+                      {paymentMethod === "Online Payment"
+                        ? "Cards, e-wallets, and online banking — powered by Xendit. Your booking moves to Front Office review once Xendit confirms."
+                        : "Xendit TEST checkout — no real money moves. The booking updates after Xendit confirms."}
+                    </p>
                   </>
                 ) : (
                   <Button type="button" size="sm" className="w-full h-auto min-h-8 whitespace-normal py-1.5 text-center leading-snug" onClick={() => navigate(`/my-bookings/${bookingId}/pay`)}>
@@ -818,45 +848,59 @@ export default function BookingPage() {
                     <span className="min-w-0 break-words">Proceed to Payment via {paymentMethod}</span>
                   </Button>
                 )}
-                <details className="rounded-lg border border-border/40 bg-muted/10">
-                  <summary className="cursor-pointer px-3 py-2 text-[13px] font-medium leading-snug">Upload proof manually instead</summary>
-                  <div className="space-y-3 px-3 pb-3">
-                    {renderPaymentInstructions(paymentMethod, amountDue)}
-                    <div className="space-y-2">
-                      <Label className="text-sm font-semibold">Proof Image</Label>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) => setPaymentFile(e.target.files?.[0] || null)}
-                        className="w-full min-w-0 max-w-full text-sm text-foreground/70 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-primary file:text-primary-foreground hover:file:bg-primary/90 cursor-pointer"
-                        disabled={uploadingProof}
-                      />
-                      {paymentFile && (
-                        <p className="text-xs text-foreground/60 break-all">Selected: {paymentFile.name}</p>
-                      )}
+                {PROOF_REQUIRED_METHODS.includes(paymentMethod) ? (
+                  <details className="rounded-lg border border-border/40 bg-muted/10">
+                    <summary className="cursor-pointer px-3 py-2 text-[13px] font-medium leading-snug">Upload proof manually instead</summary>
+                    <div className="space-y-3 px-3 pb-3">
+                      {renderPaymentInstructions(paymentMethod, amountDue)}
+                      <div className="space-y-2">
+                        <Label className="text-sm font-semibold">Proof Image</Label>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => setPaymentFile(e.target.files?.[0] || null)}
+                          className="w-full min-w-0 max-w-full text-sm text-foreground/70 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-primary file:text-primary-foreground hover:file:bg-primary/90 cursor-pointer"
+                          disabled={uploadingProof}
+                        />
+                        {paymentFile && (
+                          <p className="text-xs text-foreground/60 break-all">Selected: {paymentFile.name}</p>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap gap-2 pt-1">
+                        <Button type="button" variant="default" onClick={handleUploadProof} disabled={uploadingProof || !paymentFile}>
+                          <Upload className="mr-2 h-4 w-4" />
+                          {uploadingProof ? "Uploading\u2026" : "Upload Payment Proof"}
+                        </Button>
+                        {/* Phase 13: Upload Later — booking held until payment deadline */}
+                        <Button type="button" variant="outline" onClick={handleSkipUpload} disabled={uploadingProof}>
+                          Skip for Now
+                        </Button>
+                      </div>
                     </div>
-                    <div className="flex flex-wrap gap-2 pt-1">
-                      <Button type="button" variant="default" onClick={handleUploadProof} disabled={uploadingProof || !paymentFile}>
-                        <Upload className="mr-2 h-4 w-4" />
-                        {uploadingProof ? "Uploading\u2026" : "Upload Payment Proof"}
-                      </Button>
-                      {/* Phase 13: Upload Later — booking held until payment deadline */}
-                      <Button type="button" variant="outline" onClick={handleSkipUpload} disabled={uploadingProof}>
-                        Skip for Now
-                      </Button>
-                    </div>
-                  </div>
-                </details>
+                  </details>
+                ) : null}
                 <div className="flex items-center gap-2 text-sm text-foreground/70">
                   <span>Payment type:</span>
                   <span className="font-semibold text-foreground">{paymentType} &mdash; &#8369;{amountDue.toLocaleString()}</span>
                 </div>
                 <p className="text-xs text-foreground/50">
-                  You can also upload your proof later from{" "}
-                  <button type="button" className="underline hover:text-foreground/80 transition-colors" onClick={() => navigate("/my-bookings")}>
-                    My Bookings
-                  </button>
-                  . Your booking will be held until the payment deadline.
+                  {PROOF_REQUIRED_METHODS.includes(paymentMethod) ? (
+                    <>
+                      You can also upload your proof later from{" "}
+                      <button type="button" className="underline hover:text-foreground/80 transition-colors" onClick={() => navigate("/my-bookings")}>
+                        My Bookings
+                      </button>
+                      . Your booking will be held until the payment deadline.
+                    </>
+                  ) : (
+                    <>
+                      You can view your booking details and payment status from{" "}
+                      <button type="button" className="underline hover:text-foreground/80 transition-colors" onClick={() => navigate("/my-bookings")}>
+                        My Bookings
+                      </button>
+                      . Your booking will be held until the payment deadline.
+                    </>
+                  )}
                 </p>
               </div>
             ) : (
