@@ -14,7 +14,7 @@ let mockRoomSnapData = {};
 vi.mock("firebase/firestore", () => ({
   collection: (_db, col) => ({ col }),
   doc: (_db, col, id) => ({ col, id, __path: `${col}/${id}` }),
-  getDoc: async (_ref) => ({
+  getDoc: async () => ({
     exists: () => true,
     data: () => mockBookingSnapData,
   }),
