@@ -202,6 +202,86 @@ function statusOf(id) {
   return probeCtx.data.bookings.find((b) => b.id === id).status;
 }
 
+describe("demo cancellation & refund lifecycle", () => {
+  it("moves a cancellation request through refund to paid", async () => {
+    await renderProbe();
+    const booking = probeCtx.data.bookings.find((b) => b.status === "Cancellation Requested");
+    expect(booking).toBeTruthy();
+
+    act(() => {
+      probeCtx.fo.demoApproveCancellation({ bookingId: booking.id });
+    });
+    expect(statusOf(booking.id)).toBe("Cancelled");
+
+    act(() => {
+      probeCtx.fo.demoCreateRefund({
+        bookingId: booking.id,
+        amount: 2000,
+        fee: 0,
+        method: "GCash",
+        reason: "Cancelled before the deadline",
+      });
+    });
+    const created = probeCtx.data.refunds.find((r) => r.bookingId === booking.id);
+    expect(created?.status).toBe("Pending");
+
+    act(() => {
+      probeCtx.fo.demoApproveRefund({ refundId: created.id });
+    });
+    expect(probeCtx.data.refunds.find((r) => r.id === created.id).status).toBe("Approved");
+
+    act(() => {
+      probeCtx.fo.demoMarkRefundPaid({ refundId: created.id, referenceNumber: "" });
+    });
+    expect(probeCtx.data.refunds.find((r) => r.id === created.id).status).toBe("Approved");
+
+    act(() => {
+      probeCtx.fo.demoMarkRefundPaid({ refundId: created.id, referenceNumber: "GC-123" });
+    });
+    expect(probeCtx.data.refunds.find((r) => r.id === created.id).status).toBe("Paid");
+  });
+
+  it("needs a reason to reject a cancellation or refund", async () => {
+    await renderProbe();
+    const booking = probeCtx.data.bookings.find((b) => b.status === "Cancellation Requested");
+
+    act(() => {
+      probeCtx.fo.demoRejectCancellation({ bookingId: booking.id, reason: "  " });
+    });
+    expect(statusOf(booking.id)).toBe("Cancellation Requested");
+
+    act(() => {
+      probeCtx.fo.demoRejectCancellation({ bookingId: booking.id, reason: "Room taken offline" });
+    });
+    expect(statusOf(booking.id)).toBe("Approved");
+
+    const refund = probeCtx.data.refunds.find((r) => r.status === "Pending");
+    act(() => {
+      probeCtx.fo.demoRejectRefund({ refundId: refund.id, reason: "" });
+    });
+    expect(probeCtx.data.refunds.find((r) => r.id === refund.id).status).toBe("Pending");
+
+    act(() => {
+      probeCtx.fo.demoRejectRefund({ refundId: refund.id, reason: "Proof missing" });
+    });
+    expect(probeCtx.data.refunds.find((r) => r.id === refund.id).status).toBe("Rejected");
+  });
+
+  it("blocks a refund above the paid amount", async () => {
+    await renderProbe();
+    const booking = probeCtx.data.bookings.find((b) => b.status === "Cancellation Requested");
+    act(() => {
+      probeCtx.fo.demoCreateRefund({
+        bookingId: booking.id,
+        amount: 9999,
+        fee: 0,
+        method: "GCash",
+      });
+    });
+    expect(probeCtx.data.refunds.some((r) => r.bookingId === booking.id)).toBe(false);
+  });
+});
+
 describe("demo stay lifecycle", () => {
   it("check-in flips Approved to Checked In", async () => {
     await renderProbe();

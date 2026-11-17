@@ -1,7 +1,6 @@
 import { createElement, lazy } from "react";
 import { ADMIN_LINKS, FO_LINKS } from "@/lib/nav-links";
-import { formatCurrency, formatDate } from "@/lib/format";
-import { roomLabelFrom } from "@/lib/room-label";
+import { formatDate } from "@/lib/format";
 import DemoFixtureTable from "./DemoFixtureTable";
 import DemoSectionPage from "./DemoSectionPage";
 
@@ -16,6 +15,7 @@ const SECTION_PAGES = {
   "/fo/check-in": lazy(() => import("./fo/DemoFoCheckIn")),
   "/fo/check-out": lazy(() => import("./fo/DemoFoCheckOut")),
   "/fo/payments": lazy(() => import("./fo/DemoFoPayments")),
+  "/fo/cancellations": lazy(() => import("./fo/DemoFoCancellations")),
   "/fo/housekeeping": lazy(() => import("./fo/DemoFoHousekeeping")),
   "/admin": lazy(() => import("./admin/DemoAdminAnalytics")),
   "/admin/operations": lazy(() => import("./admin/DemoAdminOperations")),
@@ -37,27 +37,6 @@ const MESSAGES_TABLE = {
 };
 
 const FO_TABLES = {
-  "/fo/cancellations": {
-    columns: ["Room", "Stay", "Nights", "Refund", "Refund status"],
-    rows: (data) => {
-      const roomsById = Object.fromEntries(data.rooms.map((r) => [r.id, r]));
-      return data.bookings
-        .filter((b) => b.status === "Cancelled")
-        .map((b) => {
-          const refund = data.refunds.find((r) => r.bookingId === b.id);
-          return {
-            id: b.id,
-            cells: [
-              roomLabelFrom(roomsById, b.roomId),
-              formatDate(b.checkInDate.toDate()),
-              b.nights,
-              refund ? formatCurrency(refund.amount) : "—",
-              refund ? refund.status : "No refund on file",
-            ],
-          };
-        });
-    },
-  },
   "/fo/announcements": {
     columns: ["Announcement", "Audience", "Posted by", "Posted"],
     rows: (data) =>

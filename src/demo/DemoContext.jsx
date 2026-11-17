@@ -1,6 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useMemo, useReducer } from "react";
 import { buildDemoData, ts } from "./fixtures";
+import { REFUND_METHODS, validateDemoRefundProof } from "./fo/foDemoData";
 
 let demoSeq = 0;
 function demoId(prefix) {
@@ -135,6 +136,148 @@ function reducer(state, action) {
         b.id === action.bookingId ? { ...b, status: "Checked Out", updatedAt: ts(new Date()) } : b,
       );
       return { ...state, data: { ...data, bookings } };
+    }
+    case "FO_CANCEL_APPROVE": {
+      const target = data.bookings.find((b) => b.id === action.bookingId);
+      if (!target || target.status !== "Cancellation Requested") return state;
+      const room = data.rooms.find((r) => r.id === target.roomId);
+      const bookings = data.bookings.map((b) =>
+        b.id === action.bookingId ? { ...b, status: "Cancelled", updatedAt: ts(new Date()) } : b,
+      );
+      // Real approve releases the room; a Cancellation Requested booking still holds it.
+      const rooms = data.rooms.map((r) =>
+        r.id === target.roomId ? { ...r, status: "Available" } : r,
+      );
+      return {
+        ...state,
+        data: { ...data, bookings, rooms },
+        inbox: pushNotification(inbox, {
+          type: "cancellation_approved",
+          title: "Cancellation Approved",
+          message: `Your cancellation request for ${room?.name || "room"} was approved.`,
+          link: "/demo/guest",
+        }),
+      };
+    }
+    case "FO_CANCEL_REJECT": {
+      const target = data.bookings.find((b) => b.id === action.bookingId);
+      const reason = String(action.reason ?? "").trim();
+      if (!target || target.status !== "Cancellation Requested" || !reason) return state;
+      const room = data.rooms.find((r) => r.id === target.roomId);
+      const bookings = data.bookings.map((b) =>
+        b.id === action.bookingId
+          ? { ...b, status: "Approved", rejectionReason: reason, updatedAt: ts(new Date()) }
+          : b,
+      );
+      return {
+        ...state,
+        data: { ...data, bookings },
+        inbox: pushNotification(inbox, {
+          type: "cancellation_rejected",
+          title: "Cancellation Rejected",
+          message: `Your cancellation request for ${room?.name || "room"} was rejected. Reason: ${reason}`,
+          link: "/demo/guest",
+        }),
+      };
+    }
+    case "FO_REFUND_CREATE": {
+      const booking = data.bookings.find((b) => b.id === action.bookingId);
+      const amount = Number(action.amount);
+      const method = REFUND_METHODS.includes(action.method) ? action.method : null;
+      if (!booking || !method || !Number.isFinite(amount) || amount <= 0) return state;
+      const paid = data.payments
+        .filter((p) => p.bookingId === booking.id)
+        .reduce((sum, p) => sum + Number(p.amount ?? 0), 0);
+      const refunded = data.refunds
+        .filter((r) => r.bookingId === booking.id && r.status === "Paid")
+        .reduce((sum, r) => sum + Number(r.amount ?? 0), 0);
+      if (amount > Math.max(0, paid - refunded) + 0.01) return state;
+      const refund = {
+        id: demoId("demo-rf"),
+        bookingId: booking.id,
+        amount,
+        fee: Number(action.fee ?? 0),
+        method,
+        status: "Pending",
+        reason: String(action.reason ?? ""),
+        referenceNumber: "",
+        note: "",
+        createdAt: ts(new Date()),
+      };
+      return {
+        ...state,
+        data: { ...data, refunds: [refund, ...data.refunds] },
+        inbox: pushNotification(inbox, {
+          type: "refund_requested",
+          title: "Refund Requested",
+          message: `Your refund of ₱${amount.toLocaleString()} is waiting for Front Office approval.`,
+          link: "/demo/guest",
+        }),
+      };
+    }
+    case "FO_REFUND_APPROVE": {
+      const target = data.refunds.find((r) => r.id === action.refundId);
+      if (!target || target.status !== "Pending") return state;
+      const refunds = data.refunds.map((r) =>
+        r.id === action.refundId ? { ...r, status: "Approved" } : r,
+      );
+      return {
+        ...state,
+        data: { ...data, refunds },
+        inbox: pushNotification(inbox, {
+          type: "refund_approved",
+          title: "Refund Approved",
+          message: `Your refund of ₱${Number(target.amount ?? 0).toLocaleString()} was approved and will be sent shortly.`,
+          link: "/demo/guest",
+        }),
+      };
+    }
+    case "FO_REFUND_REJECT": {
+      const target = data.refunds.find((r) => r.id === action.refundId);
+      const reason = String(action.reason ?? "").trim();
+      if (!target || (target.status !== "Pending" && target.status !== "Approved") || !reason) {
+        return state;
+      }
+      const refunds = data.refunds.map((r) =>
+        r.id === action.refundId ? { ...r, status: "Rejected", rejectReason: reason } : r,
+      );
+      return {
+        ...state,
+        data: { ...data, refunds },
+        inbox: pushNotification(inbox, {
+          type: "refund_rejected",
+          title: "Refund Rejected",
+          message: `Your refund request was rejected. Reason: ${reason}`,
+          link: "/demo/guest",
+        }),
+      };
+    }
+    case "FO_REFUND_PAID": {
+      const target = data.refunds.find((r) => r.id === action.refundId);
+      if (!target || target.status !== "Approved") return state;
+      const proof = validateDemoRefundProof({ ...action, method: target.method });
+      if (!proof.ok) return state;
+      const refunds = data.refunds.map((r) =>
+        r.id === action.refundId
+          ? {
+              ...r,
+              status: "Paid",
+              referenceNumber: proof.referenceNumber,
+              note: proof.note,
+              processedAt: ts(new Date()),
+            }
+          : r,
+      );
+      return {
+        ...state,
+        data: { ...data, refunds },
+        inbox: pushNotification(inbox, {
+          type: "refund_paid",
+          title: "Refund Sent",
+          message: `Your refund of ₱${Number(target.amount ?? 0).toLocaleString()} has been marked paid.`,
+          link: "/demo/guest",
+        }),
+      };
     }
     case "GUEST_CANCEL": {
       const target = data.bookings.find((b) => b.id === action.bookingId);
@@ -273,6 +416,12 @@ export function DemoProvider({ children }) {
         demoCheckOut: ({ bookingId }) => dispatch({ type: "FO_CHECKOUT", bookingId }),
         demoRecordPayment: (args) => dispatch({ type: "FO_PAY", ...args }),
         demoAdvanceCleaning: ({ requestId }) => dispatch({ type: "FO_ADVANCE_CLEANING", requestId }),
+        demoApproveCancellation: ({ bookingId }) => dispatch({ type: "FO_CANCEL_APPROVE", bookingId }),
+        demoRejectCancellation: (args) => dispatch({ type: "FO_CANCEL_REJECT", ...args }),
+        demoCreateRefund: (args) => dispatch({ type: "FO_REFUND_CREATE", ...args }),
+        demoApproveRefund: ({ refundId }) => dispatch({ type: "FO_REFUND_APPROVE", refundId }),
+        demoRejectRefund: (args) => dispatch({ type: "FO_REFUND_REJECT", ...args }),
+        demoMarkRefundPaid: (args) => dispatch({ type: "FO_REFUND_PAID", ...args }),
       },
       admin: {
         demoUpdateRoom: (args) => dispatch({ type: "ADMIN_ROOM", ...args }),

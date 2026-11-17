@@ -11,7 +11,7 @@ describe("demo fixtures", () => {
 
   it("covers every status the journeys need", () => {
     const statuses = new Set(buildDemoData(new Date()).bookings.map((b) => b.status));
-    for (const s of ["Pending", "Approved", "Checked In", "Checked Out", "Cancelled"]) {
+    for (const s of ["Pending", "Approved", "Checked In", "Checked Out", "Cancelled", "Cancellation Requested"]) {
       expect(statuses.has(s)).toBe(true);
     }
   });

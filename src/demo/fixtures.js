@@ -97,12 +97,20 @@ export function buildDemoData(now = new Date()) {
     booking({ id: "demo-bk-checkedin", guestId: "demo-guest-1", roomId: "demo-104", status: "Checked In", method: "Over-the-Counter", nights: 2, ratePerNight: 3500, checkInOffset: 0, deposit: 3500 }, now),
     booking({ id: "demo-bk-checkedout", guestId: "demo-guest-1", roomId: "demo-102", status: "Checked Out", method: "Over-the-Counter", nights: 1, ratePerNight: 1200, checkInOffset: -4, deposit: 1200 }, now),
     booking({ id: "demo-bk-cancelled", guestId: "demo-guest-1", roomId: "demo-101", status: "Cancelled", method: "GCash", nights: 1, ratePerNight: 1200, checkInOffset: 8 }, now),
+    {
+      ...booking({ id: "demo-bk-cancelreq", guestId: "demo-guest-1", roomId: "demo-103", status: "Cancellation Requested", method: "GCash", nights: 2, ratePerNight: 3500, checkInOffset: 5 }, now),
+      rateType: "Standard",
+      cancellationRequestedAt: ts(daysFrom(now, -1, 9)),
+      cancellationReason: "Change of plans — flight moved up.",
+    },
   ];
 
   const payments = [
     { id: "demo-pay-1", bookingId: "demo-bk-checkedin", amount: 3500, method: "Cash", note: null, source: "fo_manual", createdAt: ts(daysFrom(now, 0)) },
     { id: "demo-pay-2", bookingId: "demo-bk-checkedout", amount: 1200, method: "GCash", note: "PAY-123", source: "guest_proof", createdAt: ts(daysFrom(now, -4)) },
     { id: "demo-pay-3", bookingId: "demo-bk-approved", amount: 2000, method: "GCash", note: "PARTIAL-1", source: "guest_proof", createdAt: ts(daysFrom(now, 3)) },
+    { id: "demo-pay-4", bookingId: "demo-bk-cancelreq", amount: 2000, method: "GCash", note: "PARTIAL-2", source: "guest_proof", createdAt: ts(daysFrom(now, -2)) },
+    { id: "demo-pay-5", bookingId: "demo-bk-cancelled", amount: 1200, method: "GCash", note: "PAY-124", source: "guest_proof", createdAt: ts(daysFrom(now, -5)) },
   ];
 
   const housekeepingLogs = [

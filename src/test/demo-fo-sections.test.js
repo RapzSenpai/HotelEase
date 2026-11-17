@@ -18,6 +18,7 @@ const { default: DemoFoBookings } = await import("@/demo/fo/DemoFoBookings");
 const { default: DemoFoCheckIn } = await import("@/demo/fo/DemoFoCheckIn");
 const { default: DemoFoCheckOut } = await import("@/demo/fo/DemoFoCheckOut");
 const { default: DemoFoPayments } = await import("@/demo/fo/DemoFoPayments");
+const { default: DemoFoCancellations } = await import("@/demo/fo/DemoFoCancellations");
 const { DemoProvider } = await import("@/demo/DemoContext");
 const { buildDemoData } = await import("@/demo/fixtures");
 const { balanceOf } = await import("@/demo/fo/foDemoData");
@@ -166,10 +167,29 @@ describe("FO demo payments", () => {
   });
 });
 
+describe("FO demo cancellations & refunds", () => {
+  it("suggests a refund after approving a cancellation request", () => {
+    const el = render(createElement(DemoFoCancellations));
+    expect(el.textContent).toContain("Change of plans");
+    expect(el.textContent).toContain("Cancellation Requested");
+    click(el, "Approve");
+    expect(el.textContent).toContain("Refund suggested");
+    expect(el.textContent).toContain("PHP 2,000.00");
+  });
+
+  it("creates a pending refund from the suggestion", () => {
+    const el = render(createElement(DemoFoCancellations));
+    click(el, "Approve");
+    click(el, "Create");
+    expect(el.textContent).toContain("Refunds");
+    expect(el.textContent).toContain("Pending");
+    expect(el.textContent).toContain("PHP 2,000.00");
+  });
+});
+
 describe("FO view-only sections", () => {
   // Only sections that exist in the nav-derived route table are listed here.
   const cases = [
-    ["/fo/cancellations", "Cancellations & Refunds", "Sunrise Single", "Pending"],
     ["/fo/announcements", "Announcements", "Pool maintenance on Saturday", "Edwin Marquez"],
     ["/fo/messages", "Messages", "Late check-in tonight", "unread"],
   ];

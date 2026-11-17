@@ -45,7 +45,9 @@ export default function DemoSidebar({ role, open, onClose }) {
         (b.status === "Approved" || b.status === "Checked In") &&
         balanceOf(b, data.payments) > 0,
     ),
-    hasPendingCancellations: data.bookings.some((b) => b.status === "Cancelled"),
+    hasPendingCancellations:
+      data.bookings.some((b) => b.status === "Cancellation Requested") ||
+      data.refunds.some((r) => r.status === "Pending"),
     unreadMessagesCount: inbox.filter((n) => !n.isRead).length,
     unresolvedAlertsCount: openAlerts(data.alerts).length,
     pendingTestimonialsCount: pendingTestimonials(data.testimonials).length,
