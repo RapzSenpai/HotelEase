@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { ChevronRight, ConciergeBell, ShieldCheck } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -11,8 +12,8 @@ import { Button } from "@/components/ui/button";
 import { useDemo } from "./DemoContext";
 
 const ROLES = [
-  { id: "fo", label: "Front Office", hint: "Dashboard, bookings, payments", to: "/demo/fo" },
-  { id: "admin", label: "Admin", hint: "Rooms, users, analytics", to: "/demo/admin" },
+  { id: "fo", label: "Front Office", hint: "Dashboard, bookings, payments", to: "/demo/fo", icon: ConciergeBell },
+  { id: "admin", label: "Admin", hint: "Rooms, users, analytics", to: "/demo/admin", icon: ShieldCheck },
 ];
 
 // /demo index: same picker, wired to the route provider. Closing without
@@ -57,12 +58,21 @@ export default function DemoRoleDialog({ open, onOpenChange, onPick }) {
           {ROLES.map((role) => (
             <Button
               key={role.id}
-              variant="outline"
-              className="h-auto w-full flex-col items-start gap-1 px-4 py-3 text-left sm:flex-row sm:items-center sm:gap-3"
+              variant="default"
+              className="h-auto w-full items-center gap-3 rounded-xl px-4 py-3 text-left shadow-[0_2px_10px_rgba(28,28,30,0.15)] hover:bg-primary/90"
               onClick={() => pick(role)}
             >
-              <span className="font-semibold">{role.label}</span>
-              <span className="text-xs text-foreground/60">{role.hint}</span>
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary-foreground/10">
+                <role.icon className="h-4 w-4" aria-hidden="true" />
+              </span>
+              <span className="flex min-w-0 flex-1 flex-col items-start gap-0.5">
+                <span className="font-semibold">{role.label}</span>
+                <span className="text-xs text-primary-foreground/70">{role.hint}</span>
+              </span>
+              <ChevronRight
+                className="h-4 w-4 shrink-0 text-primary-foreground/60"
+                aria-hidden="true"
+              />
             </Button>
           ))}
         </div>
