@@ -75,8 +75,8 @@ async function click(text) {
 async function clickViewProfile(name) {
   const target = [...container.querySelectorAll("button")]
     .find((b) => b.textContent.includes("View profile") &&
-      (b.closest("div.rounded-lg")?.textContent || "").includes(name));
-  if (!target) throw new Error(`No "View profile" button inside the card for ${name}`);
+      (b.closest("tr")?.textContent || "").includes(name));
+  if (!target) throw new Error(`No "View profile" button inside the row for ${name}`);
   await act(async () => { target.click(); });
 }
 
@@ -129,6 +129,30 @@ describe("FoGuestsPage", () => {
     expect(container.textContent).toContain("Prefers high floor");
     expect(container.textContent).toContain("Repeat guest — reliable payer");
     expect(container.textContent).toContain("fo-1@hotelease.ph");
+  });
+
+  it("keeps a long stay list compact until the FO expands it", async () => {
+    listBookingsForUser.mockResolvedValue(
+      Array.from({ length: 8 }, (_, i) => ({
+        id: `bk-many-${i}`,
+        status: "Checked Out",
+        checkInDate: `2026-01-0${i + 1}`,
+        checkOutDate: `2026-01-0${i + 2}`,
+        nights: 1,
+        roomId: "r-1",
+        totalCost: 1000 + i})));
+
+    await renderPage();
+    await clickViewProfile("Juan Dela Cruz");
+
+    expect(container.textContent).toContain("Stay History (8)");
+    expect(container.textContent).toContain("Show all 8 stays");
+    expect(container.textContent).not.toContain("PHP 1,007.00");
+
+    await click("Show all 8 stays");
+
+    expect(container.textContent).toContain("PHP 1,007.00");
+    expect(container.textContent).toContain("Show less");
   });
 
   it("blocks a blank note, then appends through the service and shows it", async () => {

@@ -1,12 +1,20 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Search } from "lucide-react";
+import { ChevronDown, Search } from "lucide-react";
 import { addGuestCrmNote, listGuests, listGuestCrmNotes } from "@/services/userService";
 import { listBookingsForUser } from "@/services/bookingsService";
 import { listRooms } from "@/services/roomsService";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow} from "@/components/ui/table";
 import {
   Dialog,
   DialogContent,
@@ -25,6 +33,9 @@ const STATUS_VARIANT = {
   "Cancelled": "destructive",
   "Rejected": "destructive"};
 
+// A long stay list buries the notes; the FO can expand the rest in place.
+const STAY_PREVIEW = 6;
+
 /* ─── Guest Profile dialog: contact, stay history, CRM notes ───────────────── */
 
 function GuestProfileDialog({ guest, rooms, open, onOpenChange }) {
@@ -36,6 +47,7 @@ function GuestProfileDialog({ guest, rooms, open, onOpenChange }) {
   const [notesError, setNotesError] = useState(false);
   const [noteValue, setNoteValue] = useState("");
   const [noteSaving, setNoteSaving] = useState(false);
+  const [showAllStays, setShowAllStays] = useState(false);
   // Guest whose profile is currently loaded — slow reads for an earlier
   // guest must not clobber the one now on screen.
   const guestRef = useRef(null);
@@ -51,6 +63,7 @@ function GuestProfileDialog({ guest, rooms, open, onOpenChange }) {
     setNotesLoaded(false);
     setNotesError(false);
     setNoteValue("");
+    setShowAllStays(false);
     listBookingsForUser(guest.id)
       .then((rows) => { if (!cancelled) { setHistory(rows); setHistoryLoaded(true); } })
       .catch(() => { if (!cancelled) { setHistoryError(true); setHistoryLoaded(true); } });
@@ -63,6 +76,9 @@ function GuestProfileDialog({ guest, rooms, open, onOpenChange }) {
   }, [open, guest?.id]);
 
   if (!guest) return null;
+
+  const visibleHistory = showAllStays ? history : history.slice(0, STAY_PREVIEW);
+  const canExpandStays = historyLoaded && !historyError && history.length > STAY_PREVIEW;
 
   async function handleAddNote() {
     if (!noteValue.trim()) {
@@ -124,9 +140,22 @@ function GuestProfileDialog({ guest, rooms, open, onOpenChange }) {
           </div>
 
           <div className="rounded-lg border border-border p-3">
-            <p className="mb-2 text-xs font-semibold text-foreground/70">
-              Stay History{historyLoaded && history.length > 0 ? ` (${history.length})` : ""}
-            </p>
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs font-semibold text-foreground/70">
+                Stay History{historyLoaded && history.length > 0 ? ` (${history.length})` : ""}
+              </p>
+              {canExpandStays && (
+                <button
+                  type="button"
+                  aria-expanded={showAllStays}
+                  onClick={() => setShowAllStays((v) => !v)}
+                  className="inline-flex items-center gap-1 text-xs font-medium text-foreground/50 transition-colors hover:text-foreground/80"
+                >
+                  {showAllStays ? "Show less" : `Show all ${history.length} stays`}
+                  <ChevronDown className={`h-3 w-3 transition-transform ${showAllStays ? "rotate-180" : ""}`} />
+                </button>
+              )}
+            </div>
             {!historyLoaded ? (
               <p className="text-xs text-foreground/50">Loading history…</p>
             ) : historyError ? (
@@ -137,7 +166,7 @@ function GuestProfileDialog({ guest, rooms, open, onOpenChange }) {
               <p className="text-xs text-foreground/50">No bookings on record for this guest.</p>
             ) : (
               <ul className="space-y-1.5">
-                {history.map((b) => (
+                {visibleHistory.map((b) => (
                   <li key={b.id} className="flex flex-wrap items-center justify-between gap-2 text-xs">
                     <span className="flex items-center gap-2">
                       <Badge variant={STATUS_VARIANT[b.status] || "default"}>{b.status}</Badge>
@@ -221,27 +250,33 @@ export default function FoGuestsPage() {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return (guests || []).filter((g) => {
-      const hay = `${g.fullName ?? ""} ${g.email ?? ""} ${g.phone ?? ""}`.toLowerCase();
-      return hay.includes(q);
-    });
+    return (guests || [])
+      .filter((g) => {
+        const hay = `${g.fullName ?? ""} ${g.email ?? ""} ${g.phone ?? ""}`.toLowerCase();
+        return hay.includes(q);
+      })
+      .sort((a, b) =>
+        String(a.fullName || a.email || "").localeCompare(
+          String(b.fullName || b.email || ""),
+          undefined,
+          { sensitivity: "base" }));
   }, [guests, search]);
 
   const selected = selectedId ? (guests || []).find((g) => g.id === selectedId) : null;
 
   return (
-    <div className="flex flex-col h-full p-6 text-sm">
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
+    <div className="space-y-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-xl font-semibold">Guests</h1>
-          <p className="text-xs text-foreground/50">
+          <h1 className="font-playfair text-3xl font-semibold">Guests</h1>
+          <p className="text-sm text-foreground/60">
             Guest directory · stay history · internal notes for the front desk
           </p>
         </div>
-        <div className="relative">
+        <div className="relative w-full sm:w-72">
           <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-foreground/40" />
           <Input
-            className="w-64 pl-8"
+            className="pl-8"
             placeholder="Search name, email, phone…"
             aria-label="Search guests"
             value={search}
@@ -250,36 +285,59 @@ export default function FoGuestsPage() {
       </div>
 
       {guestsError ? (
-        <p className="text-foreground/50">
-          Could not load the guest directory — try refreshing the page.
-        </p>
+        <Card>
+          <CardContent className="p-12 text-center text-sm text-foreground/50">
+            Could not load the guest directory — try refreshing the page.
+          </CardContent>
+        </Card>
       ) : guests === null ? (
-        <p className="text-foreground/50">Loading guests…</p>
+        <Card>
+          <CardContent className="p-12 text-center text-sm text-foreground/50">
+            Loading guests…
+          </CardContent>
+        </Card>
       ) : filtered.length === 0 ? (
-        <p className="text-foreground/50">
-          {search.trim() ? "No guests match that search." : "No registered guests yet."}
-        </p>
+        <Card>
+          <CardContent className="p-12 text-center text-sm text-foreground/50">
+            {search.trim() ? "No guests match that search." : "No registered guests yet."}
+          </CardContent>
+        </Card>
       ) : (
-        <div className="space-y-3 max-w-3xl">
-          {filtered.map((g) => (
-            <div key={g.id} className="rounded-lg border border-border p-4">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="font-medium truncate">{g.fullName || "Unnamed guest"}</p>
-                  <p className="text-xs text-foreground/50 truncate">
-                    {[g.email, g.phone].filter(Boolean).join(" · ") || "—"}
-                  </p>
-                </div>
-                <Button
-                  className="shrink-0"
-                  size="sm"
-                  onClick={() => setSelectedId(g.id)}>
-                  View profile
-                </Button>
-              </div>
-            </div>
-          ))}
-        </div>
+        <Card>
+          <CardContent className="pt-6">
+            <p className="mb-3 text-xs text-foreground/50">
+              {filtered.length} guest{filtered.length === 1 ? "" : "s"}
+              {search.trim() ? " matched" : " registered"}
+            </p>
+            <Table className="[&_th]:h-9 [&_th]:px-3 [&_th]:text-xs [&_td]:px-3 [&_td]:py-2.5 [&_td]:text-[13px]">
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Guest</TableHead>
+                  <TableHead>Phone</TableHead>
+                  <TableHead>Guest since</TableHead>
+                  <TableHead className="text-right">Profile</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filtered.map((g) => (
+                  <TableRow key={g.id}>
+                    <TableCell>
+                      <p className="font-medium">{g.fullName || "Unnamed guest"}</p>
+                      <p className="text-xs text-foreground/50">{g.email || "—"}</p>
+                    </TableCell>
+                    <TableCell className="text-foreground/70">{g.phone || "—"}</TableCell>
+                    <TableCell className="text-foreground/60">{formatDate(g.createdAt)}</TableCell>
+                    <TableCell className="text-right">
+                      <Button size="sm" variant="outline" onClick={() => setSelectedId(g.id)}>
+                        View profile
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
       )}
 
       <GuestProfileDialog
